@@ -129,7 +129,7 @@ function appendPhoneLinks({ container, phones }: {
   container: Element;
   phones: string[];
 }) {
-  const doc = container.ownerDocument;
+  const { ownerDocument } = container;
   container.textContent = "";
   for (const phone of phones) {
     const formatted = formatPhone(phone);
@@ -137,7 +137,7 @@ function appendPhoneLinks({ container, phones }: {
       continue;
     }
 
-    const link = doc.createElement("a");
+    const link = ownerDocument.createElement("a");
     link.setAttribute("href", `tel:${formatted.dial}`);
     // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
     link.setAttribute("dir", "ltr");
@@ -171,18 +171,19 @@ export interface BranchRowInput {
  * official nearme page otherwise, and make the phone a tel: link.
  */
 export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInput): void {
-  const doc = row.ownerDocument;
+  const { code, title, street, city, phones } = branch;
+  const { ownerDocument } = row;
   row.setAttribute(SYNTHETIC_ROW_ATTR, "1");
   const detailsHref = detailsVisitGuid ? `${CLINIC_DETAILS_BY_VISIT}${detailsVisitGuid}` : null;
-  const nearme = `${NEARME_NAV}${branch.code}`;
+  const nearme = `${NEARME_NAV}${code}`;
 
   // Both the clinic-name link and the "מידע נוסף" button are a.clinicDetails. With a past visit here,
   // keep them native (site's delegated handler fetches ClinicDetailsByVisit → lightbox); otherwise turn
   // them into a plain nearme link so the site never tries to Ajax-fetch a cross-origin href.
   for (const anchor of row.querySelectorAll("a.clinicDetails")) {
     const isMoreInfoButton = anchor.classList.contains("pull-left");
-    anchor.textContent = isMoreInfoButton ? "מידע נוסף" : branch.title;
-    anchor.setAttribute("title", isMoreInfoButton ? "מידע נוסף" : branch.title);
+    anchor.textContent = isMoreInfoButton ? "מידע נוסף" : title;
+    anchor.setAttribute("title", isMoreInfoButton ? "מידע נוסף" : title);
 
     if (detailsHref) {
       anchor.setAttribute("data-action-link", detailsHref);
@@ -195,12 +196,12 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
       anchor.setAttribute("href", nearme);
       anchor.setAttribute("target", "_blank");
       anchor.setAttribute("rel", "noopener");
-      anchor.setAttribute(DETAILS_CODE_ATTR, branch.code);
+      anchor.setAttribute(DETAILS_CODE_ATTR, code);
     }
   }
 
   // Address, and drop lines that only make sense for a real diary (soonest-slot date, server distance).
-  const address = branch.street ? `${branch.street}, ${branch.city}` : branch.city;
+  const address = street ? `${street}, ${city}` : city;
   for (const detail of row.querySelectorAll(".clinicDetails")) {
     const text = detail.textContent?.trim() ?? "";
     if (text.startsWith(ADDRESS_PREFIX)) {
@@ -219,7 +220,7 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
   if (telephone) {
     appendPhoneLinks({
       container: telephone,
-      phones: branch.phones
+      phones
     });
   }
 
@@ -230,11 +231,11 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
   row.querySelector("a.mapLocationLink")?.setAttribute("href", nearme);
   const rightColumn = row.querySelector(".pull-right");
   if (rightColumn) {
-    const note = doc.createElement("div");
+    const note = ownerDocument.createElement("div");
     note.className = "clinicDetails";
     note.setAttribute("data-clalit-city-note", "1");
     note.textContent = `${NO_DIARY_NOTE} `;
-    const hotline = doc.createElement("a");
+    const hotline = ownerDocument.createElement("a");
     hotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
     // dir=ltr keeps "*2700" from flipping to "2700*" inside the RTL note.
     hotline.setAttribute("dir", "ltr");
@@ -296,19 +297,20 @@ export function applyBranchToDetailsFragment({ template, branch }: {
     return null;
   }
 
+  const { title, code, street, city, phones, accessibility, hours } = branch;
   const nameLabel = [...doc.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
   if (nameLabel?.parentElement) {
     setLabeledLine({
       line: nameLabel.parentElement,
-      value: branch.title
+      value: title
     });
   }
 
-  doc.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${branch.code}`);
+  doc.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${code}`);
 
   const details = doc.querySelector(".css_NoPaddingCell.clinicDetails");
   if (details) {
-    const address = branch.street ? `${branch.street}, ${branch.city}` : branch.city;
+    const address = street ? `${street}, ${city}` : city;
     for (const line of details.querySelectorAll(":scope > div")) {
       const text = line.textContent ?? "";
       if (text.includes("כתובת:")) {
@@ -321,16 +323,16 @@ export function applyBranchToDetailsFragment({ template, branch }: {
         if (telephone) {
           appendPhoneLinks({
             container: telephone,
-            phones: branch.phones
+            phones
           });
         }
       } else if (line.querySelector(".clinicAccessibilty")) {
         const items = [...line.children].find(child => !child.classList.contains("clinicAccessibilty"));
-        if (branch.accessibility.length === 0 || !items) {
+        if (accessibility.length === 0 || !items) {
           line.remove();
         } else {
           items.textContent = "";
-          for (const label of branch.accessibility) {
+          for (const label of accessibility) {
             const item = doc.createElement("div");
             item.textContent = label;
             items.appendChild(item);
@@ -347,11 +349,11 @@ export function applyBranchToDetailsFragment({ template, branch }: {
 
   const hoursTable = doc.querySelector("#receptionHours");
   if (hoursTable) {
-    if (branch.hours.length === 0) {
+    if (hours.length === 0) {
       doc.querySelector(".receptionHoursHeader")?.remove();
       hoursTable.remove();
     } else {
-      const byDay = new Map(branch.hours.map(([day, start, end]) => [
+      const byDay = new Map(hours.map(([day, start, end]) => [
         day,
         `מ ${formatMinutes(start)} עד ${formatMinutes(end)}`
       ]));

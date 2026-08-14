@@ -51,10 +51,11 @@ function ensureDeveloperMode(profileDir: string) {
   const preferencesPath = join(profileDir, "Default", "Preferences");
   mkdirSync(dirname(preferencesPath), { recursive: true });
   const preferences = existsSync(preferencesPath) ? JSON.parse(readFileSync(preferencesPath, "utf-8")) : {};
+  const { extensions } = preferences;
   preferences.extensions = {
-    ...preferences.extensions,
+    ...extensions,
     ui: {
-      ...preferences.extensions?.ui,
+      ...extensions?.ui,
       developer_mode: true
     }
   };

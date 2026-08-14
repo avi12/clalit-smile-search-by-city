@@ -13,10 +13,12 @@ export function haversineKm({ from, to }: {
   from: LatLng;
   to: LatLng;
 }): number {
-  const dLat = toRadians(to[0] - from[0]);
-  const dLng = toRadians(to[1] - from[1]);
+  const [fromLat, fromLng] = from;
+  const [toLat, toLng] = to;
+  const dLat = toRadians(toLat - fromLat);
+  const dLng = toRadians(toLng - fromLng);
   const height =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(from[0])) * Math.cos(toRadians(to[0])) * Math.sin(dLng / 2) ** 2;
+    Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(dLng / 2) ** 2;
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(height));
 }

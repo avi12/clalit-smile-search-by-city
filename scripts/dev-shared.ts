@@ -253,8 +253,8 @@ function evaluateOverCdp({ websocketUrl, expression }: {
           }
         })
       );
-    websocket.onmessage = event => {
-      const message: { id?: number } = JSON.parse(String(event.data));
+    websocket.onmessage = ({ data }) => {
+      const message: { id?: number } = JSON.parse(String(data));
       if (message.id === 1) {
         websocket.close();
         resolvePromise();
@@ -271,10 +271,10 @@ export function isTargetTabUrl(url: string | undefined) {
 
 export async function reloadTargetTabsOverCdp(cdpPort: number) {
   const tabs = (await fetchCdpTargets(cdpPort))
-    .filter(target => target.type === "page" && isTargetTabUrl(target.url) && target.webSocketDebuggerUrl);
+    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
   await Promise.all(
-    tabs.map(target => evaluateOverCdp({
-      websocketUrl: target.webSocketDebuggerUrl!,
+    tabs.map(({ webSocketDebuggerUrl }) => evaluateOverCdp({
+      websocketUrl: webSocketDebuggerUrl!,
       expression: "location.reload()"
     }))
   );
@@ -324,8 +324,8 @@ function reinjectIntoTarget({ websocketUrl, scripts }: {
     websocket.onopen = () => {
       enableId = send({ method: "Runtime.enable" });
     };
-    websocket.onmessage = event => {
-      const message: {
+    websocket.onmessage = ({ data }) => {
+      const { id, method, params }: {
         id?: number;
         method?: string;
         params?: {
@@ -335,9 +335,9 @@ function reinjectIntoTarget({ websocketUrl, scripts }: {
             auxData?: { isDefault?: boolean };
           };
         };
-      } = JSON.parse(String(event.data));
-      if (message.method === "Runtime.executionContextCreated") {
-        const context = message.params?.context;
+      } = JSON.parse(String(data));
+      if (method === "Runtime.executionContextCreated") {
+        const context = params?.context;
         if (context?.auxData?.isDefault && isTargetTabUrl(context.origin)) {
           mainWorldContexts.push(context.id);
         }
@@ -345,7 +345,7 @@ function reinjectIntoTarget({ websocketUrl, scripts }: {
         return;
       }
 
-      if (message.id === enableId) {
+      if (id === enableId) {
         // Pre-existing contexts are replayed before the enable ack, so the list is complete here.
         for (const contextId of mainWorldContexts) {
           for (const expression of scripts) {
@@ -368,7 +368,7 @@ function reinjectIntoTarget({ websocketUrl, scripts }: {
         return;
       }
 
-      if (message.id !== undefined && pendingEvaluations.delete(message.id) && !pendingEvaluations.size) {
+      if (id !== undefined && pendingEvaluations.delete(id) && !pendingEvaluations.size) {
         finish();
       }
     };
@@ -384,10 +384,10 @@ export async function reinjectContentScriptsOverCdp(cdpPort: number) {
   }
 
   const tabs = (await fetchCdpTargets(cdpPort))
-    .filter(target => target.type === "page" && isTargetTabUrl(target.url) && target.webSocketDebuggerUrl);
+    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
   await Promise.all(
-    tabs.map(target => reinjectIntoTarget({
-      websocketUrl: target.webSocketDebuggerUrl!,
+    tabs.map(({ webSocketDebuggerUrl }) => reinjectIntoTarget({
+      websocketUrl: webSocketDebuggerUrl!,
       scripts
     }))
   );

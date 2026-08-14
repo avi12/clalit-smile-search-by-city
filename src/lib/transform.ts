@@ -144,23 +144,23 @@ function rowInCity(
   return collectStrings({ row }).some(text => normalizeCity(text).includes(needle));
 }
 
-export function applyGuarantee(json: unknown, input: TransformInput): TransformResult {
+export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: TransformInput): TransformResult {
   const untouched: TransformResult = {
     transformed: false,
     resultsCount: 0,
     inCityCount: 0,
     json
   };
-  const needle = normalizeCity(input.city);
+  const needle = normalizeCity(city);
   if (!needle) {
     return untouched;
   }
 
   let array: Record<string, unknown>[] | undefined;
-  if (input.rule?.resultsPath) {
+  if (rule?.resultsPath) {
     const located = getByPath({
       source: json,
-      path: input.rule.resultsPath
+      path: rule.resultsPath
     });
     if (isObjectArray(located)) {
       array = located;
@@ -180,12 +180,12 @@ export function applyGuarantee(json: unknown, input: TransformInput): TransformR
     (rowInCity({
       row,
       needle,
-      rule: input.rule
+      rule
     }) ? inCity : others).push(row);
   }
 
   // Order preserved within each group → the site's distance/time sort is respected.
-  const next = input.guaranteeMode === "filter" ? inCity : [...inCity, ...others];
+  const next = guaranteeMode === "filter" ? inCity : [...inCity, ...others];
   array.splice(0, array.length, ...next);
 
   return {

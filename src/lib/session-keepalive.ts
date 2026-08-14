@@ -19,8 +19,8 @@ function isVisible(element: Element): boolean {
     return false;
   }
 
-  const style = getComputedStyle(element);
-  if (style.display === "none" || style.visibility === "hidden") {
+  const { display, visibility } = getComputedStyle(element);
+  if (display === "none" || visibility === "hidden") {
     return false;
   }
 

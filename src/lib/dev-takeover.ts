@@ -34,14 +34,14 @@ export function installDevTakeover(
 ): void {
   const bornAt = Date.now();
   const token = `${bornAt}-${Math.random().toString(36).slice(2)}`;
-  window.addEventListener("message", event => {
-    const parsed = devTakeoverMessageSchema.safeParse(event.data);
+  window.addEventListener("message", ({ data }) => {
+    const parsed = devTakeoverMessageSchema.safeParse(data);
     if (!parsed.success || parsed.data.script !== script) {
       return;
     }
 
-    const foreignIsNewer =
-      parsed.data.bornAt === bornAt ? parsed.data.token > token : parsed.data.bornAt > bornAt;
+    const { bornAt: foreignBornAt, token: foreignToken } = parsed.data;
+    const foreignIsNewer = foreignBornAt === bornAt ? foreignToken > token : foreignBornAt > bornAt;
     if (foreignIsNewer) {
       onSuperseded();
     }

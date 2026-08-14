@@ -165,21 +165,22 @@ export default defineContentScript({
         return untouched;
       }
 
+      const { templateRowHtml, totalDeclared, keptRowCount } = outcome;
       // A real row of the CURRENT search — its ClinicDetailsByDiary link feeds the composed lightbox
       // (GUIDs die with the search session, so keep replacing this with the freshest render's row).
-      if (outcome.templateRowHtml) {
-        latestTemplateRowHtml = outcome.templateRowHtml;
+      if (templateRowHtml) {
+        latestTemplateRowHtml = templateRowHtml;
       }
 
       reportStatus({
         city,
-        resultsCount: outcome.totalDeclared,
-        inCityCount: outcome.keptRowCount
+        resultsCount: totalDeclared,
+        inCityCount: keptRowCount
       });
       return {
         transformed: true,
-        resultsCount: outcome.totalDeclared,
-        inCityCount: outcome.keptRowCount,
+        resultsCount: totalDeclared,
+        inCityCount: keptRowCount,
         json: outcome.json,
         smile: {
           ...outcome,
@@ -216,21 +217,23 @@ export default defineContentScript({
      * live list, order preserved, deduped by clinic name (diary GUIDs change per search). Then, if the
      * distance sort is active, re-rank the finished list by the user's live location.
      */
-    async function finalizeSmileResults(first: MarkedSmileOutcome) {
+    async function finalizeSmileResults(
+      { marker, pageRowCount, totalDeclared, keptRowCount, templateRowHtml }: MarkedSmileOutcome
+    ) {
       const run = ++aggregationRun;
       const city = smileCity();
-      if (!city || !first.pageRowCount) {
+      if (!city || !pageRowCount) {
         return;
       }
 
-      const list = await waitForMarkedList(first.marker);
+      const list = await waitForMarkedList(marker);
       if (!list) {
         return;
       }
 
-      const totalPages = Math.ceil(first.totalDeclared / first.pageRowCount);
+      const totalPages = Math.ceil(totalDeclared / pageRowCount);
       const seenNames = new Set([...list.querySelectorAll("li.diary")].map(rowClinicName));
-      let kept = first.keptRowCount;
+      let kept = keptRowCount;
       for (let page = 2; page <= totalPages; page++) {
         if (superseded || run !== aggregationRun || !config.enabled) {
           return;
@@ -253,13 +256,13 @@ export default defineContentScript({
           return;
         }
 
-        for (const row of extractCityRows({
+        for (const { name, html } of extractCityRows({
           json: envelope,
           searchedCity: city
         })) {
-          if (!seenNames.has(row.name)) {
-            seenNames.add(row.name);
-            list.insertAdjacentHTML("beforeend", row.html);
+          if (!seenNames.has(name)) {
+            seenNames.add(name);
+            list.insertAdjacentHTML("beforeend", html);
             kept += 1;
           }
         }
@@ -274,7 +277,7 @@ export default defineContentScript({
 
         reportStatus({
           city,
-          resultsCount: first.totalDeclared,
+          resultsCount: totalDeclared,
           inCityCount: kept
         });
       }
@@ -292,7 +295,7 @@ export default defineContentScript({
       const added = appendMissingBranches({
         list,
         city,
-        templateRowHtml: first.templateRowHtml,
+        templateRowHtml,
         detailsByTitle
       });
       if (added) {
@@ -307,7 +310,7 @@ export default defineContentScript({
 
         reportStatus({
           city,
-          resultsCount: first.totalDeclared,
+          resultsCount: totalDeclared,
           inCityCount: kept
         });
       }
@@ -447,11 +450,12 @@ export default defineContentScript({
         return;
       }
 
-      if (!(event.target instanceof Element)) {
+      const { target } = event;
+      if (!(target instanceof Element)) {
         return;
       }
 
-      const anchor = event.target.closest(`a[${DETAILS_CODE_ATTR}]`);
+      const anchor = target.closest(`a[${DETAILS_CODE_ATTR}]`);
       if (!anchor) {
         return;
       }
@@ -514,9 +518,9 @@ export default defineContentScript({
         }
 
         navigator.geolocation.getCurrentPosition(
-          position => {
+          ({ coords: { latitude, longitude } }) => {
             cachedPosition = {
-              coords: [position.coords.latitude, position.coords.longitude],
+              coords: [latitude, longitude],
               fetchedAt: Date.now()
             };
             resolve(cachedPosition.coords);
@@ -584,7 +588,8 @@ export default defineContentScript({
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
     function transformJson({ json, url, method }: UrlTransformInput): TransformResult {
-      if (superseded || !config.enabled || !config.city.trim()) {
+      const { enabled, city } = config;
+      if (superseded || !enabled || !city.trim()) {
         return {
           transformed: false,
           resultsCount: 0,
@@ -607,13 +612,13 @@ export default defineContentScript({
       }
 
       const result = applyGuarantee(json, {
-        city: config.city,
+        city,
         guaranteeMode: GUARANTEE_MODE,
         rule
       });
       if (result.transformed) {
         reportStatus({
-          city: config.city,
+          city,
           resultsCount: result.resultsCount,
           inCityCount: result.inCityCount
         });
@@ -745,16 +750,17 @@ export default defineContentScript({
         return state.computed;
       }
 
+      const { method, url } = state;
       logDiscovery({
-        method: state.method,
-        url: state.url,
+        method,
+        url,
         status: xhr.status,
         json
       });
       const outcome = transformForUrl({
         json,
-        url: state.url,
-        method: state.method
+        url,
+        method
       });
       state.computed = {
         text: outcome.transformed ? JSON.stringify(outcome.json) : rawText,

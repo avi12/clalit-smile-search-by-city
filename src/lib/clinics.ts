@@ -717,10 +717,10 @@ export function clinicsForCity(query: string): Clinic[] {
 }
 
 export function clinicCodesForCity(query: string): string[] {
-  return clinicsForCity(query).map(clinic => clinic.code);
+  return clinicsForCity(query).map(({ code }) => code);
 }
 
 /** Distinct base cities, sorted — for the popup's datalist / autocomplete. */
 export function allCities(): string[] {
-  return [...new Set(CLINICS.map(clinic => clinic.city))].sort((first, second) => first.localeCompare(second, "he"));
+  return [...new Set(CLINICS.map(({ city }) => city))].sort((first, second) => first.localeCompare(second, "he"));
 }

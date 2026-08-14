@@ -42,11 +42,11 @@ function isDirectoryClinic(value: unknown): value is DirectoryClinic {
   return value !== null && typeof value === "object";
 }
 
-function decodeRows(payload: DirectoryPayload): DirectoryClinic[] {
+function decodeRows({ m: columnNames, u: rows }: DirectoryPayload): DirectoryClinic[] {
   const clinics: DirectoryClinic[] = [];
-  for (const values of payload.u) {
+  for (const values of rows) {
     const row: Record<string, unknown> = {};
-    payload.m.forEach((key, index) => {
+    columnNames.forEach((key, index) => {
       row[key] = values[index];
     });
 
@@ -69,9 +69,9 @@ if (!response.ok) {
 
 const payload: DirectoryPayload = await response.json();
 const dental = decodeRows(payload)
-  .filter(clinic => clinic.categories === DENTAL_CATEGORY && Array.isArray(clinic.latlng) && clinic.latlng.length === 2)
+  .filter(({ categories, latlng }) => categories === DENTAL_CATEGORY && Array.isArray(latlng) && latlng.length === 2)
   .sort((first, second) => first.code - second.code);
-const smile = dental.filter(clinic => clinic.title.includes(SMILE_TITLE_MARKER));
+const smile = dental.filter(({ title }) => title.includes(SMILE_TITLE_MARKER));
 
 const accessibilityLabels = new Map(payload.acc.map(([id, label]) => [id, label.trim()]));
 
@@ -94,9 +94,9 @@ const branchEntries = smile
   .join(",\n");
 
 const coordEntries = dental
-  .map(clinic => {
-    const [lat, lng] = clinic.latlng!;
-    return `  "${clinic.code}": [${lat}, ${lng}], // ${clinic.title.replaceAll("\n", " ")}`;
+  .map(({ code, title, latlng }) => {
+    const [lat, lng] = latlng!;
+    return `  "${code}": [${lat}, ${lng}], // ${title.replaceAll("\n", " ")}`;
   })
   .join("\n");
 

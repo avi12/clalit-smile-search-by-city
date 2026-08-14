@@ -150,9 +150,9 @@ export default defineContentScript({
       }
     }
 
-    window.addEventListener("message", event => {
-      const parsed = frameRelayMessageSchema.safeParse(event.data);
-      if (superseded || !parsed.success || !isClalitOrigin(event.origin)) {
+    window.addEventListener("message", ({ data, origin, source }) => {
+      const parsed = frameRelayMessageSchema.safeParse(data);
+      if (superseded || !parsed.success || !isClalitOrigin(origin)) {
         return;
       }
 
@@ -161,9 +161,9 @@ export default defineContentScript({
         frameCity = message.city;
         frameStatus = message.status;
         refreshBadge();
-      } else if (message.kind === "hello" && isTopFrame && isWindowSource(event.source)) {
+      } else if (message.kind === "hello" && isTopFrame && isWindowSource(source)) {
         postRelay({
-          target: event.source,
+          target: source,
           message: {
             source: FRAME_RELAY_SOURCE,
             kind: "toggle",
@@ -207,8 +207,7 @@ export default defineContentScript({
     }
 
     for (const type of ["input", "change"] as const) {
-      document.addEventListener(type, event => {
-        const target = event.target;
+      document.addEventListener(type, ({ target }) => {
         if (!superseded && target instanceof HTMLInputElement && isSearchInput(target)) {
           setCity(target.value);
         }
