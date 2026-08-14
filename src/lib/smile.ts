@@ -138,6 +138,8 @@ function appendPhoneLinks({ container, phones }: {
     }
 
     const link = ownerDocument.createElement("a");
+    // The site's own inline-link class (anchors already inherit its color; this adds the underline).
+    link.className = "underline";
     link.setAttribute("href", `tel:${formatted.dial}`);
     // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
     link.setAttribute("dir", "ltr");
@@ -223,6 +225,7 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
     note.setAttribute("data-clalit-city-note", "1");
     note.textContent = `${NO_DIARY_NOTE} `;
     const hotline = ownerDocument.createElement("a");
+    hotline.className = "underline";
     hotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
     // dir=ltr keeps "*2700" from flipping to "2700*" inside the RTL note.
     hotline.setAttribute("dir", "ltr");

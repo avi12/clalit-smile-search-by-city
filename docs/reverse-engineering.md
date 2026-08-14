@@ -455,6 +455,28 @@ single-letter names (`ct`, `et`, `p`, `g`) and are not a stable surface.
 
 ---
 
+## 13. Native styling of injected elements (captured live 2026-08-14)
+
+So the extension's injected elements blend into the site instead of rendering browser-default, captured
+from a real logged-in search + a live `ClinicDetailsByDiary` fetch + a stylesheet scan of the Zimunet
+iframe:
+
+- **The site never links phone numbers.** Rows render them as plain `<span>`s inside
+  `div.clinicTelephone`; the details dialog as `<span class="clinicTelephone">` after a
+  `<span class="title">טלפון:</span>` label. Anchors in the iframe inherit the site link color
+  (`rgb(15,130,209)`) globally; the site's inline-link look adds only `text-decoration: underline` via
+  the **`underline`** class (e.g. the clinic-name link `a.underline.clinicDetails`). Our injected
+  `tel:` anchors therefore carry `class="underline"` and nothing else (`smile.ts appendPhoneLinks` +
+  the *2700 hotline).
+- **The dialog hours table's empty remark div is load-bearing.** `#clinicDetailsLightbox
+  #receptionHours .header { width: 100% }` (yes, on the one-letter day cell) would crush the value
+  column to min-content — the native layout survives only because every value `<td>` contains
+  `<div class="clinicDetailsReceptionRemark" title="">` whose CSS is `display:block; width:210px`,
+  propping the column open. Rebuilding the hours table without that div wraps every "מ 08:00 עד 20:00"
+  to a word a line; the recomposed fragment now includes it.
+- Accessibility items are plain `<div>`s next to a `div.clinicAccessibilty.title` label — the
+  recomposed dialog already reuses that structure unchanged.
+
 ## 11. TL;DR
 
 - Hygienist booking is on Clalit's **Tamuz** scheduler (`e-services.clalit.co.il`, in an iframe),
