@@ -367,6 +367,106 @@ function setLabeledLine({ line, value }: {
   line.appendChild(line.ownerDocument.createTextNode(` ${value}`));
 }
 
+/** The accessibility list: the directory's labels, or drop the line when the branch has none. */
+function applyAccessibilityLine({ line, labels }: {
+  line: Element;
+  labels: string[];
+}): void {
+  const items = [...line.children].find(child => !child.classList.contains("clinicAccessibilty"));
+  if (labels.length === 0 || !items) {
+    line.remove();
+    return;
+  }
+
+  const { ownerDocument } = line;
+  items.textContent = "";
+  for (const label of labels) {
+    const item = ownerDocument.createElement("div");
+    item.textContent = label;
+    items.appendChild(item);
+  }
+}
+
+/** Lines we cannot source honestly for a branch the server never described. */
+const UNSOURCED_DETAIL_LINE = /פקס:|אוטובוסים:|הערות:/;
+
+/** One `<div>` line of the details cell, rewritten for the branch (or removed). */
+function applyBranchToDetailLine({ line, branch }: {
+  line: Element;
+  branch: SmileBranch;
+}): void {
+  const { street, city, phones, accessibility } = branch;
+  const text = line.textContent ?? "";
+  if (text.includes("כתובת:")) {
+    setLabeledLine({
+      line,
+      value: street ? `${street}, ${city}` : city
+    });
+    return;
+  }
+
+  if (text.includes("טלפון:")) {
+    const telephone = line.querySelector(".clinicTelephone");
+    if (telephone) {
+      appendPhoneLinks({
+        container: telephone,
+        phones
+      });
+    }
+
+    return;
+  }
+
+  if (line.querySelector(".clinicAccessibilty")) {
+    applyAccessibilityLine({
+      line,
+      labels: accessibility
+    });
+    return;
+  }
+
+  if (UNSOURCED_DETAIL_LINE.test(text) || line.classList.contains("divClinicRemarksList")) {
+    line.remove();
+  }
+}
+
+/** Rebuild the reception-hours table from the directory's [day, start, end] triples. */
+function rebuildHoursTable({ table, hours }: {
+  table: Element;
+  hours: SmileBranch["hours"];
+}): void {
+  const { ownerDocument } = table;
+  const byDay = new Map(hours.map(([day, start, end]) => [
+    day,
+    `מ ${formatMinutes(start)} עד ${formatMinutes(end)}`
+  ]));
+  table.textContent = "";
+  for (const [day, letter] of RECEPTION_DAY_LETTERS.entries()) {
+    const separatorRow = ownerDocument.createElement("tr");
+    const separatorCell = ownerDocument.createElement("td");
+    separatorCell.setAttribute("colspan", "2");
+    separatorCell.className = "separator";
+    separatorRow.appendChild(separatorCell);
+    table.appendChild(separatorRow);
+
+    const row = ownerDocument.createElement("tr");
+    const header = ownerDocument.createElement("td");
+    header.className = "header";
+    header.textContent = letter;
+    const value = ownerDocument.createElement("td");
+    value.textContent = byDay.get(day) ?? "";
+    // The site's empty remark div is load-bearing: its 210px width is what holds the value column
+    // open (the CSS gives td.header width:100%, which otherwise crushes the hours to a word a line).
+    const remark = ownerDocument.createElement("div");
+    remark.className = "clinicDetailsReceptionRemark";
+    remark.setAttribute("title", "");
+    value.appendChild(remark);
+    row.appendChild(header);
+    row.appendChild(value);
+    table.appendChild(row);
+  }
+}
+
 /** The ClinicDetailsByDiary action link of a real server row's HTML — the details-template source. */
 export function detailsLinkFromRowHtml(html: string): string | null {
   if (!html) {
@@ -394,7 +494,7 @@ export function applyBranchToDetailsFragment({ template, branch }: {
     return null;
   }
 
-  const { title, code, street, city, phones, accessibility, hours } = branch;
+  const { title, code, hours } = branch;
   const nameLabel = [...doc.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
   if (nameLabel?.parentElement) {
     setLabeledLine({
@@ -405,83 +505,28 @@ export function applyBranchToDetailsFragment({ template, branch }: {
 
   doc.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${code}`);
 
-  const details = doc.querySelector(".css_NoPaddingCell.clinicDetails");
-  if (details) {
-    const address = street ? `${street}, ${city}` : city;
-    for (const line of details.querySelectorAll(":scope > div")) {
-      const text = line.textContent ?? "";
-      if (text.includes("כתובת:")) {
-        setLabeledLine({
-          line,
-          value: address
-        });
-      } else if (text.includes("טלפון:")) {
-        const telephone = line.querySelector(".clinicTelephone");
-        if (telephone) {
-          appendPhoneLinks({
-            container: telephone,
-            phones
-          });
-        }
-      } else if (line.querySelector(".clinicAccessibilty")) {
-        const items = [...line.children].find(child => !child.classList.contains("clinicAccessibilty"));
-        if (accessibility.length === 0 || !items) {
-          line.remove();
-        } else {
-          items.textContent = "";
-          for (const label of accessibility) {
-            const item = doc.createElement("div");
-            item.textContent = label;
-            items.appendChild(item);
-          }
-        }
-      } else if (
-        text.includes("פקס:") || text.includes("אוטובוסים:") || text.includes("הערות:") ||
-        line.classList.contains("divClinicRemarksList")
-      ) {
-        line.remove();
-      }
-    }
+  for (const line of doc.querySelector(".css_NoPaddingCell.clinicDetails")?.querySelectorAll(":scope > div") ?? []) {
+    applyBranchToDetailLine({
+      line,
+      branch
+    });
   }
 
   const hoursTable = doc.querySelector("#receptionHours");
-  if (hoursTable) {
-    if (hours.length === 0) {
-      doc.querySelector(".receptionHoursHeader")?.remove();
-      hoursTable.remove();
-    } else {
-      const byDay = new Map(hours.map(([day, start, end]) => [
-        day,
-        `מ ${formatMinutes(start)} עד ${formatMinutes(end)}`
-      ]));
-      hoursTable.textContent = "";
-      RECEPTION_DAY_LETTERS.forEach((letter, day) => {
-        const separatorRow = doc.createElement("tr");
-        const separatorCell = doc.createElement("td");
-        separatorCell.setAttribute("colspan", "2");
-        separatorCell.className = "separator";
-        separatorRow.appendChild(separatorCell);
-        hoursTable.appendChild(separatorRow);
-
-        const row = doc.createElement("tr");
-        const header = doc.createElement("td");
-        header.className = "header";
-        header.textContent = letter;
-        const value = doc.createElement("td");
-        value.textContent = byDay.get(day) ?? "";
-        // The site's empty remark div is load-bearing: its 210px width is what holds the value column
-        // open (the CSS gives td.header width:100%, which otherwise crushes the hours to a word a line).
-        const remark = doc.createElement("div");
-        remark.className = "clinicDetailsReceptionRemark";
-        remark.setAttribute("title", "");
-        value.appendChild(remark);
-        row.appendChild(header);
-        row.appendChild(value);
-        hoursTable.appendChild(row);
-      });
-    }
+  if (!hoursTable) {
+    return doc.body.innerHTML;
   }
 
+  if (hours.length === 0) {
+    doc.querySelector(".receptionHoursHeader")?.remove();
+    hoursTable.remove();
+    return doc.body.innerHTML;
+  }
+
+  rebuildHoursTable({
+    table: hoursTable,
+    hours
+  });
   return doc.body.innerHTML;
 }
 

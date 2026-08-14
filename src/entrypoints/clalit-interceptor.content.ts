@@ -294,14 +294,8 @@ export default defineContentScript({
           return;
         }
 
-        let envelope: unknown;
-        try {
-          envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` });
-        } catch {
-          return;
-        }
-
-        if (superseded || run !== aggregationRun) {
+        const envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }).catch(() => null);
+        if (!envelope || superseded || run !== aggregationRun) {
           return;
         }
 
@@ -483,18 +477,12 @@ export default defineContentScript({
         return;
       }
 
-      let fragment: string | null = null;
-      try {
-        const envelope = await fetchSessionJson({ url: templateLink });
-        const parsed = smileEnvelopeSchema.safeParse(envelope);
-        fragment = parsed.success ? applyBranchToDetailsFragment({
-          template: parsed.data.data,
-          branch
-        }) : null;
-      } catch {
-        fragment = null;
-      }
-
+      const envelope = await fetchSessionJson({ url: templateLink }).catch(() => null);
+      const parsed = smileEnvelopeSchema.safeParse(envelope);
+      const fragment = parsed.success ? applyBranchToDetailsFragment({
+        template: parsed.data.data,
+        branch
+      }) : null;
       if (superseded || !fragment || !pageShowDialog({
         html: fragment,
         note
@@ -597,37 +585,41 @@ export default defineContentScript({
       return scan.actionLink;
     }
 
+    /** The parent document, or null when this frame is the top one / the parent is cross-origin. */
+    function parentDocument(): Document | null {
+      try {
+        const { parent } = window;
+        return parent === window ? null : parent.document;
+      } catch {
+        return null;
+      }
+    }
+
     /**
      * The site's loader lives in the TOP frame (z.showLoader → parent.StandbyScreenShow appends it to
      * the top document's body), so the sweep's caption goes into the parent document when there is one.
      */
-    function siteLoader(): Element | null {
-      const documents = [document];
-      try {
-        const { parent } = window;
-        if (parent !== window && parent.document) {
-          documents.unshift(parent.document);
-        }
-      } catch { /* a cross-origin parent just means no caption */ }
-
-      for (const doc of documents) {
-        const loader = doc.querySelector(SITE_LOADER_SELECTOR);
-        if (loader) {
-          return loader;
-        }
-      }
-
-      return null;
-    }
-
     function captionLoader(text: string) {
-      const loader = siteLoader();
+      const loader =
+        parentDocument()?.querySelector(SITE_LOADER_SELECTOR) ?? document.querySelector(SITE_LOADER_SELECTOR);
       if (loader) {
         setLoaderNote({
           loader,
           text
         });
       }
+    }
+
+    /** The site's own full-screen loader — cosmetic, so a missing/throwing z is never the caller's problem. */
+    function setSiteLoader(visible: boolean) {
+      try {
+        const pageUi = window.z;
+        if (visible) {
+          pageUi?.showLoader?.();
+        } else {
+          pageUi?.hideLoader?.();
+        }
+      } catch { /* site chrome only */ }
     }
 
     /** Sweep the closed specialization list, the user's searched service first. */
@@ -721,15 +713,12 @@ export default defineContentScript({
       }
 
       mintInFlight = true;
-      const pageUi = window.z;
-      try {
-        pageUi?.showLoader?.();
-      } catch { /* site chrome only */ }
+      setSiteLoader(true);
       try {
         const link = await mintDiaryLink({
           navCode: code,
           onStep: progress => captionLoader(sweepStepNote(progress))
-        });
+        }).catch(() => null);
         if (link && !superseded) {
           // Loader stays up while the iframe navigates away, exactly like the site's own button.
           captionLoader(MINT_NAVIGATE_NOTE);
@@ -738,17 +727,11 @@ export default defineContentScript({
         }
 
         await restoreUserSearchSession().catch(() => {});
-        try {
-          pageUi?.hideLoader?.();
-        } catch { /* site chrome only */ }
+        setSiteLoader(false);
         await openRowDetails({
           row,
           note: NO_DIARY_SWEEP_NOTE
-        });
-      } catch {
-        try {
-          pageUi?.hideLoader?.();
-        } catch { /* site chrome only */ }
+        }).catch(() => {});
       } finally {
         mintInFlight = false;
       }
@@ -884,23 +867,23 @@ export default defineContentScript({
         return pastVisitDetails;
       }
 
+      // No history / not reachable leaves the map empty — synthetic rows fall back to the nearme page.
+      const html = await nativeFetch.call(window, "/Zimunet/", {
+        headers: {
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        credentials: "same-origin"
+      }).then(response => response.text()).catch(() => "");
+
       const map = new Map<string, string>();
-      try {
-        const response = await nativeFetch.call(window, "/Zimunet/", {
-          headers: {
-            "X-Requested-With": "XMLHttpRequest"
-          },
-          credentials: "same-origin"
-        });
-        const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-        for (const anchor of doc.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
-          const guid = anchor.getAttribute("data-action-link")?.split("/").pop();
-          const title = anchor.textContent?.trim();
-          if (guid && title && !map.has(title)) {
-            map.set(title, guid);
-          }
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      for (const anchor of doc.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
+        const guid = anchor.getAttribute("data-action-link")?.split("/").pop();
+        const title = anchor.textContent?.trim();
+        if (guid && title && !map.has(title)) {
+          map.set(title, guid);
         }
-      } catch { /* no history / not reachable — synthetic rows fall back to the nearme page */ }
+      }
 
       pastVisitDetails = map;
       return map;
