@@ -107,8 +107,29 @@ export const MINT_CODE_ATTR = "data-clalit-city-mint-code";
 
 const CLINIC_DETAILS_BY_VISIT = "/Zimunet/ClinicDoctor/ClinicDetailsByVisit/";
 const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
-const NO_DIARY_NOTE = "אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד";
 const CENTRAL_BOOKING_PHONE = "*2700";
+
+/** Marks every note the extension adds (row, lightbox, loader) so a second one replaces it, never stacks. */
+export const NOTE_ATTR = "data-clalit-city-note";
+
+const CALL_INSTEAD = "ניתן להתקשר למרפאה או למוקד";
+
+/** On a synthetic row: this search's service has no online diary for the branch. */
+export const NO_DIARY_ROW_NOTE = `אין יומן מקוון לשירות זה — ${CALL_INSTEAD}`;
+
+/** In the fallback lightbox: the click-time sweep just checked every service and found none (docs §6c). */
+export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו את כל שירותי כללית סמייל ואין יומן מקוון לסניף זה — ${CALL_INSTEAD}`;
+
+/** On the loader once the sweep hits: the iframe is about to navigate to the branch's slots page. */
+export const MINT_NAVIGATE_NOTE = "נמצא יומן — פותחים את התורים";
+
+/** On the loader during the sweep — the wait is one fresh search per service, so say which one. */
+export function sweepStepNote({ step, total }: {
+  step: number;
+  total: number;
+}): string {
+  return `בודקים אם יש יומן מקוון לסניף — שירות ${step} מתוך ${total}`;
+}
 
 /**
  * Directory phones come without the leading 0 ("36316561") — render like the site ("03-6316561").
@@ -153,6 +174,25 @@ function appendPhoneLinks({ container, phones }: {
     link.textContent = `${formatted.display} `;
     container.appendChild(link);
   }
+}
+
+/** The "no online diary" note, in the site's own row/details text style, ending in the *2700 hotline. */
+function buildHotlineNote({ ownerDocument, text }: {
+  ownerDocument: Document;
+  text: string;
+}) {
+  const note = ownerDocument.createElement("div");
+  note.className = "clinicDetails";
+  note.setAttribute(NOTE_ATTR, "1");
+  note.textContent = `${text} `;
+  const hotline = ownerDocument.createElement("a");
+  hotline.className = "underline";
+  hotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
+  // dir=ltr keeps "*2700" from flipping to "2700*" inside the RTL note.
+  hotline.setAttribute("dir", "ltr");
+  hotline.textContent = CENTRAL_BOOKING_PHONE;
+  note.appendChild(hotline);
+  return note;
 }
 
 export interface BranchRowInput {
@@ -232,21 +272,74 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
 
   // Repoint the map link at this branch, and add the "no online diary" note with the central hotline.
   row.querySelector("a.mapLocationLink")?.setAttribute("href", nearme);
-  const rightColumn = row.querySelector(".pull-right");
-  if (rightColumn) {
-    const note = ownerDocument.createElement("div");
-    note.className = "clinicDetails";
-    note.setAttribute("data-clalit-city-note", "1");
-    note.textContent = `${NO_DIARY_NOTE} `;
-    const hotline = ownerDocument.createElement("a");
-    hotline.className = "underline";
-    hotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
-    // dir=ltr keeps "*2700" from flipping to "2700*" inside the RTL note.
-    hotline.setAttribute("dir", "ltr");
-    hotline.textContent = CENTRAL_BOOKING_PHONE;
-    note.appendChild(hotline);
-    rightColumn.appendChild(note);
+  row.querySelector(".pull-right")?.appendChild(
+    buildHotlineNote({
+      ownerDocument,
+      text: NO_DIARY_ROW_NOTE
+    })
+  );
+}
+
+/**
+ * Put the reason INSIDE the clinic-details lightbox — the row's own note is hidden behind the dialog
+ * while it is open, and after a failed minting sweep that dialog IS the answer to "לכל התורים". Works
+ * on the site's native ClinicDetailsByVisit view and on our composed fragment alike: both are the same
+ * container (targets.ts SMILE_DETAILS_DIALOG_SELECTOR).
+ */
+export function setDialogNote({ dialog, text }: {
+  dialog: Element;
+  text: string;
+}): void {
+  for (const stale of dialog.querySelectorAll(`[${NOTE_ATTR}]`)) {
+    stale.remove();
   }
+
+  const { ownerDocument } = dialog;
+  const host = dialog.querySelector(".css_NoPaddingCell.clinicDetails") ?? dialog.querySelector("div.content") ?? dialog;
+  host.prepend(
+    buildHotlineNote({
+      ownerDocument,
+      text
+    })
+  );
+}
+
+// The loader is a full-screen fixed flex box holding ONLY the animation, so the caption is absolutely
+// positioned under it — the site's own element and layout stay untouched, and hiding the loader removes
+// the whole div, caption included.
+const LOADER_NOTE_STYLE = {
+  position: "absolute",
+  top: "50%",
+  left: "0",
+  right: "0",
+  margin: "85px auto 0",
+  width: "fit-content",
+  maxWidth: "80%",
+  padding: "10px 20px",
+  borderRadius: "999px",
+  background: "#fff",
+  boxShadow: "0 2px 10px rgba(6, 28, 63, 0.15)",
+  fontSize: "17px",
+  textAlign: "center",
+  direction: "rtl"
+};
+
+/** Caption the site's own loader so the sweep's multi-second wait says what it is doing. */
+export function setLoaderNote({ loader, text }: {
+  loader: Element;
+  text: string;
+}): void {
+  const existing = loader.querySelector<HTMLElement>(`[${NOTE_ATTR}]`);
+  if (existing) {
+    existing.textContent = text;
+    return;
+  }
+
+  const note = loader.ownerDocument.createElement("div");
+  note.setAttribute(NOTE_ATTR, "1");
+  Object.assign(note.style, LOADER_NOTE_STYLE);
+  note.textContent = text;
+  loader.appendChild(note);
 }
 
 // ── Composed clinic-details lightbox (branches with no GUID of any kind) ───────

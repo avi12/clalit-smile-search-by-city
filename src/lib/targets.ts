@@ -130,6 +130,16 @@ export function isSmileRestoreLocation({ pathname, search }: {
 export const SMILE_SPECIALIZATION_SELECT_SELECTOR = "select#SelectedSpecializationCode";
 export const SMILE_SEARCH_BUTTON_SELECTOR = "input.searchButton";
 
+/** The clinic-details lightbox — the site's own ClinicDetailsByVisit view and our composed one share it. */
+export const SMILE_DETAILS_DIALOG_SELECTOR = "#clinicDetailsLightbox";
+
+/**
+ * The site's full-screen loader. `z.showLoader` inside the iframe delegates to the TOP frame's
+ * `StandbyScreenShow`, which appends this div to the top document's body — so the minting sweep's
+ * caption belongs in the PARENT document, not the booking iframe (captured 2026-08-14, docs §6c).
+ */
+export const SITE_LOADER_SELECTOR = "div.loader.lottie";
+
 /** Search-form field: "1" = clinics from the searched city's area, "0" = the whole country. */
 export const SMILE_AREA_FIELD = "IsShowClinicsFromAreaCity";
 

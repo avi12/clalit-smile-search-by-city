@@ -297,8 +297,28 @@ iframe and a real mouse click on another row is blocked while the sweep runs (a 
 bypasses it and is then dropped by the interceptor's `mintInFlight` guard, silently).
 Sweep miss → re-run the user's search to restore the session, rewrite the visible real rows' slots +
 details `data-action-link`s to the fresh GUIDs (every search churns ALL GUIDs, so the displayed ones
-just died), and open the row's own "מידע נוסף" (phones / details). Real rows are never intercepted —
+just died), and open the row's own "מידע נוסף" (phones / details) **with the reason inside that
+lightbox** — the row's own note is behind the dialog while it is open. Real rows are never intercepted —
 the native happy path is untouched.
+
+**Saying what the wait is** (added 2026-08-14; the sweep costs 3.0–5.6 s measured). Two site internals
+make it possible to speak through the site's own chrome instead of drawing our own:
+
+- **`StandbyScreenShow()` is `StandbyScreenShowHide(true, true)`**, whose body is
+  `if(!$('.loader.lottie').length>0 && ShowScreen){ $('body').append('<div class="loader lottie"><lottie-player …></div>') } else { $('.loader.lottie').remove() }`
+  — so the loader is a div **created on demand in the TOP frame's body**, not a hidden node toggled.
+  Two consequences: a caption appended into that div dies with it (no cleanup path to get wrong), and
+  the call is a **toggle by presence** — a second `showLoader()` while one is up REMOVES it (the
+  interceptor calls it once per sweep and its own page fetches bypass `z.Ajax`, which is what shows the
+  site's loader). The div is `position:fixed; inset:0; display:flex; align-items/justify-content:center;
+  background:rgba(255,255,255,.7); z-index:99999999` holding one 130×130 `lottie-player`, so the caption
+  is absolutely positioned 85px under the centre and the site's own layout is never touched.
+- **`z.showDialog(id, html)` prepends `<div id="{id}" role="dialog">{html}</div>` into `#messagesContainer`**
+  (then shows `#overlay` / `#messagesOverlay`, sizes them against the top frame's `ifrmMainTamuz` offset,
+  and binds close on `.close` / ESC / overlay click; `z.closeDialog` empties `#messagesContainer`).
+  Since the site's OWN "מידע נוסף" handler and our composed fragment both go through it with
+  `#clinicDetailsLightbox`, one insertion point covers both lightboxes — and the prepend is synchronous,
+  so a composed dialog can be annotated immediately while the native one is polled for.
 
 ### 6d. The restore document — "back" from a slots page (captured 2026-08-14, afternoon)
 

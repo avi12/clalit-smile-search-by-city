@@ -30,14 +30,20 @@ import {
   extractCityRows,
   filterSmileEnvelope,
   MINT_CODE_ATTR,
+  MINT_NAVIGATE_NOTE,
+  NO_DIARY_ROW_NOTE,
+  NO_DIARY_SWEEP_NOTE,
   refreshRowActionLinks,
   rowClinicName,
   rowNavCode,
   scanEnvelopeForNavCode,
+  setDialogNote,
   setHeaderCount,
+  setLoaderNote,
   setRowDistanceLabel,
   SMILE_MARKER_ATTR,
   type SmileFilterOutcome,
+  sweepStepNote,
   SYNTHETIC_ROW_ATTR
 } from "../lib/smile";
 import {
@@ -47,8 +53,10 @@ import {
   isSmileRestoreLocation,
   isSmileResultsUrl,
   matchEndpointRule,
+  SITE_LOADER_SELECTOR,
   SMILE_AREA_FIELD,
   SMILE_CITY_FIELD,
+  SMILE_DETAILS_DIALOG_SELECTOR,
   SMILE_PAGING_PATH,
   SMILE_SEARCH_BUTTON_SELECTOR,
   SMILE_SEARCH_PATH,
@@ -232,18 +240,30 @@ export default defineContentScript({
       return await response.json();
     }
 
-    /** The site renders our filtered fragment asynchronously; wait for OUR marker to hit the DOM. */
-    async function waitForMarkedList(marker: string): Promise<Element | null> {
+    /**
+     * Poll for an element the SITE renders asynchronously (its own Ajax, or our filtered fragment).
+     * `exclude` skips the one that was already there: the site HIDES a lightbox instead of removing it
+     * (`z.hideAllLightboxes`) and prepends the new one, so a stale dialog can still match the selector.
+     */
+    async function waitForElement({ selector, exclude }: {
+      selector: string;
+      exclude?: Element | null;
+    }): Promise<Element | null> {
       for (let attempt = 0; attempt < 25; attempt++) {
-        const list = document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}="${marker}"] ul`);
-        if (list) {
-          return list;
+        const element = document.querySelector(selector);
+        if (element && element !== exclude) {
+          return element;
         }
 
         await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       return null;
+    }
+
+    /** The site renders our filtered fragment asynchronously; wait for OUR marker to hit the DOM. */
+    function waitForMarkedList(marker: string): Promise<Element | null> {
+      return waitForElement({ selector: `#am_diaries[${SMILE_MARKER_ATTR}="${marker}"] ul` });
     }
 
     /**
@@ -411,16 +431,28 @@ export default defineContentScript({
 
     // ── Composed clinic-details lightbox (no-GUID branches) ────────────────────
     /** Call the page's own z.showDialog with a fragment — the exact call the site's handlers make. */
-    function pageShowDialog(html: string): boolean {
+    function pageShowDialog({ html, note }: {
+      html: string;
+      note: string;
+    }): boolean {
       const pageUi = window.z;
       if (typeof pageUi?.showDialog !== "function") {
         return false;
       }
 
       try {
-        pageUi.showDialog("#clinicDetailsLightbox", html);
+        pageUi.showDialog(SMILE_DETAILS_DIALOG_SELECTOR, html);
       } catch {
         return false;
+      }
+
+      // showDialog prepends the dialog synchronously, so the note lands in the same frame as the open.
+      const dialog = document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR);
+      if (dialog) {
+        setDialogNote({
+          dialog,
+          text: note
+        });
       }
 
       return true;
@@ -439,9 +471,10 @@ export default defineContentScript({
      * committed directory, and open it in the site's own lightbox. Any failure falls back to the
      * anchor's nearme href in a new tab.
      */
-    async function openBranchDetails({ code, fallbackHref }: {
+    async function openBranchDetails({ code, fallbackHref, note }: {
       code: string;
       fallbackHref: string;
+      note: string;
     }) {
       const branch = SMILE_BRANCHES.find(candidate => candidate.code === code);
       const templateLink = detailsLinkFromRowHtml(latestTemplateRowHtml);
@@ -462,8 +495,51 @@ export default defineContentScript({
         fragment = null;
       }
 
-      if (superseded || !fragment || !pageShowDialog(fragment)) {
+      if (superseded || !fragment || !pageShowDialog({
+        html: fragment,
+        note
+      })) {
         openDetailsFallback(fallbackHref);
+      }
+    }
+
+    /**
+     * The details view for a synthetic row, carrying `note` inside the lightbox: our composed fragment
+     * when the branch has no GUID at all, or the site's OWN ClinicDetailsByVisit lightbox when the row
+     * links a past visit there — same container either way, so the note lands in both.
+     */
+    async function openRowDetails({ row, note }: {
+      row: Element | null;
+      note: string;
+    }) {
+      const moreInfo = row?.querySelector<HTMLElement>(
+        `a.pull-left[data-action-link], a.pull-left[${DETAILS_CODE_ATTR}]`
+      );
+      if (!moreInfo) {
+        return;
+      }
+
+      const code = moreInfo.getAttribute(DETAILS_CODE_ATTR);
+      if (code) {
+        await openBranchDetails({
+          code,
+          fallbackHref: moreInfo.getAttribute("href") ?? "",
+          note
+        });
+        return;
+      }
+
+      const stale = document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR);
+      moreInfo.click();
+      const dialog = await waitForElement({
+        selector: SMILE_DETAILS_DIALOG_SELECTOR,
+        exclude: stale
+      });
+      if (dialog && !superseded) {
+        setDialogNote({
+          dialog,
+          text: note
+        });
       }
     }
 
@@ -521,14 +597,57 @@ export default defineContentScript({
       return scan.actionLink;
     }
 
+    /**
+     * The site's loader lives in the TOP frame (z.showLoader → parent.StandbyScreenShow appends it to
+     * the top document's body), so the sweep's caption goes into the parent document when there is one.
+     */
+    function siteLoader(): Element | null {
+      const documents = [document];
+      try {
+        const { parent } = window;
+        if (parent !== window && parent.document) {
+          documents.unshift(parent.document);
+        }
+      } catch { /* a cross-origin parent just means no caption */ }
+
+      for (const doc of documents) {
+        const loader = doc.querySelector(SITE_LOADER_SELECTOR);
+        if (loader) {
+          return loader;
+        }
+      }
+
+      return null;
+    }
+
+    function captionLoader(text: string) {
+      const loader = siteLoader();
+      if (loader) {
+        setLoaderNote({
+          loader,
+          text
+        });
+      }
+    }
+
     /** Sweep the closed specialization list, the user's searched service first. */
-    async function mintDiaryLink(navCode: string): Promise<string | null> {
+    async function mintDiaryLink({ navCode, onStep }: {
+      navCode: string;
+      onStep: (progress: {
+        step: number;
+        total: number;
+      }) => void;
+    }): Promise<string | null> {
       const specs = [activeSearchSpec, ...SMILE_SPECIALIZATION_CODES.filter(code => code !== activeSearchSpec)];
-      for (const spec of specs) {
+      for (const [index, spec] of specs.entries()) {
         if (superseded || !config.enabled) {
           return null;
         }
 
+        onStep({
+          step: index + 1,
+          total: specs.length
+        });
         try {
           const link = await scanSearchForBranch({
             spec,
@@ -607,21 +726,25 @@ export default defineContentScript({
         pageUi?.showLoader?.();
       } catch { /* site chrome only */ }
       try {
-        const link = await mintDiaryLink(code);
+        const link = await mintDiaryLink({
+          navCode: code,
+          onStep: progress => captionLoader(sweepStepNote(progress))
+        });
         if (link && !superseded) {
           // Loader stays up while the iframe navigates away, exactly like the site's own button.
+          captionLoader(MINT_NAVIGATE_NOTE);
           window.location.assign(link);
           return;
         }
 
         await restoreUserSearchSession().catch(() => {});
-        const moreInfo = row?.querySelector<HTMLElement>(
-          `a.pull-left[data-action-link], a.pull-left[${DETAILS_CODE_ATTR}]`
-        );
         try {
           pageUi?.hideLoader?.();
         } catch { /* site chrome only */ }
-        moreInfo?.click();
+        await openRowDetails({
+          row,
+          note: NO_DIARY_SWEEP_NOTE
+        });
       } catch {
         try {
           pageUi?.hideLoader?.();
@@ -666,7 +789,8 @@ export default defineContentScript({
       event.preventDefault();
       openBranchDetails({
         code,
-        fallbackHref
+        fallbackHref,
+        note: NO_DIARY_ROW_NOTE
       }).catch(() => openDetailsFallback(fallbackHref));
     }, true);
 
