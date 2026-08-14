@@ -632,6 +632,60 @@ it is for user-initiated calls, **not** the silent page aggregation the intercep
 Reuse the **public** methods (stable-ish); the per-feature handlers inside `bundles/z` are minified
 single-letter names (`ct`, `et`, `p`, `g`) and are not a stable surface.
 
+### 12a. What a bookable clinic actually carries — and the envelope's error codes (2026-08-14, evening)
+
+Asked head-on: what does a clinic that yields a GUID have that the others don't, and can it be mimicked?
+Probed from the top frame with the guarantee toggled OFF.
+
+- **The slots page keys on the GUID alone.** `/Zimunet/AvailableVisit/Smile/{guid}` renders
+  `z.init({ … AvailableVisits: { availableDays: ['11.1.2027', …], visitId: '{the same guid}',
+  isUpdateVisit: 'False', professionType: 'ClalitSmile', getMonthlyAvailableVisitUrl, getDailyAvailableVisitUrl,
+  createVisitUrl, isCanSelectDate: 'True', datePickerMinDate: '01.01.2027' } })`. **No clinic code, no
+  specialization, no city appears anywhere on that page** — the GUID *is* the clinic + diary + service, and
+  every downstream call (monthly, daily, create) carries only it. So "mimic the bookable clinics for the
+  rest" has no parameter to fill in: the only minting machine is a search that lists the branch, which is
+  exactly what §6c already automates.
+- **The search form's entire surface is three fields** (read off the live form):
+  `SelectedSpecializationCode` (select, 91/97/92), `SelectedCityName` (text + autocomplete against the
+  SHARED `/Zimunet/Diary/GetCities`), `IsShowClinicsFromAreaCity` (hidden + two radios). There is no date,
+  horizon, clinic or "include unavailable" field to widen the result set with.
+- **`z.ErrorType = {Success: 0, Information: 1, Authorization: 2, Application: 3}`** — the envelope's
+  `errorType`. This is the probe-safety fact: **a dead session (2) and a server-side failure (3) both return
+  `200` with no rows**, so a sweep that counts rows alone cannot tell "this code has no diaries" from "your
+  session died three requests ago". Always record `errorType`, and interleave a known-good control (92).
+- **Specialization codes are enforced server-side.** With a live session, `91` and `92` returned result sets
+  and every other code tried (`0, 1, 50, 90, 93–96, 98, 99, 100`) came back `errorType: 3` — including `97`
+  (סתימה), the site's own third option, which has no diaries anywhere today. A wider sweep (2–89, 101–145)
+  ran after the session had died and is therefore void; re-run it with `errorType` recorded before quoting
+  it as coverage.
+- **Two independent sessions, and they die separately.** The OnlineWeb portal cookie expired (a `manual`
+  fetch of `TamuzTransfer.aspx` gave `opaqueredirect`, a followed one landed on `Login.aspx`) while the
+  Zimunet app session kept serving searches normally for a while — then Zimunet expired too, with a double
+  signature: envelopes flip to `errorType: 2` **and** `GET /Zimunet/SmileClinic` fails at the network level
+  (`TypeError: Failed to fetch`), while static assets under `/Zimunet/js/` still return 200.
+- **The booking horizon is months, not days** (92 שיננית, תל אביב יפו): איילון's soonest slot was
+  11.01.2027 with `datePickerMinDate: 01.01.2027` and every available day in that January — i.e. ~5 months
+  out. So a branch missing from the list is not hiding a nearer-term diary behind a short horizon; the
+  search would have shown it a slot five months away if one existed.
+- **The public directory cannot predict bookability — column-by-column proof.** `c.json` has exactly 11
+  columns (`code, title, categories, status, services, address, latlng, phones, time, accessibility,
+  altclinic`). Diffing the two Tel Aviv branches that mint (איילון 865012, ירמיהו 865016) against the three
+  that never do (865014, 865073, 865193): `categories` 111 and `status` 0 for all five, `altclinic` null for
+  all five, identical `time` blocks (Sun-Thu 08:00-20:00, Fri 08:00-13:00) for four of them, and `services`
+  **contradicts** the hypothesis outright — the mintable איילון carries `[]` while the never-listed מגדל
+  המאה carries `[1511]`. Nothing here separates the groups, so a precomputed "which branches are bookable"
+  table is not derivable from Clalit's public data; only a live search can answer it, which is exactly what
+  the click-time sweep does.
+- **Tamuz has downtime, and it looks like a session failure.** On Friday 14.08 at ~19:00 local the whole
+  scheduler went down: `POST /Zimunet/Visits/Login` (the portal → Zimunet handshake, body =
+  `Parameters=<encrypted blob>`) answered `200` with the app's generic error page ("תקלה זמנית. פנה לשירות
+  הלקוחות *2700"), every `/Zimunet/*` document served the same, and `fetch("/Zimunet/…")` from the portal
+  page failed at the network level while `/Zimunet/js/*` assets still returned 200. Just before that,
+  in-flight searches returned `errorType: 2`. So **`errorType: 2` does not prove your login expired** — the
+  backend being down produces the identical symptom; check `TamuzTransfer.aspx` with `redirect: "manual"`
+  (opaqueredirect = really logged out) before re-authenticating. Infrastructure in front: Imperva
+  (`x-cdn: Imperva`, `visid_incap_*` cookies) plus an F5 ASM cookie (`TS…`).
+
 ---
 
 ## 13. Native styling of injected elements (captured live 2026-08-14)
