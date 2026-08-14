@@ -128,6 +128,22 @@ only way to observe the appointment API. Everything in §6–§9 was captured th
 > Tamuz SPA to its home screen and loses the search state — see [`docs`](./) and the dev-takeover
 > channel). No credentials are stored in the repo; the clone reuses the developer's own session.
 
+### 5a. The authenticated entry path — and two login-session gotchas (2026-08-14)
+
+- The working entry into the scheduler is **`/OnlineWeb/Services/Tamuz/TamuzTransfer.aspx`** — it's the
+  `href` of every "זימון תורים" / "להזמין תור חדש" link on the portal home
+  (`/OnlineWeb/Services/FamilyHomePage.aspx`). The prefix-less **`/Tamuz/TamuzTransfer.aspx` returns
+  `500`** (not a login redirect) — logged in or not — so a 500 there says nothing about auth state.
+  Found by hitting the 500 under a verified logged-in CDP session, then scraping the portal home's
+  anchors for Tamuz links.
+- **Don't touch the login tab while the user types.** Re-navigating the tab (or even re-GETting
+  `Login.aspx`) mid-login resets the WebForms form and rotates the BotDetect CAPTCHA, producing an
+  endless "התווים שהזנת לא זהים לתווים שבתמונה" loop.
+- **Passive auth detection over CDP:** poll `fetch("/OnlineWeb/Services/Tamuz/TamuzTransfer.aspx",
+  { redirect: "manual", credentials: "include" })` from any same-origin page — an `opaqueredirect`
+  (or 500 on the legacy path) means logged out, a direct `200` means logged in — or just watch for the
+  tab title to become "עמוד ראשי" (`FamilyHomePage.aspx`). Never probe `Login.aspx` itself (see above).
+
 ---
 
 ## 6. The real Tamuz "Clalit Smile" clinic-search API
