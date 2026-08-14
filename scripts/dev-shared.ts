@@ -11,7 +11,12 @@
  * which depends on Node's child_process socket handling.
  */
 
-import { TARGET_HOSTS } from "../src/lib/targets";
+import {
+  SESSION_TIMEOUT_CONTINUE_SELECTORS,
+  SESSION_TIMEOUT_DIALOG_SELECTOR,
+  SESSION_TIMEOUT_EXIT_HINT,
+  TARGET_HOSTS
+} from "../src/lib/targets";
 import chokidar from "chokidar";
 import {
   appendFileSync,
@@ -237,31 +242,48 @@ export async function fetchCdpTargets(cdpPort: number): Promise<CdpTarget[]> {
   }
 }
 
+/** Evaluate an expression in a page target's top-frame main world; resolves with its (by-value) result. */
 function evaluateOverCdp({ websocketUrl, expression }: {
   websocketUrl: string;
   expression: string;
 }) {
-  return new Promise<void>(resolvePromise => {
+  return new Promise<unknown>(resolvePromise => {
     const websocket = new WebSocket(websocketUrl);
+    let settled = false;
+    function settle(value: unknown) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      websocket.close();
+      resolvePromise(value);
+    }
+
     websocket.onopen = () =>
       websocket.send(
         JSON.stringify({
           id: 1,
           method: "Runtime.evaluate",
           params: {
-            expression
+            expression,
+            returnByValue: true
           }
         })
       );
     websocket.onmessage = ({ data }) => {
-      const message: { id?: number } = JSON.parse(String(data));
+      const message: {
+        id?: number;
+        result?: {
+          result?: { value?: unknown };
+        };
+      } = JSON.parse(String(data));
       if (message.id === 1) {
-        websocket.close();
-        resolvePromise();
+        settle(message.result?.result?.value);
       }
     };
-    websocket.onerror = () => resolvePromise();
-    websocket.onclose = () => resolvePromise();
+    websocket.onerror = () => settle(undefined);
+    websocket.onclose = () => settle(undefined);
   });
 }
 
@@ -278,6 +300,65 @@ export async function reloadTargetTabsOverCdp(cdpPort: number) {
       expression: "location.reload()"
     }))
   );
+}
+
+// ── Session keepalive ───────────────────────────────────────────────────────────
+//
+// A long dev/reverse-engineering session leaves the browser idle while we work, so the portal's
+// "יש פה מישהו?" dialog counts down and logs the session out (dropping the Tamuz search + our login).
+// The extension already auto-continues it (src/lib/session-keepalive.ts), but only while the content
+// script is live on the page - not on the login page or between navigations. This is the belt-and-braces
+// copy: the dev server holds the CDP connection regardless, so it polls the top frame and clicks the
+// site's own "המשך" (continue) button. Selectors are the SSOT ones from targets.ts; only the few lines
+// of click glue are restated here as a CDP-eval string (a live DOM module can't be serialized to eval).
+
+const SESSION_KEEPALIVE_INTERVAL_MS = 30_000;
+
+function sessionKeepaliveExpression() {
+  const dialogSelector = JSON.stringify(SESSION_TIMEOUT_DIALOG_SELECTOR);
+  const continueSelectors = JSON.stringify([...SESSION_TIMEOUT_CONTINUE_SELECTORS]);
+  const exitSource = JSON.stringify(SESSION_TIMEOUT_EXIT_HINT.source);
+  const exitFlags = JSON.stringify(SESSION_TIMEOUT_EXIT_HINT.flags);
+  return `(() => {
+    const dialog = document.querySelector(${dialogSelector});
+    if (!dialog || dialog.getAttribute("aria-hidden") === "true") return false;
+    const style = getComputedStyle(dialog);
+    if (style.display === "none" || style.visibility === "hidden" || dialog.getBoundingClientRect().height === 0) {
+      return false;
+    }
+    const exitHint = new RegExp(${exitSource}, ${exitFlags});
+    for (const selector of ${continueSelectors}) {
+      const button = dialog.querySelector(selector) || document.querySelector(selector);
+      if (!button) continue;
+      const signature = (button.textContent || "") + " " + (button.getAttribute("onclick") || "") + " " +
+        (button.getAttribute("href") || "");
+      if (!exitHint.test(signature)) { button.click(); return true; }
+    }
+    return false;
+  })()`;
+}
+
+async function pollSessionKeepalive(cdpPort: number) {
+  const tabs = (await fetchCdpTargets(cdpPort))
+    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
+  const expression = sessionKeepaliveExpression();
+  for (const { webSocketDebuggerUrl } of tabs) {
+    const clicked = await evaluateOverCdp({
+      websocketUrl: webSocketDebuggerUrl!,
+      expression
+    });
+    if (clicked === true) {
+      logEvent("Session keepalive: clicked the portal 'המשך' on the idle dialog to hold the session");
+    }
+  }
+}
+
+export function startSessionKeepalive(cdpPort: number) {
+  const timer = setInterval(() => {
+    pollSessionKeepalive(cdpPort).catch(() => {});
+  }, SESSION_KEEPALIVE_INTERVAL_MS);
+  timer.unref();
+  return timer;
 }
 
 /**
@@ -430,6 +511,7 @@ export async function runDevServer(target: BrowserTarget) {
   suppressWebExtInfoLogs();
   const { runner, cdpPort } = await target.launch(profileDirectory);
   logEvent(`${target.name} launched with extension sideloaded (CDP on 127.0.0.1:${cdpPort}).`);
+  startSessionKeepalive(cdpPort);
   console.log("Watching for file changes...\n");
 
   let isRebuilding = false;
