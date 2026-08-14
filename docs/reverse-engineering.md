@@ -794,6 +794,32 @@ ophthalmologist, not a dentist.)
 branch, the website books only what the Smile search offers, and everything else is a phone call to the
 clinic — which is exactly what the extension's fallback dialog says, with the branch's number and *2700.
 
+### 12e. A SECOND appointments route — `AvailableVisit/Index/{visitGuid}` (captured 2026-08-14, 22:00)
+
+Found by watching the site do it rather than by asking the endpoints: clicking the ENABLED "הזמן תור"
+on `/Zimunet/` navigates the iframe to **`/Zimunet/AvailableVisit/Index/{visitGuid}`** — an appointments
+page keyed to a past VISIT, with no search anywhere in the flow. What it renders is the real thing:
+`תור ל{profession}`, `תור למרפאה: {clinic}, כתובת …, טלפון …`, the month calendar, the hour/name/gender
+filters, `a.backToDiaries` → `SmileClinic?isRestoreSearch=False`, and — when the diary has nothing — the
+site's own `אין תורים פנויים` plus "זמנית לא ניתן לזמן לתור זה דרך האינטרנט".
+
+Three facts make it useful:
+
+- **It answers for Clalit Smile branches**, even though the visits list renders their button
+  `wideButtonDisabled` (§12d). Verified on רמת אביב (`0d32274b…` → "תור לרופא שיניים · רמת אביב - כללית
+  סמייל") and איילון (`cdb39a88…` → "תור לשיננות"). The disabled button is a UI policy, not a closed door.
+- **It is doctor-scoped, not clinic-scoped**: איילון's page (the hygienist from the past visit) showed no
+  available days at the same moment the Smile search offered two bookable slots at איילון through a
+  different diary. So it complements the search, never replaces it.
+- **Visit handles rotate exactly like diary GUIDs.** The same visit answered `2375b962…` on one render of
+  `/Zimunet/` and `7451d0ec…` on the next; a stale one gives `errorType: 3` ("תקלה זמנית"). Read the
+  handle at click time — `/Zimunet/Visits` returns the same list if the home page is inconvenient.
+
+**Shipped** (`0056ee0`): after a failed sweep the row navigates here when the user has a past visit at
+that branch, and only falls back to the composed lightbox + watch when there is no visit to key on. So
+רמת אביב — a branch with no diary in any service — now opens its own appointments page, with Clalit's own
+"temporarily not bookable online" message, instead of a modal.
+
 **So the ceiling stands: a Smile branch is bookable online only through a Tamuz search that lists it.**
 The client bundle's full action list (§12) contains no clinic-code booking entrance, the slots page keys
 on the session GUID alone (§12a), and the public marketing channel is a lead form. What is left is
