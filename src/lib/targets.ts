@@ -48,6 +48,30 @@ export const SEARCH_CITY_SELECTORS: string[] = ["input#SelectedCityName"];
 /** Fallback: an input whose placeholder / aria-label / name hints it's a city / location search. */
 export const SEARCH_CITY_HINT = /(עיר|יישוב|ישוב|כתובת|מיקום|חיפוש|city|town|address|location|search)/i;
 
+// ── The portal idle / session-timeout dialog (captured 2026-08-14 from the live top frame) ──────────
+//
+// A couple of minutes before it logs an idle session out, the Clalit portal shows an "יש פה מישהו?"
+// dialog (`#pnlSessionExpiringInfo`, an AjaxControlToolkit ModalPopupExtender, `role="alertdialog"`) in
+// the TOP frame with two buttons: "המשך" (continue → the portal's `clearLogOutTimer()` + a postback that
+// reloads `RefreshSession.aspx`) and "יציאה" (exit → `logOut()`). Left alone it counts down and logs
+// out, dropping the Tamuz search state. The keepalive watcher clicks the site's OWN continue button, so
+// the session refresh is the portal's, not ours.
+
+/** The idle/session-expiring dialog panel (top frame). */
+export const SESSION_TIMEOUT_DIALOG_SELECTOR = "#pnlSessionExpiringInfo";
+
+/**
+ * The "המשך" (continue) button, most-specific first: the exact master-page id, then a resilient fallback
+ * (the panel's strong action button — the "יציאה" exit button carries `weakButton`, this one does not).
+ */
+export const SESSION_TIMEOUT_CONTINUE_SELECTORS = [
+  "#ctl00_ctl00_LogOutTimeOut_btnMasterOk_lnkSubButton",
+  `${SESSION_TIMEOUT_DIALOG_SELECTOR} a.online_blue_button:not(.weakButton)`
+] as const;
+
+/** Never click the exit control by mistake: its text is "יציאה" and its handler calls `logOut()`. */
+export const SESSION_TIMEOUT_EXIT_HINT = /logout|יציאה/i;
+
 // ── Request classification ─────────────────────────────────────────────────────
 
 const INTERESTING_URL_PATTERN =
