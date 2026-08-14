@@ -103,16 +103,47 @@ const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
 const NO_DIARY_NOTE = "אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד";
 const CENTRAL_BOOKING_PHONE = "*2700";
 
-/** Directory phones come without the leading 0 ("36316561") — render like the site ("03-6316561"). */
-function formatPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
+/**
+ * Directory phones come without the leading 0 ("36316561") — render like the site ("03-6316561").
+ * A parenthesized IVR hint like "077-8012222 (1)" stays visible but its digit is never dialed.
+ */
+function formatPhone(raw: string) {
+  const hintStart = raw.indexOf("(");
+  const digits = (hintStart === -1 ? raw : raw.slice(0, hintStart)).replace(/\D/g, "");
   if (!digits) {
-    return "";
+    return null;
   }
 
   const withZero = digits.startsWith("0") ? digits : `0${digits}`;
   const areaLength = withZero.startsWith("05") || withZero.startsWith("07") ? 3 : 2;
-  return `${withZero.slice(0, areaLength)}-${withZero.slice(areaLength)}`;
+  const display = `${withZero.slice(0, areaLength)}-${withZero.slice(areaLength)}`;
+  const hint = hintStart === -1 ? "" : raw.slice(hintStart).trim();
+  return {
+    dial: withZero,
+    display: hint ? `${display} ${hint}` : display
+  };
+}
+
+/** Render directory phones as tel: links into a telephone slot (the row and the lightbox share this). */
+function appendPhoneLinks({ container, phones }: {
+  container: Element;
+  phones: string[];
+}) {
+  const doc = container.ownerDocument;
+  container.textContent = "";
+  for (const phone of phones) {
+    const formatted = formatPhone(phone);
+    if (!formatted) {
+      continue;
+    }
+
+    const link = doc.createElement("a");
+    link.setAttribute("href", `tel:${formatted.dial}`);
+    // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
+    link.setAttribute("dir", "ltr");
+    link.textContent = `${formatted.display} `;
+    container.appendChild(link);
+  }
 }
 
 /** Set an element's visible text without disturbing a leading label text node (e.g. "כתובת: "). */
@@ -183,21 +214,13 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
     }
   }
 
-  // Phones as a tel: link, reusing the row's own telephone slot.
+  // Phones as tel: links, reusing the row's own telephone slot.
   const telephone = row.querySelector(".clinicTelephone");
   if (telephone) {
-    telephone.textContent = "";
-    for (const phone of branch.phones) {
-      const formatted = formatPhone(phone);
-      if (!formatted) {
-        continue;
-      }
-
-      const link = doc.createElement("a");
-      link.setAttribute("href", `tel:${formatted.replace("-", "")}`);
-      link.textContent = `${formatted} `;
-      telephone.appendChild(link);
-    }
+    appendPhoneLinks({
+      container: telephone,
+      phones: branch.phones
+    });
   }
 
   // No bookable diary → remove the "לכל התורים" button (and its duplicate #CreateVisitButton id).
@@ -296,7 +319,10 @@ export function applyBranchToDetailsFragment({ template, branch }: {
       } else if (text.includes("טלפון:")) {
         const telephone = line.querySelector(".clinicTelephone");
         if (telephone) {
-          telephone.textContent = branch.phones.map(formatPhone).filter(Boolean).join(" ");
+          appendPhoneLinks({
+            container: telephone,
+            phones: branch.phones
+          });
         }
       } else if (line.querySelector(".clinicAccessibilty")) {
         const items = [...line.children].find(child => !child.classList.contains("clinicAccessibilty"));
