@@ -748,6 +748,33 @@ What remains is timing — the click-time sweep already converts "listed under a
 booking page, and only a watcher (poll the sweep, tell the user the moment a slot appears) could convert
 "no slot yet" into one.
 
+### 12d. Tamuz says it out loud: Smile is phone-only per doctor (captured 2026-08-14, 21:00)
+
+The last entrance that does NOT depend on the city search is the **repeat-visit** button on `/Zimunet/`:
+every past visit renders a `div.historyVisitCreateVisit` labelled "הזמן תור", which for a bookable
+doctor is `wideButtonEnabled` carrying `data-action-link="/Zimunet/Visit/CanCreateVisit/{visitGuid}"` —
+a booking path keyed to the visit, not to a search. Read across this account's history:
+
+| clinic | profession | repeat-booking button |
+| --- | --- | --- |
+| למד - תל אביב | א.א.ג. | **enabled** → `CanCreateVisit/{guid}` |
+| מרכז מומחים מגדל המאה | עיניים | **enabled** → `CanCreateVisit/{guid}` |
+| איילון - כללית סמייל | שיננות | disabled |
+| ירמיהו - כללית סמייל (×2) | שיננות / רופא שיניים | disabled |
+| רמת אביב - כללית סמייל | רופא שיניים | disabled |
+
+Every Smile row carries the same `title`:
+**"לא ניתן להזמין תור לרופא הזה דרך האתר. פנה למרפאה שלך בטלפון"** — including איילון and ירמיהו, which
+ARE bookable this minute through the Smile search. So the repeat-visit path is a *personal-diary* feature
+that Smile never participates in; it is not a second door, and its disabled state is not evidence about
+availability. (Note the near-miss in the same list: "מרכז מומחים מגדל המאה" is the specialists centre in
+that building — a different clinic entity from "מגדל המאה - כללית סמייל", and its enabled button books an
+ophthalmologist, not a dentist.)
+
+**Clalit's own UI therefore gives the same answer this document reached from the wire**: for a Smile
+branch, the website books only what the Smile search offers, and everything else is a phone call to the
+clinic — which is exactly what the extension's fallback dialog says, with the branch's number and *2700.
+
 **So the ceiling stands: a Smile branch is bookable online only through a Tamuz search that lists it.**
 The client bundle's full action list (§12) contains no clinic-code booking entrance, the slots page keys
 on the session GUID alone (§12a), and the public marketing channel is a lead form. What is left is
