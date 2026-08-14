@@ -97,7 +97,8 @@ export const SYNTHETIC_ROW_ATTR = "data-clalit-city-synthetic";
 
 const CLINIC_DETAILS_BY_VISIT = "/Zimunet/ClinicDoctor/ClinicDetailsByVisit/";
 const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
-const NO_DIARY_NOTE = "אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה";
+const NO_DIARY_NOTE = "אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד";
+const CENTRAL_BOOKING_PHONE = "*2700";
 
 /** Directory phones come without the leading 0 ("36316561") — render like the site ("03-6316561"). */
 function formatPhone(raw: string): string {
@@ -195,14 +196,20 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
   // No bookable diary → remove the "לכל התורים" button (and its duplicate #CreateVisitButton id).
   row.querySelector("#CreateVisitButton, a.diaryButton")?.remove();
 
-  // Repoint the map link at this branch, and add the "no online diary" note.
+  // Repoint the map link at this branch, and add the "no online diary" note with the central hotline.
   row.querySelector("a.mapLocationLink")?.setAttribute("href", nearme);
   const rightColumn = row.querySelector(".pull-right");
   if (rightColumn) {
     const note = doc.createElement("div");
     note.className = "clinicDetails";
     note.setAttribute("data-clalit-city-note", "1");
-    note.textContent = NO_DIARY_NOTE;
+    note.textContent = `${NO_DIARY_NOTE} `;
+    const hotline = doc.createElement("a");
+    hotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
+    // dir=ltr keeps "*2700" from flipping to "2700*" inside the RTL note.
+    hotline.setAttribute("dir", "ltr");
+    hotline.textContent = CENTRAL_BOOKING_PHONE;
+    note.appendChild(hotline);
     rightColumn.appendChild(note);
   }
 }
