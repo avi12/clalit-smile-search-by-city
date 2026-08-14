@@ -98,6 +98,13 @@ export const SYNTHETIC_ROW_ATTR = "data-clalit-city-synthetic";
 /** Marks "מידע נוסף" anchors that open the composed clinic-details lightbox (value = branch code). */
 export const DETAILS_CODE_ATTR = "data-clalit-city-details-code";
 
+/**
+ * Marks a synthetic row's "לכל התורים" button (value = branch code). The row has no diary GUID — one
+ * only exists inside the server session's LAST search — so the interceptor's click handler mints a
+ * fresh GUID on demand (a specialization sweep of new searches) and navigates to it (docs §6c).
+ */
+export const MINT_CODE_ATTR = "data-clalit-city-mint-code";
+
 const CLINIC_DETAILS_BY_VISIT = "/Zimunet/ClinicDoctor/ClinicDetailsByVisit/";
 const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
 const NO_DIARY_NOTE = "אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד";
@@ -213,8 +220,15 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
     });
   }
 
-  // No bookable diary → remove the "לכל התורים" button (and its duplicate #CreateVisitButton id).
-  row.querySelector("#CreateVisitButton, a.diaryButton")?.remove();
+  // No diary GUID exists YET for this branch — keep the native "לכל התורים" button but strip its
+  // data-action-link (the site's delegated handler only fires on that attribute) and mark it for the
+  // interceptor's click-time GUID minting instead. The diary set fluctuates intraday, so a diary may
+  // exist by the time the user clicks even though the search omitted this branch.
+  const diaryButton = row.querySelector("#CreateVisitButton, a.diaryButton");
+  if (diaryButton) {
+    diaryButton.removeAttribute("data-action-link");
+    diaryButton.setAttribute(MINT_CODE_ATTR, code);
+  }
 
   // Repoint the map link at this branch, and add the "no online diary" note with the central hotline.
   row.querySelector("a.mapLocationLink")?.setAttribute("href", nearme);
@@ -502,6 +516,87 @@ export function filterSmileEnvelope(
     keptRowCount,
     templateRowHtml
   };
+}
+
+// ── Click-time GUID minting (synthetic rows' "לכל התורים") ─────────────────────
+
+const SLOTS_LINK_SELECTOR = "a[data-action-link*=\"/AvailableVisit/Smile/\"]";
+const DETAILS_LINK_SELECTOR = "a[data-action-link*=\"ClinicDetailsByDiary\"]";
+
+export interface SmileEnvelopeScan {
+  /** The branch's fresh "לכל התורים" link (slots page, /AvailableVisit/Smile/{guid}) — null if absent. */
+  actionLink: string | null;
+  totalDeclared: number;
+  pageRowCount: number;
+  /** A real row of THIS search — its ClinicDetailsByDiary GUID is current while the search is last. */
+  firstRowHtml: string;
+}
+
+/** Scan one results envelope for a branch (by nav code) and its fresh slots link. */
+export function scanEnvelopeForNavCode({ json, navCode }: {
+  json: unknown;
+  /** Omit to read only the page metadata (totals + template row). */
+  navCode?: string;
+}): SmileEnvelopeScan {
+  const html = getSmileHtml(json);
+  if (!html) {
+    return {
+      actionLink: null,
+      totalDeclared: 0,
+      pageRowCount: 0,
+      firstRowHtml: ""
+    };
+  }
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const rows = [...doc.querySelectorAll("li.diary")];
+  const match = navCode ? rows.find(row => rowNavCode(row) === navCode) : undefined;
+  return {
+    actionLink: match?.querySelector(SLOTS_LINK_SELECTOR)?.getAttribute("data-action-link") ?? null,
+    totalDeclared: readDeclaredTotal(doc),
+    pageRowCount: rows.length,
+    firstRowHtml: rows[0]?.outerHTML ?? ""
+  };
+}
+
+/**
+ * Heal the LIVE list after a minting sweep: every new search re-mints the session's GUIDs, so the
+ * displayed real rows' slots/details links are dead. Given an envelope of the restored (re-run) user
+ * search, rewrite matching rows' action links to the fresh GUIDs. Returns the nav codes refreshed.
+ */
+export function refreshRowActionLinks({ list, json }: {
+  list: Element;
+  json: unknown;
+}): string[] {
+  const html = getSmileHtml(json);
+  if (!html) {
+    return [];
+  }
+
+  const liveByCode = new Map<string, Element>();
+  for (const row of list.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)) {
+    liveByCode.set(rowNavCode(row), row);
+  }
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const refreshed: string[] = [];
+  for (const freshRow of doc.querySelectorAll("li.diary")) {
+    const liveRow = liveByCode.get(rowNavCode(freshRow));
+    if (!liveRow) {
+      continue;
+    }
+
+    for (const selector of [SLOTS_LINK_SELECTOR, DETAILS_LINK_SELECTOR]) {
+      const freshLink = freshRow.querySelector(selector)?.getAttribute("data-action-link");
+      if (freshLink) {
+        liveRow.querySelector(selector)?.setAttribute("data-action-link", freshLink);
+      }
+    }
+
+    refreshed.push(rowNavCode(freshRow));
+  }
+
+  return refreshed;
 }
 
 export interface SmileCityRow {

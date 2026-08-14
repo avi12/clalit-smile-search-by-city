@@ -13,7 +13,7 @@ A WXT MV3 Chrome extension that guarantees a searched city in Clalit's "Tamuz" /
 
 # Architecture
 Two content scripts, both `allFrames` (the booking UI is an iframe):
-- `src/entrypoints/clalit-interceptor.content.ts` - MAIN world: patches fetch/XHR, rewrites the outgoing search (area → all-country, `sortValue=4` → `3`), filters responses to the city, aggregates the remaining server pages, appends no-diary branches, re-ranks by live location, and opens the site's clinic-details lightbox for no-GUID branches (fragment recomposed from the committed directory, shown via the page's own `z.showDialog`)
+- `src/entrypoints/clalit-interceptor.content.ts` - MAIN world: patches fetch/XHR, rewrites the outgoing search (area → all-country, `sortValue=4` → `3`), filters responses to the city, aggregates the remaining server pages, appends no-diary branches, re-ranks by live location, mints a synthetic row's diary GUID at click time (specialization-sweep of fresh searches → navigate; on miss restore the user's search session + heal the rendered links), and opens the site's clinic-details lightbox for no-GUID branches (fragment recomposed from the committed directory, shown via the page's own `z.showDialog`)
 - `src/entrypoints/clalit-bridge.content.ts` - ISOLATED world: reads the city from the site's search box, pushes config to MAIN over the window channel, renders the status badge (top frame only; child frames relay state up via `postMessage`)
 
 Key lib modules:

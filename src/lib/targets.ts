@@ -109,6 +109,20 @@ export const SMILE_SORT_PATH = "/Zimunet/SmileClinic/SortSmileDiaries";
 /** Search-form field: "1" = clinics from the searched city's area, "0" = the whole country. */
 export const SMILE_AREA_FIELD = "IsShowClinicsFromAreaCity";
 
+/** Search-form field: the site-canonical city its autocomplete committed. */
+export const SMILE_CITY_FIELD = "SelectedCityName";
+
+/** Search-form field: which dental service the search covers. */
+export const SMILE_SPECIALIZATION_FIELD = "SelectedSpecializationCode";
+
+/**
+ * The site's CLOSED specialization list (its own form's options, re-verified live 2026-08-14):
+ * 91 בדיקת רופא · 97 סתימה · 92 שיננית. A diary GUID is mintable only by a search, so a branch absent
+ * from all three has no server entrance at all (docs §10b) — this list is what the click-time minting
+ * sweep iterates.
+ */
+export const SMILE_SPECIALIZATION_CODES = ["92", "91", "97"] as const;
+
 /** Any /Zimunet/SmileClinic/* call whose envelope carries the results fragment. */
 export function isSmileResultsUrl(url: string): boolean {
   return [SMILE_SEARCH_PATH, SMILE_PAGING_PATH, SMILE_SORT_PATH].some(path => url.includes(path));

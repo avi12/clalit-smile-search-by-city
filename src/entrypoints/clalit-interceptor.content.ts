@@ -29,8 +29,11 @@ import {
   detailsLinkFromRowHtml,
   extractCityRows,
   filterSmileEnvelope,
+  MINT_CODE_ATTR,
+  refreshRowActionLinks,
   rowClinicName,
   rowNavCode,
+  scanEnvelopeForNavCode,
   setHeaderCount,
   setRowDistanceLabel,
   SMILE_MARKER_ATTR,
@@ -44,9 +47,12 @@ import {
   isSmileResultsUrl,
   matchEndpointRule,
   SMILE_AREA_FIELD,
+  SMILE_CITY_FIELD,
   SMILE_PAGING_PATH,
   SMILE_SEARCH_PATH,
-  SMILE_SORT_PATH
+  SMILE_SORT_PATH,
+  SMILE_SPECIALIZATION_CODES,
+  SMILE_SPECIALIZATION_FIELD
 } from "../lib/targets";
 import { applyGuarantee, type TransformResult } from "../lib/transform";
 import { defineContentScript } from "#imports";
@@ -54,6 +60,8 @@ import { defineContentScript } from "#imports";
 /** The Zimunet site bundle's own UI namespace — the MAIN world sees the page's globals. */
 interface ZimunetPageUi {
   showDialog?: (selector: string, html: string) => void;
+  showLoader?: () => void;
+  hideLoader?: () => void;
 }
 
 declare global {
@@ -117,6 +125,9 @@ export default defineContentScript({
     // search request itself, so filtering never drifts from what's in the search box vs what was
     // submitted. Sort/paging calls inherit it (they operate on the same server session).
     let activeSearchCity = "";
+    // The specialization the user's search submitted — the minting sweep tries it first, and it is
+    // what a session restore re-runs after a failed sweep.
+    let activeSearchSpec: string = SMILE_SPECIALIZATION_CODES[0];
     let renderCounter = 0;
     let aggregationRun = 0;
     let latestTemplateRowHtml = "";
@@ -197,6 +208,27 @@ export default defineContentScript({
       });
     }
 
+    /** GET/POST a /Zimunet/ endpoint with the PAGE's own session, bypassing our own patches. */
+    async function fetchSessionJson({ url, body }: {
+      url: string;
+      body?: string;
+    }): Promise<unknown> {
+      const headers: Record<string, string> = {
+        "X-Requested-With": "XMLHttpRequest"
+      };
+      if (body !== undefined) {
+        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+      }
+
+      const response = await nativeFetch.call(window, url, {
+        method: body === undefined ? "GET" : "POST",
+        headers,
+        body,
+        credentials: "same-origin"
+      });
+      return await response.json();
+    }
+
     /** The site renders our filtered fragment asynchronously; wait for OUR marker to hit the DOM. */
     async function waitForMarkedList(marker: string): Promise<Element | null> {
       for (let attempt = 0; attempt < 25; attempt++) {
@@ -241,13 +273,7 @@ export default defineContentScript({
 
         let envelope: unknown;
         try {
-          const response = await nativeFetch.call(window, `${SMILE_PAGING_PATH}?pageNumber=${page}`, {
-            headers: {
-              "X-Requested-With": "XMLHttpRequest"
-            },
-            credentials: "same-origin"
-          });
-          envelope = await response.json();
+          envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` });
         } catch {
           return;
         }
@@ -423,13 +449,7 @@ export default defineContentScript({
 
       let fragment: string | null = null;
       try {
-        const response = await nativeFetch.call(window, templateLink, {
-          headers: {
-            "X-Requested-With": "XMLHttpRequest"
-          },
-          credentials: "same-origin"
-        });
-        const envelope: unknown = await response.json();
+        const envelope = await fetchSessionJson({ url: templateLink });
         const parsed = smileEnvelopeSchema.safeParse(envelope);
         fragment = parsed.success ? applyBranchToDetailsFragment({
           template: parsed.data.data,
@@ -444,6 +464,170 @@ export default defineContentScript({
       }
     }
 
+    // ── Click-time GUID minting (synthetic rows' "לכל התורים") ─────────────────
+    // A diary GUID exists only inside the server session's LAST search, so it cannot be minted ahead
+    // of time — a later search kills it (the slots page then errors, verified live). The only way to a
+    // working "לכל התורים" for a branch the search omitted is to mint at click time: run NEW searches
+    // until one lists the branch (the diary set fluctuates intraday, and a branch may hold a diary
+    // under another specialization — the list of three is closed), then navigate immediately.
+
+    function searchBody(spec: string): string {
+      return [
+        `${SMILE_SPECIALIZATION_FIELD}=${spec}`,
+        `${SMILE_CITY_FIELD}=${encodeURIComponent(smileCity())}`,
+        `${SMILE_AREA_FIELD}=0`
+      ].join("&");
+    }
+
+    /** Runaway guard for the page scans (an all-country result set is ~10 pages today). */
+    const MAX_MINT_PAGES = 30;
+
+    function pagesOf({ totalDeclared, pageRowCount }: {
+      totalDeclared: number;
+      pageRowCount: number;
+    }): number {
+      return pageRowCount ? Math.min(Math.ceil(totalDeclared / pageRowCount), MAX_MINT_PAGES) : 0;
+    }
+
+    /** One NEW all-country search for a specialization, scanned page by page for the branch's link. */
+    async function scanSearchForBranch({ spec, navCode }: {
+      spec: string;
+      navCode: string;
+    }): Promise<string | null> {
+      const first = await fetchSessionJson({
+        url: SMILE_SEARCH_PATH,
+        body: searchBody(spec)
+      });
+      let scan = scanEnvelopeForNavCode({
+        json: first,
+        navCode
+      });
+      // A row of the newest search — keeps the composed-lightbox template's GUID current.
+      if (scan.firstRowHtml) {
+        latestTemplateRowHtml = scan.firstRowHtml;
+      }
+
+      const totalPages = pagesOf(scan);
+      for (let page = 2; !scan.actionLink && page <= totalPages; page++) {
+        scan = scanEnvelopeForNavCode({
+          json: await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }),
+          navCode
+        });
+      }
+
+      return scan.actionLink;
+    }
+
+    /** Sweep the closed specialization list, the user's searched service first. */
+    async function mintDiaryLink(navCode: string): Promise<string | null> {
+      const specs = [activeSearchSpec, ...SMILE_SPECIALIZATION_CODES.filter(code => code !== activeSearchSpec)];
+      for (const spec of specs) {
+        if (superseded || !config.enabled) {
+          return null;
+        }
+
+        try {
+          const link = await scanSearchForBranch({
+            spec,
+            navCode
+          });
+          if (link) {
+            return link;
+          }
+        } catch { /* one specialization failing must not end the sweep */ }
+      }
+
+      return null;
+    }
+
+    /**
+     * After a failed sweep the session's last search is a foreign one and every displayed GUID is dead
+     * (GUIDs churn per search). Re-run the user's own search to restore the session, then rewrite the
+     * visible rows' slots/details links to the fresh GUIDs, page by page until every real row is healed.
+     */
+    async function restoreUserSearchSession() {
+      const first = await fetchSessionJson({
+        url: SMILE_SEARCH_PATH,
+        body: searchBody(activeSearchSpec)
+      });
+      const scan = scanEnvelopeForNavCode({ json: first });
+      if (scan.firstRowHtml) {
+        latestTemplateRowHtml = scan.firstRowHtml;
+      }
+
+      const list = document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}] ul`);
+      if (!list) {
+        return;
+      }
+
+      const pending = new Set(
+        [...list.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)].map(rowNavCode)
+      );
+      for (const code of refreshRowActionLinks({
+        list,
+        json: first
+      })) {
+        pending.delete(code);
+      }
+
+      const totalPages = pagesOf(scan);
+      for (let page = 2; pending.size > 0 && page <= totalPages; page++) {
+        const envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` });
+        for (const code of refreshRowActionLinks({
+          list,
+          json: envelope
+        })) {
+          pending.delete(code);
+        }
+      }
+    }
+
+    let mintInFlight = false;
+
+    /**
+     * A synthetic row's "לכל התורים": mint a fresh GUID and navigate straight to its slots page (the
+     * GUID dies with the next search, so navigation is immediate). When no specialization lists the
+     * branch, restore the user's search session, heal the visible rows' links, and open the row's own
+     * "מידע נוסף" instead — the honest phone/details view.
+     */
+    async function openBranchDiaries({ code, row }: {
+      code: string;
+      row: Element | null;
+    }) {
+      if (mintInFlight || !smileCity()) {
+        return;
+      }
+
+      mintInFlight = true;
+      const pageUi = window.z;
+      try {
+        pageUi?.showLoader?.();
+      } catch { /* site chrome only */ }
+      try {
+        const link = await mintDiaryLink(code);
+        if (link && !superseded) {
+          // Loader stays up while the iframe navigates away, exactly like the site's own button.
+          window.location.assign(link);
+          return;
+        }
+
+        await restoreUserSearchSession().catch(() => {});
+        const moreInfo = row?.querySelector<HTMLElement>(
+          `a.pull-left[data-action-link], a.pull-left[${DETAILS_CODE_ATTR}]`
+        );
+        try {
+          pageUi?.hideLoader?.();
+        } catch { /* site chrome only */ }
+        moreInfo?.click();
+      } catch {
+        try {
+          pageUi?.hideLoader?.();
+        } catch { /* site chrome only */ }
+      } finally {
+        mintInFlight = false;
+      }
+    }
+
     document.addEventListener("click", event => {
       const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
       if (superseded || !config.enabled || event.defaultPrevented || modified) {
@@ -452,6 +636,16 @@ export default defineContentScript({
 
       const { target } = event;
       if (!(target instanceof Element)) {
+        return;
+      }
+
+      const mintButton = target.closest(`a[${MINT_CODE_ATTR}]`);
+      if (mintButton) {
+        event.preventDefault();
+        openBranchDiaries({
+          code: mintButton.getAttribute(MINT_CODE_ATTR) ?? "",
+          row: mintButton.closest("li.diary")
+        }).catch(() => {});
         return;
       }
 
@@ -846,10 +1040,16 @@ export default defineContentScript({
 
       let outgoing = body;
       if (state && !superseded && config.enabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
-        // The submitted city is the authoritative one for this search's server session.
-        const submittedCity = new URLSearchParams(outgoing).get("SelectedCityName")?.trim();
+        // The submitted city and specialization are the authoritative ones for this server session.
+        const submitted = new URLSearchParams(outgoing);
+        const submittedCity = submitted.get(SMILE_CITY_FIELD)?.trim();
         if (submittedCity) {
           activeSearchCity = submittedCity;
+        }
+
+        const submittedSpec = submitted.get(SMILE_SPECIALIZATION_FIELD)?.trim();
+        if (submittedSpec) {
+          activeSearchSpec = submittedSpec;
         }
 
         // A fresh search resets the server session to its default order (distance from searched city).
