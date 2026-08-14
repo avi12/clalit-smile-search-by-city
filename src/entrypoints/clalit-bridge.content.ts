@@ -26,7 +26,7 @@ export default defineContentScript({
   allFrames: true,
   main(ctx) {
     const isTopFrame = window.self === window.top;
-    let enabled = true; // session-only; resets to on each load (a guarantee tool defaults to guarding)
+    let isEnabled = true; // session-only; resets to on each load (a guarantee tool defaults to guarding)
     let city = "";
     let lastStatus: GuaranteeStatus | null = null;
     // Top frame only: the latest state relayed up from a child frame (where the real search box lives).
@@ -58,25 +58,25 @@ export default defineContentScript({
 
     const badge = isTopFrame
       ? mountStatusBadge(ctx, () => {
-        setEnabled(!enabled);
+        setEnabled(!isEnabled);
         broadcastToggle(window.self);
       })
       : null;
 
     // Dev re-injection: a newer generation flips this; every handler below then ignores its events.
-    let superseded = false;
+    let isSuperseded = false;
     if (import.meta.env.DEV) {
       installDevTakeover({
         script: "bridge",
         onSuperseded() {
-          superseded = true;
+          isSuperseded = true;
           badge?.destroy();
         }
       });
     }
 
     function setEnabled(next: boolean) {
-      enabled = next;
+      isEnabled = next;
       pushConfig();
       refreshBadge();
     }
@@ -90,7 +90,7 @@ export default defineContentScript({
           message: {
             source: FRAME_RELAY_SOURCE,
             kind: "toggle",
-            enabled
+            isEnabled
           }
         });
         try {
@@ -101,7 +101,7 @@ export default defineContentScript({
 
     function refreshBadge() {
       badge?.update({
-        enabled,
+        isEnabled,
         city: city || frameCity,
         status: frameStatus ?? lastStatus
       });
@@ -109,7 +109,7 @@ export default defineContentScript({
 
     function pushConfig() {
       const config: SearchConfig = {
-        enabled,
+        isEnabled,
         city
       };
       sendPageMessage(PageMsg.Config, config).catch(() => {});
@@ -117,7 +117,7 @@ export default defineContentScript({
 
     onPageMessage(PageMsg.Status, ({ data }) => {
       const parsed = guaranteeStatusSchema.safeParse(data);
-      if (superseded || !parsed.success) {
+      if (isSuperseded || !parsed.success) {
         return;
       }
 
@@ -146,7 +146,7 @@ export default defineContentScript({
 
     window.addEventListener("message", ({ data, origin, source }) => {
       const parsed = frameRelayMessageSchema.safeParse(data);
-      if (superseded || !parsed.success || !isClalitOrigin(origin)) {
+      if (isSuperseded || !parsed.success || !isClalitOrigin(origin)) {
         return;
       }
 
@@ -161,11 +161,11 @@ export default defineContentScript({
           message: {
             source: FRAME_RELAY_SOURCE,
             kind: "toggle",
-            enabled
+            isEnabled
           }
         });
       } else if (message.kind === "toggle" && !isTopFrame) {
-        setEnabled(message.enabled);
+        setEnabled(message.isEnabled);
         relayStateToTop();
       }
     });
@@ -202,7 +202,7 @@ export default defineContentScript({
 
     for (const type of ["input", "change"] as const) {
       document.addEventListener(type, ({ target }) => {
-        if (!superseded && target instanceof HTMLInputElement && isSearchInput(target)) {
+        if (!isSuperseded && target instanceof HTMLInputElement && isSearchInput(target)) {
           setCity(target.value);
         }
       }, true);

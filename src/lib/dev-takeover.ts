@@ -41,8 +41,8 @@ export function installDevTakeover(
     }
 
     const { bornAt: foreignBornAt, token: foreignToken } = parsed.data;
-    const foreignIsNewer = foreignBornAt === bornAt ? foreignToken > token : foreignBornAt > bornAt;
-    if (foreignIsNewer) {
+    const isForeignNewer = foreignBornAt === bornAt ? foreignToken > token : foreignBornAt > bornAt;
+    if (isForeignNewer) {
       onSuperseded();
     }
   });

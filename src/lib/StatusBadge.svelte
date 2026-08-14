@@ -3,13 +3,13 @@
 
   const { state, onToggle }: { state: BadgeState; onToggle: () => void } = $props();
 
-  const on = $derived(state.enabled && state.city.trim().length > 0);
+  const isOn = $derived(state.isEnabled && state.city.trim().length > 0);
 </script>
 
-<div class="badge" class:on>
+<div class="badge" class:on={isOn}>
   <button class="dot" aria-label="toggle" onclick={onToggle} title="הפעל/כבה אחריות עיר"></button>
   <div class="text">
-    <div class="title">{state.enabled ? "אחריות עיר פעילה" : "אחריות עיר כבויה"}</div>
+    <div class="title">{state.isEnabled ? "אחריות עיר פעילה" : "אחריות עיר כבויה"}</div>
     <div class="sub">
       {state.city || "הקלד עיר בתיבת החיפוש"}
       {#if state.status}

@@ -89,16 +89,16 @@ export default defineContentScript({
   main() {
     // Default enabled with no city: idle until the bridge reports what's in the search box.
     let config: SearchConfig = {
-      enabled: true,
+      isEnabled: true,
       city: ""
     };
     // Dev re-injection: a newer generation flips this and the patches below become pass-throughs.
-    let superseded = false;
+    let isSuperseded = false;
     if (import.meta.env.DEV) {
       installDevTakeover({
         script: "interceptor",
         onSuperseded() {
-          superseded = true;
+          isSuperseded = true;
         }
       });
     }
@@ -126,7 +126,7 @@ export default defineContentScript({
         json: unknown;
       }
     ) {
-      if (import.meta.env.DEV && !superseded && isInterestingUrl(url)) {
+      if (import.meta.env.DEV && !isSuperseded && isInterestingUrl(url)) {
         console.log(`[clalit-city] ${method} ${url} → ${status}`, json);
       }
     }
@@ -147,7 +147,7 @@ export default defineContentScript({
     // server's home-distance order when the position is denied/unavailable.
     type SmileSort = "cityDistance" | "soonest" | "home";
     let activeSort: SmileSort = "cityDistance";
-    let sortDescending = false;
+    let isSortDescending = false;
 
     function smileCity(): string {
       return (activeSearchCity || config.city).trim();
@@ -167,13 +167,13 @@ export default defineContentScript({
 
     function transformSmile(json: unknown): UrlTransformResult {
       const untouched: UrlTransformResult = {
-        transformed: false,
+        isTransformed: false,
         resultsCount: 0,
         inCityCount: 0,
         json
       };
       const city = smileCity();
-      if (superseded || !config.enabled || !city) {
+      if (isSuperseded || !config.isEnabled || !city) {
         return untouched;
       }
 
@@ -183,7 +183,7 @@ export default defineContentScript({
         searchedCity: city,
         marker
       });
-      if (!outcome.changed) {
+      if (!outcome.isChanged) {
         return untouched;
       }
 
@@ -200,7 +200,7 @@ export default defineContentScript({
         inCityCount: keptRowCount
       });
       return {
-        transformed: true,
+        isTransformed: true,
         resultsCount: totalDeclared,
         inCityCount: keptRowCount,
         json: outcome.json,
@@ -290,12 +290,12 @@ export default defineContentScript({
       const seenNames = new Set([...list.querySelectorAll("li.diary")].map(rowClinicName));
       let kept = keptRowCount;
       for (let page = 2; page <= totalPages; page++) {
-        if (superseded || run !== aggregationRun || !config.enabled) {
+        if (isSuperseded || run !== aggregationRun || !config.isEnabled) {
           return;
         }
 
         const envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }).catch(() => null);
-        if (!envelope || superseded || run !== aggregationRun) {
+        if (!envelope || isSuperseded || run !== aggregationRun) {
           return;
         }
 
@@ -325,13 +325,13 @@ export default defineContentScript({
         });
       }
 
-      if (superseded || run !== aggregationRun) {
+      if (isSuperseded || run !== aggregationRun) {
         return;
       }
 
       // City completeness beyond Tamuz: branches with no bookable diary still belong in the list.
       const detailsByTitle = await getPastVisitDetails();
-      if (superseded || run !== aggregationRun) {
+      if (isSuperseded || run !== aggregationRun) {
         return;
       }
 
@@ -361,7 +361,7 @@ export default defineContentScript({
       if (activeSort === "home") {
         await reorderByLiveLocation({
           list,
-          descending: sortDescending
+          isDescending: isSortDescending
         });
       }
     }
@@ -483,7 +483,7 @@ export default defineContentScript({
         template: parsed.data.data,
         branch
       }) : null;
-      if (superseded || !fragment || !pageShowDialog({
+      if (isSuperseded || !fragment || !pageShowDialog({
         html: fragment,
         note
       })) {
@@ -523,7 +523,7 @@ export default defineContentScript({
         selector: SMILE_DETAILS_DIALOG_SELECTOR,
         exclude: stale
       });
-      if (dialog && !superseded) {
+      if (dialog && !isSuperseded) {
         setDialogNote({
           dialog,
           text: note
@@ -611,10 +611,10 @@ export default defineContentScript({
     }
 
     /** The site's own full-screen loader — cosmetic, so a missing/throwing z is never the caller's problem. */
-    function setSiteLoader(visible: boolean) {
+    function setSiteLoader(isVisible: boolean) {
       try {
         const pageUi = window.z;
-        if (visible) {
+        if (isVisible) {
           pageUi?.showLoader?.();
         } else {
           pageUi?.hideLoader?.();
@@ -632,7 +632,7 @@ export default defineContentScript({
     }): Promise<string | null> {
       const specs = [activeSearchSpec, ...SMILE_SPECIALIZATION_CODES.filter(code => code !== activeSearchSpec)];
       for (const [index, spec] of specs.entries()) {
-        if (superseded || !config.enabled) {
+        if (isSuperseded || !config.isEnabled) {
           return null;
         }
 
@@ -696,7 +696,7 @@ export default defineContentScript({
       }
     }
 
-    let mintInFlight = false;
+    let isMintInFlight = false;
 
     /**
      * A synthetic row's "לכל התורים": mint a fresh GUID and navigate straight to its slots page (the
@@ -708,18 +708,18 @@ export default defineContentScript({
       code: string;
       row: Element | null;
     }) {
-      if (mintInFlight || !smileCity()) {
+      if (isMintInFlight || !smileCity()) {
         return;
       }
 
-      mintInFlight = true;
+      isMintInFlight = true;
       setSiteLoader(true);
       try {
         const link = await mintDiaryLink({
           navCode: code,
           onStep: progress => captionLoader(sweepStepNote(progress))
         }).catch(() => null);
-        if (link && !superseded) {
+        if (link && !isSuperseded) {
           // Loader stays up while the iframe navigates away, exactly like the site's own button.
           captionLoader(MINT_NAVIGATE_NOTE);
           window.location.assign(link);
@@ -733,17 +733,17 @@ export default defineContentScript({
           note: NO_DIARY_SWEEP_NOTE
         }).catch(() => {});
       } finally {
-        mintInFlight = false;
+        isMintInFlight = false;
       }
     }
 
-    document.addEventListener("click", event => {
-      const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
-      if (superseded || !config.enabled || event.defaultPrevented || modified) {
+    document.addEventListener("click", e => {
+      const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
+      if (isSuperseded || !config.isEnabled || e.defaultPrevented || isModified) {
         return;
       }
 
-      const { target } = event;
+      const { target } = e;
       if (!(target instanceof Element)) {
         return;
       }
@@ -753,8 +753,8 @@ export default defineContentScript({
         // The site's delegated handler binds by class/id, NOT by data-action-link — left alone it reads
         // the stripped attribute as undefined and navigates the iframe to /Zimunet/undefined (observed
         // live). Capture-phase + stopPropagation keeps the click ours alone.
-        event.preventDefault();
-        event.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         openBranchDiaries({
           code: mintButton.getAttribute(MINT_CODE_ATTR) ?? "",
           row: mintButton.closest("li.diary")
@@ -769,7 +769,7 @@ export default defineContentScript({
 
       const code = anchor.getAttribute(DETAILS_CODE_ATTR) ?? "";
       const fallbackHref = anchor.getAttribute("href") ?? "";
-      event.preventDefault();
+      e.preventDefault();
       openBranchDetails({
         code,
         fallbackHref,
@@ -822,7 +822,7 @@ export default defineContentScript({
       // Belt: until the site's own handler is bound, the submit button's default action would NATIVE-
       // submit the form (a document POST). The real search flow is always XHR, so preventing the
       // default keeps a too-early click harmless — the retry loop just tries again.
-      button.closest("form")?.addEventListener("submit", event => event.preventDefault(), { once: true });
+      button.closest("form")?.addEventListener("submit", e => e.preventDefault(), { once: true });
       button.click();
     }
 
@@ -834,7 +834,7 @@ export default defineContentScript({
       }
 
       for (let attempt = 0; attempt < 20; attempt++) {
-        if (superseded || !config.enabled) {
+        if (isSuperseded || !config.isEnabled) {
           return;
         }
 
@@ -930,12 +930,12 @@ export default defineContentScript({
      * (clinic coordinates come from the committed nearme dataset — no runtime network). Rows without
      * known coordinates keep their server order at the end; a denied position leaves the list as-is.
      */
-    async function reorderByLiveLocation({ list, descending }: {
+    async function reorderByLiveLocation({ list, isDescending }: {
       list: Element;
-      descending: boolean;
+      isDescending: boolean;
     }) {
       const position = await currentPosition();
-      if (!position || superseded) {
+      if (!position || isSuperseded) {
         return;
       }
 
@@ -951,15 +951,15 @@ export default defineContentScript({
         };
       });
       ranked.sort((first, second) => {
-        const firstKnown = Number.isFinite(first.km);
-        const secondKnown = Number.isFinite(second.km);
-        if (firstKnown !== secondKnown) {
-          return firstKnown ? -1 : 1;
+        const isFirstKnown = Number.isFinite(first.km);
+        const isSecondKnown = Number.isFinite(second.km);
+        if (isFirstKnown !== isSecondKnown) {
+          return isFirstKnown ? -1 : 1;
         }
 
         let delta = 0;
-        if (firstKnown) {
-          delta = descending ? second.km - first.km : first.km - second.km;
+        if (isFirstKnown) {
+          delta = isDescending ? second.km - first.km : first.km - second.km;
         }
 
         return delta || first.index - second.index;
@@ -978,10 +978,10 @@ export default defineContentScript({
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
     function transformJson({ json, url, method }: UrlTransformInput): TransformResult {
-      const { enabled, city } = config;
-      if (superseded || !enabled || !city.trim()) {
+      const { isEnabled, city } = config;
+      if (isSuperseded || !isEnabled || !city.trim()) {
         return {
-          transformed: false,
+          isTransformed: false,
           resultsCount: 0,
           inCityCount: 0,
           json
@@ -994,7 +994,7 @@ export default defineContentScript({
       });
       if (!rule && !isInterestingUrl(url)) {
         return {
-          transformed: false,
+          isTransformed: false,
           resultsCount: 0,
           inCityCount: 0,
           json
@@ -1006,7 +1006,7 @@ export default defineContentScript({
         guaranteeMode: GUARANTEE_MODE,
         rule
       });
-      if (result.transformed) {
+      if (result.isTransformed) {
         reportStatus({
           city,
           resultsCount: result.resultsCount,
@@ -1034,7 +1034,7 @@ export default defineContentScript({
     window.fetch = async function patchedFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit) {
       const response = await nativeFetch.call(this, input, init);
       const url = requestUrl(input);
-      if (superseded || !/json/i.test(response.headers.get("content-type") ?? "")) {
+      if (isSuperseded || !/json/i.test(response.headers.get("content-type") ?? "")) {
         return response;
       }
 
@@ -1057,7 +1057,7 @@ export default defineContentScript({
         url,
         method
       });
-      if (!outcome.transformed) {
+      if (!outcome.isTransformed) {
         return response;
       }
 
@@ -1096,7 +1096,7 @@ export default defineContentScript({
       computed?: {
         text: string;
         json: unknown;
-        changed: boolean;
+        isChanged: boolean;
         smile?: MarkedSmileOutcome;
       };
     };
@@ -1126,7 +1126,7 @@ export default defineContentScript({
         state.computed = {
           text: rawText,
           json: undefined,
-          changed: false
+          isChanged: false
         };
         return state.computed;
       }
@@ -1135,7 +1135,7 @@ export default defineContentScript({
         state.computed = {
           text: rawText,
           json,
-          changed: false
+          isChanged: false
         };
         return state.computed;
       }
@@ -1153,9 +1153,9 @@ export default defineContentScript({
         method
       });
       state.computed = {
-        text: outcome.transformed ? JSON.stringify(outcome.json) : rawText,
-        json: outcome.transformed ? outcome.json : json,
-        changed: outcome.transformed,
+        text: outcome.isTransformed ? JSON.stringify(outcome.json) : rawText,
+        json: outcome.isTransformed ? outcome.json : json,
+        isChanged: outcome.isTransformed,
         smile: outcome.smile
       };
       return state.computed;
@@ -1166,10 +1166,10 @@ export default defineContentScript({
       // A "distance" sort must reference the user's location: rewrite the "distance from the searched
       // city" sort (4) to the site's own "distance from your home" sort (3). The link is also removed
       // from our filtered fragments; this covers renders that predate the guarantee.
-      if (!superseded && config.enabled && smileCity() && targetUrl.includes(SMILE_SORT_PATH)) {
+      if (!isSuperseded && config.isEnabled && smileCity() && targetUrl.includes(SMILE_SORT_PATH)) {
         targetUrl = targetUrl.replace("sortValue=4", "sortValue=3");
         activeSort = targetUrl.includes("sortValue=3") ? "home" : "soonest";
-        sortDescending = targetUrl.includes("sortDirection=2");
+        isSortDescending = targetUrl.includes("sortDirection=2");
       }
 
       const state: XhrState = {
@@ -1226,7 +1226,7 @@ export default defineContentScript({
     }
 
     XHR.send = function patchedSend(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-      const state = superseded ? undefined : xhrStates.get(this);
+      const state = isSuperseded ? undefined : xhrStates.get(this);
       if (state) {
         defineResponseGetters({
           xhr: this,
@@ -1235,7 +1235,7 @@ export default defineContentScript({
       }
 
       let outgoing = body;
-      if (state && !superseded && config.enabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
+      if (state && !isSuperseded && config.isEnabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
         // The submitted city and specialization are the authoritative ones for this server session.
         const submitted = new URLSearchParams(outgoing);
         const submittedCity = submitted.get(SMILE_CITY_FIELD)?.trim();
@@ -1250,7 +1250,7 @@ export default defineContentScript({
 
         // A fresh search resets the server session to its default order (distance from searched city).
         activeSort = "cityDistance";
-        sortDescending = false;
+        isSortDescending = false;
 
         // City completeness: search the WHOLE country, then filter — the area subset can miss some of
         // the city's own clinics, and rows spliced from a second search would carry dead session GUIDs.

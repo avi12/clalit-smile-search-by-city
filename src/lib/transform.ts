@@ -18,7 +18,7 @@ export interface TransformInput {
 }
 
 export interface TransformResult {
-  transformed: boolean;
+  isTransformed: boolean;
   resultsCount: number;
   inCityCount: number;
   json: unknown;
@@ -146,7 +146,7 @@ function rowInCity(
 
 export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: TransformInput): TransformResult {
   const untouched: TransformResult = {
-    transformed: false,
+    isTransformed: false,
     resultsCount: 0,
     inCityCount: 0,
     json
@@ -189,7 +189,7 @@ export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: Tra
   array.splice(0, array.length, ...next);
 
   return {
-    transformed: true,
+    isTransformed: true,
     resultsCount,
     inCityCount: inCity.length,
     json

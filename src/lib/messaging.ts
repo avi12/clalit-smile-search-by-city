@@ -13,7 +13,7 @@ export type GuaranteeMode = "filter" | "boost";
 
 /** Pushed bridge → MAIN. `city` is whatever the user typed into the site's search box (empty = idle). */
 export interface SearchConfig {
-  enabled: boolean;
+  isEnabled: boolean;
   city: string;
 }
 
@@ -46,7 +46,7 @@ export type FrameRelayMessage =
   | {
     source: typeof FRAME_RELAY_SOURCE;
     kind: "toggle";
-    enabled: boolean;
+    isEnabled: boolean;
   }
   /** child → top on init: request the current toggle state. */
   | {

@@ -13,7 +13,7 @@ import { z } from "zod";
 // ── Window channel: bridge ⇄ MAIN ──────────────────────────────────────────────
 
 export const searchConfigSchema = z.object({
-  enabled: z.boolean(),
+  isEnabled: z.boolean(),
   city: z.string()
 });
 
@@ -37,7 +37,7 @@ export const frameRelayMessageSchema = z.discriminatedUnion("kind", [
   z.object({
     source: frameRelaySource,
     kind: z.literal("toggle"),
-    enabled: z.boolean()
+    isEnabled: z.boolean()
   }),
   z.object({
     source: frameRelaySource,

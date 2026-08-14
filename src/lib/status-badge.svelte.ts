@@ -14,7 +14,7 @@ import { type ContentScriptContext, createShadowRootUi } from "#imports";
 import { mount, unmount } from "svelte";
 
 export interface BadgeState {
-  enabled: boolean;
+  isEnabled: boolean;
   city: string;
   status: GuaranteeStatus | null;
 }
@@ -29,12 +29,12 @@ const HOST_TAG = "clalit-city-badge";
 
 export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void): StatusBadgeHandle {
   const state = $state<BadgeState>({
-    enabled: true,
+    isEnabled: true,
     city: "",
     status: null
   });
   let ui: Awaited<ReturnType<typeof createUi>> | null = null;
-  let destroyed = false;
+  let isDestroyed = false;
 
   function createUi() {
     return createShadowRootUi(ctx, {
@@ -66,7 +66,7 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
 
   void createUi()
     .then(created => {
-      if (destroyed) {
+      if (isDestroyed) {
         created.remove();
         return;
       }
@@ -89,7 +89,7 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
       Object.assign(state, next);
     },
     destroy() {
-      destroyed = true;
+      isDestroyed = true;
       ui?.remove();
     }
   };

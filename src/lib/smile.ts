@@ -557,7 +557,7 @@ function readDeclaredTotal(doc: Document): number {
 }
 
 export interface SmileFilterOutcome {
-  changed: boolean;
+  isChanged: boolean;
   json: unknown;
   /** N from the "נמצאו N תוצאות" header — the size of the server's full (all-country) result set. */
   totalDeclared: number;
@@ -584,7 +584,7 @@ export function filterSmileEnvelope(
   }
 ): SmileFilterOutcome {
   const untouched: SmileFilterOutcome = {
-    changed: false,
+    isChanged: false,
     json,
     totalDeclared: 0,
     pageRowCount: 0,
@@ -647,7 +647,7 @@ export function filterSmileEnvelope(
     data: doc.body.innerHTML
   };
   return {
-    changed: true,
+    isChanged: true,
     json: envelope,
     totalDeclared,
     pageRowCount: rows.length,
