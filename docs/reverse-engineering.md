@@ -319,8 +319,16 @@ flowchart TD
 
 **Conclusion:** a branch with no online hygienist diary is bookable only **by phone**. The extension
 therefore shows every branch (completeness) but, for the ones with no diary, renders an honest
-"אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה" note with a `tel:` link to the clinic, and never a
-dead "לכל התורים" button.
+"אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד \*2700" note with `tel:` links (clinic +
+central hotline), and never a dead "לכל התורים" button.
+
+**The diary set fluctuates — even intraday (observed 2026-08-14).** Which branches have a bookable
+diary is live server state, not a fixed roster: ירמיהו had no שיננית diary on 13.08, appeared as a
+real bookable row at 11:51 on 14.08 (soonest slot 14.10.2026), and by ~12:10 the same day was gone
+from the search again (slot presumably taken), flipping back to a synthetic row. Two consequences:
+don't treat a branch's tier as stable when testing (row counts like "4 synthetic" are a snapshot),
+and the guarantee needs no per-branch maintenance — a branch crosses between real and synthetic
+automatically with the server's diary state, in both directions.
 
 ### 10a. Synthetic branch rows (how completeness is rendered)
 
