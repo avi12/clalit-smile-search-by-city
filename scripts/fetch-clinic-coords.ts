@@ -21,6 +21,8 @@ const OUTPUT_PATH = resolve(import.meta.dirname, "..", "src", "lib", "clinic-dir
 type DirectoryPayload = {
   /** Column names for the packed rows. */
   m: string[];
+  /** Accessibility id → Hebrew label (e.g. 1 → "גישה למרפאה"). */
+  acc: [number, string][];
 } & Record<"u", unknown[][]>;
 
 interface DirectoryClinic {
@@ -30,6 +32,9 @@ interface DirectoryClinic {
   address: [string, string?] | null;
   phones: string[] | null;
   latlng: [number, number] | null;
+  /** Opening hours as [dayIndex (0=Sunday), startMinutes, endMinutes]. */
+  time: [number, number, number][] | null;
+  accessibility: number[] | null;
 }
 
 /** The rows are zipped from the payload's own column list — trust the declared clinic shape. */
@@ -68,12 +73,23 @@ const dental = decodeRows(payload)
   .sort((first, second) => first.code - second.code);
 const smile = dental.filter(clinic => clinic.title.includes(SMILE_TITLE_MARKER));
 
+const accessibilityLabels = new Map(payload.acc.map(([id, label]) => [id, label.trim()]));
+
 const branchEntries = smile
   .map(clinic => {
     const [lat, lng] = clinic.latlng!;
     const [city = "", street = ""] = clinic.address ?? [];
     const phones = (clinic.phones ?? []).map(quote).join(", ");
-    return `  { code: "${clinic.code}", title: ${quote(clinic.title)}, city: ${quote(city)}, street: ${quote(street)}, phones: [${phones}], lat: ${lat}, lng: ${lng} }`;
+    const hours = (clinic.time ?? []).map(([day, start, end]) => `[${day}, ${start}, ${end}]`).join(", ");
+    const accessibility = (clinic.accessibility ?? [])
+      .map(id => accessibilityLabels.get(id))
+      .filter(label => label !== undefined)
+      .map(quote)
+      .join(", ");
+    return (
+      `  { code: "${clinic.code}", title: ${quote(clinic.title)}, city: ${quote(city)}, street: ${quote(street)},` +
+      ` phones: [${phones}], lat: ${lat}, lng: ${lng}, hours: [${hours}], accessibility: [${accessibility}] }`
+    );
   })
   .join(",\n");
 
@@ -99,6 +115,10 @@ export interface SmileBranch {
   phones: string[];
   lat: number;
   lng: number;
+  /** Opening hours as [dayIndex (0=Sunday=א), startMinutes, endMinutes] — the site's own dataset shape. */
+  hours: readonly (readonly [number, number, number])[];
+  /** Resolved accessibility labels (e.g. "גישה למרפאה"), as the clinic-details lightbox lists them. */
+  accessibility: string[];
 }
 
 /** Every Clalit Smile branch — the source for listing a city's branches Tamuz has no diary for. */
