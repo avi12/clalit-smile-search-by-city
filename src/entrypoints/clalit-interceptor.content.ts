@@ -51,6 +51,7 @@ import {
   type SmileFilterOutcome,
   sweepStepNote,
   SYNTHETIC_ROW_ATTR,
+  VISIT_APPOINTMENTS_NOTE,
   WATCH_ACTIVE_NOTE,
   WATCH_CODE_ATTR,
   WATCH_HIT_NOTE,
@@ -75,7 +76,8 @@ import {
   SMILE_SORT_VALUES,
   SMILE_SPECIALIZATION_CODES,
   SMILE_SPECIALIZATION_FIELD,
-  SMILE_SPECIALIZATION_SELECT_SELECTOR
+  SMILE_SPECIALIZATION_SELECT_SELECTOR,
+  VISIT_APPOINTMENTS_PATH
 } from "../lib/targets";
 import { applyGuarantee, type TransformResult } from "../lib/transform";
 import { defineContentScript } from "#imports";
@@ -936,6 +938,21 @@ export default defineContentScript({
       }
     }
 
+    /**
+     * The branch's own appointments page needs a visit handle, so a branch is only reachable this way
+     * once the user has been treated there. The handles rotate with every render of the visits list, so
+     * this always reads a fresh one rather than the map cached for the details lightbox.
+     */
+    async function pastVisitGuidFor(code: string): Promise<string | null> {
+      const branch = SMILE_BRANCHES.find(candidate => candidate.code === code);
+      if (!branch) {
+        return null;
+      }
+
+      const detailsByTitle = await getPastVisitDetails({ isRefreshed: true }).catch(() => null);
+      return detailsByTitle?.get(branch.title) ?? null;
+    }
+
     let isMintInFlight = false;
 
     /**
@@ -967,6 +984,13 @@ export default defineContentScript({
         }
 
         await restoreUserSearchSession().catch(() => {});
+        const visitGuid = await pastVisitGuidFor(code);
+        if (visitGuid && !isSuperseded) {
+          captionLoader(VISIT_APPOINTMENTS_NOTE);
+          window.location.assign(`${VISIT_APPOINTMENTS_PATH}${visitGuid}`);
+          return;
+        }
+
         setSiteLoader(false);
         await openRowDetails({
           elRow,
@@ -1114,8 +1138,8 @@ export default defineContentScript({
     // Past-visit clinic-details links (title → ClinicDetailsByVisit GUID), so a synthetic branch can open
     // the site's OWN clinic-details lightbox for a clinic the user has visited. Fetched once per page.
     let pastVisitDetails: Map<string, string> | null = null;
-    async function getPastVisitDetails(): Promise<Map<string, string>> {
-      if (pastVisitDetails) {
+    async function getPastVisitDetails({ isRefreshed = false } = {}): Promise<Map<string, string>> {
+      if (pastVisitDetails && !isRefreshed) {
         return pastVisitDetails;
       }
 

@@ -137,6 +137,9 @@ export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו את כל שירותי
 /** On the loader once the sweep hits: the iframe is about to navigate to the branch's slots page. */
 export const MINT_NAVIGATE_NOTE = "נמצא יומן — פותחים את התורים";
 
+/** On the loader when the sweep missed but the branch has a past visit to open its own page with. */
+export const VISIT_APPOINTMENTS_NOTE = "פותחים את דף התורים של המרפאה";
+
 /** On the loader during the sweep — the wait is one fresh search per service, so say which one. */
 export function sweepStepNote({ step, total }: {
   step: number;
