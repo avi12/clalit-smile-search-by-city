@@ -22,6 +22,13 @@ import { type GuaranteeStatus, PageMsg, type SearchConfig } from "../lib/messagi
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { searchConfigSchema, smileEnvelopeSchema } from "../lib/schemas";
 import {
+  captionLoader,
+  openInNewTab,
+  setSiteLoader,
+  showDetailsDialog,
+  waitForElement
+} from "../lib/site-chrome";
+import {
   applyBranchToDetailsFragment,
   applyBranchToRow,
   cityMatches,
@@ -41,9 +48,7 @@ import {
   rowNavCode,
   scanEnvelopeForNavCode,
   SESSION_LOST_NOTE,
-  setDialogNote,
   setHeaderCount,
-  setLoaderNote,
   setRowDistanceLabel,
   setRowWatchState,
   setWatchControl,
@@ -66,7 +71,6 @@ import {
   isSmileRestoreLocation,
   isSmileResultsUrl,
   matchEndpointRule,
-  SITE_LOADER_SELECTOR,
   SMILE_APPOINTMENTS_PATH,
   SMILE_AREA_FIELD,
   SMILE_CITY_FIELD,
@@ -83,19 +87,6 @@ import {
 } from "../lib/targets";
 import { applyGuarantee, type TransformResult } from "../lib/transform";
 import { defineContentScript } from "#imports";
-
-/** The Zimunet site bundle's own UI namespace - the MAIN world sees the page's globals. */
-interface ZimunetPageUi {
-  showDialog?: (selector: string, html: string) => void;
-  showLoader?: () => void;
-  hideLoader?: () => void;
-}
-
-declare global {
-  interface Window {
-    z?: ZimunetPageUi;
-  }
-}
 
 export default defineContentScript({
   matches: [...CONTENT_MATCHES],
@@ -254,27 +245,6 @@ export default defineContentScript({
         credentials: "same-origin"
       });
       return await response.json();
-    }
-
-    /**
-     * Poll for an element the SITE renders asynchronously (its own Ajax, or our filtered fragment).
-     * `exclude` skips the one that was already there: the site HIDES a lightbox instead of removing it
-     * (`z.hideAllLightboxes`) and prepends the new one, so a stale dialog can still match the selector.
-     */
-    async function waitForElement({ selector, exclude }: {
-      selector: string;
-      exclude?: Element | null;
-    }): Promise<Element | null> {
-      for (let attempt = 0; attempt < 25; attempt++) {
-        const elMatch = document.querySelector(selector);
-        if (elMatch && elMatch !== exclude) {
-          return elMatch;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-
-      return null;
     }
 
     /** The site renders our filtered fragment asynchronously; wait for OUR marker to hit the DOM. */
@@ -440,40 +410,6 @@ export default defineContentScript({
     }
 
     // ── Composed clinic-details lightbox (no-GUID branches) ────────────────────
-    /** Call the page's own z.showDialog with a fragment - the exact call the site's handlers make. */
-    function pageShowDialog({ html, note }: {
-      html: string;
-      note: string;
-    }): boolean {
-      const pageUi = window.z;
-      if (typeof pageUi?.showDialog !== "function") {
-        return false;
-      }
-
-      try {
-        pageUi.showDialog(SMILE_DETAILS_DIALOG_SELECTOR, html);
-      } catch {
-        return false;
-      }
-
-      // showDialog prepends the dialog synchronously, so the note lands in the same frame as the open.
-      const elDialog = document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR);
-      if (elDialog) {
-        setDialogNote({
-          elDialog,
-          text: note
-        });
-      }
-
-      return true;
-    }
-
-    function openDetailsFallback(href: string) {
-      if (href) {
-        window.open(href, "_blank", "noopener");
-      }
-    }
-
     /**
      * "מידע נוסף" for a branch with no GUID of any kind: fetch a REAL current-search row's details
      * fragment (ClinicDetailsByDiary - the only endpoints that serve the lightbox are GUID- or
@@ -503,7 +439,7 @@ export default defineContentScript({
     }) {
       const branch = SMILE_BRANCHES.find(candidate => candidate.code === code);
       if (!branch) {
-        openDetailsFallback(fallbackHref);
+        openInNewTab(fallbackHref);
         return;
       }
 
@@ -514,11 +450,11 @@ export default defineContentScript({
         await restoreUserSearchSession().catch(() => {});
         return composeDetailsFragment(branch);
       })();
-      if (isSuperseded || !fragment || !pageShowDialog({
+      if (isSuperseded || !fragment || !showDetailsDialog({
         html: fragment,
         note
       })) {
-        openDetailsFallback(fallbackHref);
+        openInNewTab(fallbackHref);
         return;
       }
 
@@ -620,43 +556,6 @@ export default defineContentScript({
       }
 
       return scan.actionLink;
-    }
-
-    /** The parent document, or null when this frame is the top one / the parent is cross-origin. */
-    function parentDocument(): Document | null {
-      try {
-        const { parent } = window;
-        return parent === window ? null : parent.document;
-      } catch {
-        return null;
-      }
-    }
-
-    /**
-     * The site's loader lives in the TOP frame (z.showLoader → parent.StandbyScreenShow appends it to
-     * the top document's body), so the sweep's caption goes into the parent document when there is one.
-     */
-    function captionLoader(text: string) {
-      const elLoader =
-        parentDocument()?.querySelector(SITE_LOADER_SELECTOR) ?? document.querySelector(SITE_LOADER_SELECTOR);
-      if (elLoader) {
-        setLoaderNote({
-          elLoader,
-          text
-        });
-      }
-    }
-
-    /** The site's own full-screen loader - cosmetic, so a missing/throwing z is never the caller's problem. */
-    function setSiteLoader(isVisible: boolean) {
-      try {
-        const pageUi = window.z;
-        if (isVisible) {
-          pageUi?.showLoader?.();
-        } else {
-          pageUi?.hideLoader?.();
-        }
-      } catch { /* site chrome only */ }
     }
 
     // A branch whose diary opened while it was being watched: the specialization that listed it, so the
@@ -1021,7 +920,7 @@ export default defineContentScript({
         code,
         fallbackHref,
         note: NO_DIARY_ROW_NOTE
-      }).catch(() => openDetailsFallback(fallbackHref));
+      }).catch(() => openInNewTab(fallbackHref));
     }, true);
 
     // ── Restore-document recovery (the "back" hole, docs §6d) ─────────────────
