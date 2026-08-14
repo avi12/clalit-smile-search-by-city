@@ -686,6 +686,31 @@ Probed from the top frame with the guarantee toggled OFF.
   (opaqueredirect = really logged out) before re-authenticating. Infrastructure in front: Imperva
   (`x-cdn: Imperva`, `visid_incap_*` cookies) plus an F5 ASM cookie (`TS…`).
 
+### 12b. The marketing site is not a second booking channel (captured 2026-08-14, evening)
+
+Checked because it is the only Smile surface that does NOT go through Tamuz, so if a branch Tamuz omits
+were bookable anywhere, it would be here. It isn't — and the page says so itself.
+
+- **`clalitsmile.co.il/קביעת-תור/` sends doctor/hygienist booking back to Tamuz**, with a deep link worth
+  keeping: `https://e-services.clalit.co.il/onlineweb/general/login.aspx?CustomUrlRiderect=/Services/Tamuz/TamuzTransfer.aspx?LinkType=4&**OpenProfessionType=10**`
+  — the first sighting of `OpenProfessionType`, alongside the known `LinkType=4`, i.e. the portal can be
+  entered straight into a chosen service. (`CustomUrlRiderect` is Clalit's own spelling.)
+- **Its own forms are marketing leads, not appointments.** `__NEXT_DATA__ → pageProps.forms.dynamicForm`
+  holds 6 private-treatment campaigns (ציפויי שיניים · Invisalign · חריקת שיניים · אסתטיקה של הפנים ·
+  הלבנת שיניים), each with a `campaignCode` and its own clinic list (21-102 clinics, marketing 9xxx
+  codes). The rendered form is `full_name` + `phone` + hidden `campaign_id`/`ccode` + a consent checkbox
+  behind a captcha (`forms.captchaPublicKey`) — a call-me-back request, with no date, no diary and no
+  confirmation. מגדל המאה (9004) and רמת אביב (9718) appear in those campaign lists, which is exactly the
+  point: a branch can be reachable for a cosmetic LEAD while having no bookable diary for a hygienist.
+- The only other online path the page offers is **`/online-call`** ("רפואת שיניים דחופה און ליין"), i.e.
+  remote urgent care — not an appointment at a branch.
+
+**So the ceiling stands: a Smile branch is bookable online only through a Tamuz search that lists it.**
+The client bundle's full action list (§12) contains no clinic-code booking entrance, the slots page keys
+on the session GUID alone (§12a), and the public marketing channel is a lead form. What is left is
+timing, not access — a branch becomes bookable the moment its diary publishes a slot, which is precisely
+what the click-time sweep (§6c) catches.
+
 ---
 
 ## 13. Native styling of injected elements (captured live 2026-08-14)
