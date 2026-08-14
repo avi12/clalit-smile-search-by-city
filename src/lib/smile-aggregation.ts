@@ -83,10 +83,12 @@ function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle }
   return added;
 }
 
-export function createSmileAggregation({ session, nativeFetch, reportStatus }: {
+export function createSmileAggregation({ session, nativeFetch, reportStatus, markAvailability }: {
   session: SmileSession;
   nativeFetch: typeof fetch;
   reportStatus: (status: GuaranteeStatus) => void;
+  /** Decide which appended branches can be booked at all, and say so on their rows (docs §12h). */
+  markAvailability: (elRows: Element[], navCodeOf: (elRow: Element) => string) => Promise<void>;
 }) {
   const liveDistance = createLiveDistanceSort(() => session.isActive());
   let aggregationRun = 0;
@@ -224,6 +226,14 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus }: {
         isDescending: session.state.isSortDescending
       });
     }
+
+    if (isStale()) {
+      return;
+    }
+
+    // Last, because it runs FOREIGN searches: the list is already complete and ranked on screen, and the
+    // probe restores the user's search before it marks anything.
+    await markAvailability([...elList.querySelectorAll(`li.diary[${SYNTHETIC_ROW_ATTR}]`)], rowNavCode);
   }
 
   return {

@@ -29,6 +29,7 @@ import {
   WATCH_CODE_ATTR
 } from "../lib/smile";
 import { createSmileAggregation, type MarkedSmileOutcome } from "../lib/smile-aggregation";
+import { createAvailabilityProbe } from "../lib/smile-availability";
 import { createRowActions } from "../lib/smile-row-actions";
 import { createSmileSession } from "../lib/smile-session";
 import { createBranchWatch } from "../lib/smile-watch";
@@ -66,10 +67,18 @@ export default defineContentScript({
     // A branch whose diary opened while it was being watched: remember the service that listed it, so
     // the next click sweeps that one FIRST and reaches the slots page in one search instead of three.
     const knownSpecializationByNavCode = new Map<string, string>();
+    const availability = createAvailabilityProbe({
+      session,
+      isMintInFlight: () => rowActions.isMintInFlight(),
+      onDiaryFound({ navCode, specialization }) {
+        knownSpecializationByNavCode.set(navCode, specialization);
+      }
+    });
     const aggregation = createSmileAggregation({
       session,
       nativeFetch,
-      reportStatus
+      reportStatus,
+      markAvailability: (elRows, navCodeOf) => availability.markRows(elRows, navCodeOf)
     });
     const rowActions = createRowActions({
       session,
