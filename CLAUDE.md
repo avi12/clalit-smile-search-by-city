@@ -35,6 +35,7 @@ Key lib modules:
 
 # Code style
 - Function declarations, not arrow-consts (`func-style`); early returns; `for-of` over `.forEach`
+- Prefer destructuring for variables that point to object props when it improves readability - `const { city, street } = branch` over repeated `branch.city` / `branch.street`, `({ data }) => …` over `msg => msg.data`, and `const { ownerDocument } = container` over `const doc = container.ownerDocument` (prefer the prop's own name to an invented alias when the name is clear). Judgment call, not mechanical: a truly single-use prop read once stays as-is; reach for it when the value is used more than once or destructuring names it more clearly
 - No comments unless necessary - descriptive names first; no em dashes, use hyphens
 - No type assertions (`consistent-type-assertions: never`), no `any`, no `@ts-` comments
 - Content-script code never reads `process` - Node globals exist only in `scripts/` and config files
