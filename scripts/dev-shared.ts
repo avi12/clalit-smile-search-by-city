@@ -330,8 +330,8 @@ function sessionKeepaliveExpression() {
     for (const selector of ${continueSelectors}) {
       const button = dialog.querySelector(selector) || document.querySelector(selector);
       if (!button) continue;
-      const signature = (button.textContent || "") + " " + (button.getAttribute("onclick") || "") + " " +
-        (button.getAttribute("href") || "");
+      const signature = button.id + " " + button.className + " " + (button.textContent || "") + " " +
+        (button.getAttribute("onclick") || "") + " " + (button.getAttribute("href") || "");
       if (!exitHint.test(signature)) { button.click(); return true; }
     }
     return false;

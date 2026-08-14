@@ -165,6 +165,23 @@ reusing the portal's own refresh rather than reimplementing a keepalive. The exi
 `weakButton` and its handler calls `logOut()`, so it is the resilient discriminator against clicking
 the wrong one.
 
+**The discriminator trap (found by live trigger-test, 2026-08-14).** A "reject anything smelling of
+logout" hint of `/logout|יציאה/i` silently disabled BOTH keepalive belts: the **continue** button's own
+signature contains "logout" — its id/href say `LogOutTimeOut` (the WebForms container both buttons live
+in) and its onclick calls `clearLogOutTimeout()` — so the guard rejected the continue button too and
+nothing ever clicked. Captured attributes of both buttons:
+
+- continue: id `…LogOutTimeOut_btnMasterOk_lnkSubButton`, class `Btn online_blue_button`, text "המשך",
+  onclick `…clearLogOutTimeout();baseMasterBeforeSessionExpireMsg();`, href
+  `javascript:__doPostBack('ctl00$ctl00$LogOutTimeOut$btnMasterOk$lnkSubButton','')`
+- exit: id `…btnMasterExit_lnkSubButton`, class `Btn online_blue_button weakButton`, text "יציאה",
+  onclick `…logOut();`
+
+The exit hint therefore matches only exit-unique markers — `weakButton|btnMasterExit|יציאה` — against a
+signature that includes id + class + text + onclick + href (`targets.ts`). **Repro to trigger the dialog
+on demand:** the top frame's `showMP()` (inline script; also arms the real `logOut()` countdown via
+`baseMasterSessionLogOutID`); the fixed keepalive clicks continue in ~200 ms (its debounce).
+
 ---
 
 ## 6. The real Tamuz "Clalit Smile" clinic-search API

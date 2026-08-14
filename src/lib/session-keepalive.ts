@@ -35,7 +35,13 @@ function findContinueButton(dialog: Element): HTMLElement | null {
       continue;
     }
 
-    const signature = `${candidate.textContent ?? ""} ${candidate.getAttribute("onclick") ?? ""} ${candidate.getAttribute("href") ?? ""}`;
+    const signature = [
+      candidate.id,
+      candidate.className,
+      candidate.textContent ?? "",
+      candidate.getAttribute("onclick") ?? "",
+      candidate.getAttribute("href") ?? ""
+    ].join(" ");
     if (!SESSION_TIMEOUT_EXIT_HINT.test(signature)) {
       return candidate;
     }

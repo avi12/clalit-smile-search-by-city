@@ -69,8 +69,14 @@ export const SESSION_TIMEOUT_CONTINUE_SELECTORS = [
   `${SESSION_TIMEOUT_DIALOG_SELECTOR} a.online_blue_button:not(.weakButton)`
 ] as const;
 
-/** Never click the exit control by mistake: its text is "יציאה" and its handler calls `logOut()`. */
-export const SESSION_TIMEOUT_EXIT_HINT = /logout|יציאה/i;
+/**
+ * Never click the exit control by mistake. Matched against a button's id + class + text + onclick +
+ * href, and only exit-unique markers qualify: the exit button's `weakButton` class, its `btnMasterExit`
+ * id, and its "יציאה" text. A generic /logout/ would reject the CONTINUE button too - its id/href say
+ * "LogOutTimeOut" and its onclick calls "clearLogOutTimeout" (verified live 14.08.2026; that exact bug
+ * silently disabled both keepalive belts).
+ */
+export const SESSION_TIMEOUT_EXIT_HINT = /weakButton|btnMasterExit|יציאה/i;
 
 // ── Request classification ─────────────────────────────────────────────────────
 
