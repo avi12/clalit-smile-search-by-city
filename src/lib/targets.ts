@@ -103,8 +103,6 @@ export function isTargetHost(hostname: string): boolean {
  * filters/aggregates the live responses instead of splicing rows from a second search in.
  */
 export const SMILE_CLINIC_PAGE_PATH = "/Zimunet/SmileClinic";
-/** The service's own appointments page - where the site starts a Clalit Smile booking. */
-export const SMILE_APPOINTMENTS_PATH = `${SMILE_CLINIC_PAGE_PATH}/Index/ClalitSmile`;
 export const SMILE_SEARCH_PATH = `${SMILE_CLINIC_PAGE_PATH}/SearchSmileClinicsDiaries`;
 export const SMILE_PAGING_PATH = `${SMILE_CLINIC_PAGE_PATH}/Paging`;
 export const SMILE_SORT_PATH = `${SMILE_CLINIC_PAGE_PATH}/SortSmileDiaries`;

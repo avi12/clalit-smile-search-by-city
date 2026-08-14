@@ -22,6 +22,7 @@ Key lib modules - the interceptor owns only the patches and the wiring, each beh
 - `smile-session.ts` - the ONE shared Smile server session: what the last search was, which services still answer, and every `/Zimunet/SmileClinic` call, made with the page's credentials and its UNPATCHED fetch. The modules below read and write this object instead of keeping their own copy
 - `smile-aggregation.ts` - city completeness after the first render: fetch the remaining server pages, dedup by clinic name, append the branches Tamuz omits from the committed directory, then re-rank
 - `live-distance.ts` - the live-location re-rank when the home-distance sort is active (stable; unknown-coordinate rows keep server order at the end)
+- `smile-availability.ts` - which appended branches can be booked at all: asks the OTHER services once per rendered list (verdicts cached 5 min), then paints a red button + reason on the rows nothing lists
 - `smile-row-actions.ts` - a synthetic row's two buttons: "לכל התורים" mints a diary GUID at click time and always lands in a booking flow, "מידע נוסף" composes the site's own lightbox from a real row of the current search
 - `smile-watch.ts` - watching a no-diary branch until its diary opens (15-min ticks, one service per tick, restores the user's search each time). Session-only, dies with the document
 - `site-chrome.ts` - the PAGE's own chrome reused instead of ours: `window.z` loader/lightbox plus the DOM waits. MAIN-world only, every call cosmetic

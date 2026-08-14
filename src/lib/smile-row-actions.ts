@@ -18,14 +18,16 @@ import {
   applyBranchToDetailsFragment,
   detailsLinkFromRowHtml,
   MINT_NAVIGATE_NOTE,
-  NO_DIARY_REDIRECT_NOTE,
+  nearmeHref,
+  NO_DIARY_DETAILS_NOTE,
+  NO_DIARY_SWEEP_NOTE,
   scanEnvelopeForNavCode,
   SMILE_ENVELOPE_STATUS,
   sweepStepNote,
   VISIT_APPOINTMENTS_NOTE
 } from "./smile";
 import type { SmileSession } from "./smile-session";
-import { SMILE_APPOINTMENTS_PATH, SMILE_DETAILS_DIALOG_SELECTOR, VISIT_APPOINTMENTS_PATH } from "./targets";
+import { SMILE_DETAILS_DIALOG_SELECTOR, VISIT_APPOINTMENTS_PATH } from "./targets";
 
 export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecializationByNavCode, offerWatch }: {
   session: SmileSession;
@@ -59,10 +61,12 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
   }
 
   /** "מידע נוסף" for a branch the server will not describe: the site's own lightbox, composed. */
-  async function openDetails({ code, fallbackHref, note }: {
+  async function openDetails({ code, fallbackHref, note, onComposed }: {
     code: string;
     fallbackHref: string;
     note: string;
+    /** Runs once the fragment is in hand - the caller's cue to drop a loader the dialog would sit under. */
+    onComposed?: () => void;
   }) {
     const branch = branchByCode(code);
     if (!branch) {
@@ -77,6 +81,8 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
       await session.restoreUserSearch().catch(() => {});
       return composeDetailsFragment(branch);
     })();
+    onComposed?.();
+
     if (session.state.isSuperseded || !fragment || !showDetailsDialog({
       html: fragment,
       note
@@ -200,11 +206,25 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
         return;
       }
 
-      // The branch's own appointments page when a past visit keys one, and the service's appointments
-      // page when nothing does - the button always lands in the booking flow, never on a dead end.
+      // The branch's own appointments page when a past visit keys one. When nothing does, there is no
+      // appointments page in Tamuz to send the user to (docs §12f) - the service's page is its SEARCH
+      // FORM, which would only throw the user back to the start of their own search - so the row opens
+      // the branch's details instead, with the reason, the phones and the watch. The red button the
+      // availability probe painted on this row said so before the click (docs §12h).
       const visitGuid = await pastVisitGuidFor(code);
-      captionLoader(visitGuid ? VISIT_APPOINTMENTS_NOTE : NO_DIARY_REDIRECT_NOTE);
-      window.location.assign(visitGuid ? `${VISIT_APPOINTMENTS_PATH}${visitGuid}` : SMILE_APPOINTMENTS_PATH);
+      if (!visitGuid) {
+        captionLoader(NO_DIARY_DETAILS_NOTE);
+        await openDetails({
+          code,
+          fallbackHref: nearmeHref(code),
+          note: NO_DIARY_SWEEP_NOTE,
+          onComposed: () => setSiteLoader(false)
+        }).catch(() => setSiteLoader(false));
+        return;
+      }
+
+      captionLoader(VISIT_APPOINTMENTS_NOTE);
+      window.location.assign(`${VISIT_APPOINTMENTS_PATH}${visitGuid}`);
     } finally {
       isMintInFlight = false;
     }

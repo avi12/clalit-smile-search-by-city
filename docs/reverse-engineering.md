@@ -895,6 +895,36 @@ upstairs does) and no diary in any of the three services.
 Incidental: only two of the seven visits render an ENABLED `הזמן תור` (`למד`, `מרכז מומחים מגדל המאה`) -
 consistent with §12d, where the Smile visits are the disabled ones.
 
+### 12h. Saying it in the list: the availability probe and the red button (shipped 2026-08-15)
+
+Avi's call after §12f/§12g: a click must land on the branch's appointments page, and a branch that cannot
+be booked must say so in the list rather than at the end of a sweep. A synthetic row alone does not mean
+"unbookable" - it means the SEARCHED service has no diary here, while another service often does - so the
+list now asks the question once, right after it is complete:
+
+- **The probe** (`smile-availability.ts`) takes the appended rows' nav codes and asks each remaining
+  service `session.listedNavCodes` - one fresh search, re-sorted by distance from the searched city so the
+  city's own branches sit first, then its first two pages (the watch tick's mechanism, §6c, now shared by
+  both callers). It stops as soon as every branch is accounted for, and always ends with
+  `restoreUserSearch` - these are FOREIGN searches and the rendered rows' GUIDs die with them.
+- **Verdicts live 5 minutes.** A sort re-renders the list and re-runs the aggregation; without the cache
+  every sort click would pay for the probe again. The diary set moves during the day, so the cache is a
+  short-lived snapshot, not a session-long fact.
+- **What the row says.** Bookable elsewhere → the site's own button and "יש יומן מקוון לסניף בשירות אחר";
+  listed nowhere → the button is painted `#b3261e` with the title "אין כרגע תור מקוון לסניף זה" and the
+  note becomes "אין כרגע יומן מקוון לסניף בשום שירות של כללית סמייל". Inline styles, because the MAIN
+  world must not add a stylesheet to a page it does not own and the site has no red button variant.
+- **The click, now.** Diary found by the sweep → the branch's slots page. No diary but a past visit at
+  THAT clinic → `AvailableVisit/Index/{visitGuid}` (§12e). Neither → the branch's details lightbox with
+  the reason, its phones and the watch - never the service's search form again (§12f).
+
+**Service hours, observed 2026-08-15 00:20:** every Smile search answered `errorType: 3` for every city
+and every service, while `Diary/GetCities` answered `errorType: 0` on the same session - the session was
+healthy, the service was not. The Smile page renders Clalit's own "זמנית לא ניתן לזמן לתור הזה דרך
+האינטרנט" banner at that hour. Cookie recovery (§12c) restores the handshake but not the searches, so a
+whole-service `errorType: 3` after midnight is a closed service, not a poisoned session - wait for the
+morning rather than resetting anything.
+
 ---
 
 ## 13. Native styling of injected elements (captured live 2026-08-14)
