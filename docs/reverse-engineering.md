@@ -867,6 +867,34 @@ results, so a click on a branch with neither a diary nor a past visit lands the 
 their own search. Nothing else exists to land on: the three keys are a diary GUID (needs a listing), a
 visit GUID (needs a past visit at that branch) and a clinic code (opens nothing).
 
+### 12g. Why רמת אביב redirects and מגדל המאה does not - same building, different clinic (2026-08-14, 22:10)
+
+The visits list (`GET /Zimunet/`, 7 `a.clinicDetails[data-action-link*=ClinicDetailsByVisit]` anchors)
+answers it outright:
+
+| visits-list title | Smile branch title (committed directory) | match |
+| --- | --- | --- |
+| `רמת אביב - כללית סמייל - ת''א` | `רמת אביב - כללית סמייל - ת''א` | **exact** → visit GUID → its own appointments page |
+| `מרכז מומחים מגדל המאה - תל אביב יפו` | `מגדל המאה - כללית סמייל - תל אביב יפו` | no match |
+
+The tempting read is that our title-exact lookup is too strict. It is not - **the מגדל המאה visit is a
+different clinic that happens to share the address.** `Visit/CanCreateVisit/{guid}` answers
+`{isRedirect:true, redirectTo:"/Zimunet/AvailableVisit/Index/{guid}", canCreateVisit:true}`, and
+navigating the iframe there (verified live) renders:
+
+- `תור לרופא בי"ח - עיניים` - an **ophthalmology** diary, not dental
+- `תור למרפאה: מרכז מומחים מגדל המאה - תל אביב יפו, כתובת: אבן גבירול 124 תל אביב יפו, טלפון: 03-7622300`
+  (the Smile branch at the same address answers `03-5235676`)
+- the site's own `אין תורים פנויים`
+
+So a looser title match would send a שיננית row to an eye doctor's calendar. **The exact-title rule is
+load-bearing**, and the answer to "why does one redirect and the other not" is not a bug: רמת אביב has a
+past visit at the Smile clinic itself, מגדל המאה's Smile clinic has none (only the specialists centre
+upstairs does) and no diary in any of the three services.
+
+Incidental: only two of the seven visits render an ENABLED `הזמן תור` (`למד`, `מרכז מומחים מגדל המאה`) -
+consistent with §12d, where the Smile visits are the disabled ones.
+
 ---
 
 ## 13. Native styling of injected elements (captured live 2026-08-14)
