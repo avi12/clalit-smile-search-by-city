@@ -15,29 +15,21 @@
  * dev build it logs interesting requests to the page console (Discovery).
  */
 
-import { SMILE_BRANCHES, type SmileBranch } from "../lib/clinic-directory";
 import { installDevTakeover } from "../lib/dev-takeover";
 import { type GuaranteeStatus, PageMsg } from "../lib/messaging";
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
-import { searchConfigSchema, smileEnvelopeSchema } from "../lib/schemas";
-import { captionLoader, openInNewTab, setSiteLoader, showDetailsDialog } from "../lib/site-chrome";
+import { searchConfigSchema } from "../lib/schemas";
+import { openInNewTab } from "../lib/site-chrome";
 import {
-  applyBranchToDetailsFragment,
   DETAILS_CODE_ATTR,
-  detailsLinkFromRowHtml,
   filterSmileEnvelope,
   MINT_CODE_ATTR,
-  MINT_NAVIGATE_NOTE,
-  NO_DIARY_REDIRECT_NOTE,
   NO_DIARY_ROW_NOTE,
-  scanEnvelopeForNavCode,
-  SMILE_ENVELOPE_STATUS,
   SMILE_MARKER_ATTR,
-  sweepStepNote,
-  VISIT_APPOINTMENTS_NOTE,
   WATCH_CODE_ATTR
 } from "../lib/smile";
 import { createSmileAggregation, type MarkedSmileOutcome } from "../lib/smile-aggregation";
+import { createRowActions } from "../lib/smile-row-actions";
 import { createSmileSession } from "../lib/smile-session";
 import { createBranchWatch } from "../lib/smile-watch";
 import {
@@ -47,18 +39,14 @@ import {
   isSmileRestoreLocation,
   isSmileResultsUrl,
   matchEndpointRule,
-  SMILE_APPOINTMENTS_PATH,
   SMILE_AREA_FIELD,
   SMILE_CITY_FIELD,
-  SMILE_DETAILS_DIALOG_SELECTOR,
-  SMILE_PAGING_PATH,
   SMILE_SEARCH_BUTTON_SELECTOR,
   SMILE_SEARCH_PATH,
   SMILE_SORT_PATH,
   SMILE_SORT_VALUES,
   SMILE_SPECIALIZATION_FIELD,
-  SMILE_SPECIALIZATION_SELECT_SELECTOR,
-  VISIT_APPOINTMENTS_PATH
+  SMILE_SPECIALIZATION_SELECT_SELECTOR
 } from "../lib/targets";
 import { applyGuarantee, type TransformResult } from "../lib/transform";
 import { defineContentScript } from "#imports";
@@ -83,9 +71,15 @@ export default defineContentScript({
       nativeFetch,
       reportStatus
     });
+    const rowActions = createRowActions({
+      session,
+      visitGuidsByClinicTitle: options => aggregation.visitGuidsByClinicTitle(options),
+      knownSpecializationByNavCode,
+      offerWatch: offer => branchWatch.offer(offer)
+    });
     const branchWatch = createBranchWatch({
       session,
-      isMintInFlight: () => isMintInFlight,
+      isMintInFlight: () => rowActions.isMintInFlight(),
       onDiaryFound({ navCode, specialization }) {
         knownSpecializationByNavCode.set(navCode, specialization);
       }
@@ -195,198 +189,6 @@ export default defineContentScript({
       });
     }
 
-    // ── Composed clinic-details lightbox (no-GUID branches) ────────────────────
-    /**
-     * "מידע נוסף" for a branch with no GUID of any kind: fetch a REAL current-search row's details
-     * fragment (ClinicDetailsByDiary - the only endpoints that serve the lightbox are GUID- or
-     * session-bound, see docs/reverse-engineering.md §10b), recompose it for this branch from the
-     * committed directory, and open it in the site's own lightbox. Any failure falls back to the
-     * anchor's nearme href in a new tab.
-     */
-    /** The branch's lightbox fragment, composed from a real row of the CURRENT search session. */
-    async function composeDetailsFragment(branch: SmileBranch): Promise<string | null> {
-      const templateLink = detailsLinkFromRowHtml(session.state.latestTemplateRowHtml);
-      if (!templateLink) {
-        return null;
-      }
-
-      const envelope = await session.fetchSessionJson({ url: templateLink }).catch(() => null);
-      const parsed = smileEnvelopeSchema.safeParse(envelope);
-      return parsed.success ? applyBranchToDetailsFragment({
-        template: parsed.data.data,
-        branch
-      }) : null;
-    }
-
-    async function openBranchDetails({ code, fallbackHref, note }: {
-      code: string;
-      fallbackHref: string;
-      note: string;
-    }) {
-      const branch = SMILE_BRANCHES.find(candidate => candidate.code === code);
-      if (!branch) {
-        openInNewTab(fallbackHref);
-        return;
-      }
-
-      // Every search re-mints the session's GUIDs - ours, the watcher's, or the user's own - so a dead
-      // template link means "stale", not "impossible": re-run the user's search once and compose again,
-      // otherwise the row would open the nearme page in a new tab instead of the lightbox.
-      const fragment = await composeDetailsFragment(branch) ?? await (async () => {
-        await session.restoreUserSearch().catch(() => {});
-        return composeDetailsFragment(branch);
-      })();
-      if (session.state.isSuperseded || !fragment || !showDetailsDialog({
-        html: fragment,
-        note
-      })) {
-        openInNewTab(fallbackHref);
-        return;
-      }
-
-      branchWatch.offer({
-        navCode: branch.code,
-        elDialog: document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR)
-      });
-    }
-
-    // ── Click-time GUID minting (synthetic rows' "לכל התורים") ─────────────────
-    // A diary GUID exists only inside the server session's LAST search, so it cannot be minted ahead
-    // of time - a later search kills it (the slots page then errors, verified live). The only way to a
-    // working "לכל התורים" for a branch the search omitted is to mint at click time: run NEW searches
-    // until one lists the branch (the diary set fluctuates intraday, and a branch may hold a diary
-    // under another specialization - the list of three is closed), then navigate immediately.
-
-    /** One NEW all-country search for a specialization, scanned page by page for the branch's link. */
-    async function scanSearchForBranch({ specialization, navCode }: {
-      specialization: string;
-      navCode: string;
-    }): Promise<string | null> {
-      const first = await session.fetchSessionJson({
-        url: SMILE_SEARCH_PATH,
-        body: session.searchBody(specialization)
-      });
-      if (session.trackEnvelopeStatus({
-        json: first,
-        specialization
-      }) !== SMILE_ENVELOPE_STATUS.success) {
-        return null;
-      }
-
-      let scan = scanEnvelopeForNavCode({
-        json: first,
-        navCode
-      });
-      // A row of the newest search - keeps the composed-lightbox template's GUID current.
-      if (scan.firstRowHtml) {
-        session.state.latestTemplateRowHtml = scan.firstRowHtml;
-      }
-
-      const totalPages = session.pagesOf(scan);
-      for (let page = 2; !scan.actionLink && page <= totalPages; page++) {
-        scan = scanEnvelopeForNavCode({
-          json: await session.fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }),
-          navCode
-        });
-      }
-
-      return scan.actionLink;
-    }
-
-    /** Sweep the closed specialization list, the user's searched service first. */
-    async function mintDiaryLink({ navCode, onStep }: {
-      navCode: string;
-      onStep: (progress: {
-        step: number;
-        total: number;
-      }) => void;
-    }): Promise<string | null> {
-      const preferred = [knownSpecializationByNavCode.get(navCode), session.state.activeSearchSpecialization].filter(
-        (code): code is string => code !== undefined && !session.isSpecializationEmpty(code)
-      );
-      const otherCodes = session.bookableSpecializations().filter(code => !preferred.includes(code));
-      const specializations = [...new Set([...preferred, ...otherCodes])];
-      for (const [i, specialization] of specializations.entries()) {
-        if (session.state.isSuperseded || !session.state.isEnabled || session.state.isSessionLost) {
-          return null;
-        }
-
-        onStep({
-          step: i + 1,
-          total: specializations.length
-        });
-        try {
-          const link = await scanSearchForBranch({
-            specialization,
-            navCode
-          });
-          if (link) {
-            return link;
-          }
-        } catch { /* one specialization failing must not end the sweep */ }
-      }
-
-      return null;
-    }
-
-    /**
-     * The branch's own appointments page needs a visit handle, so a branch is only reachable this way
-     * once the user has been treated there. The handles rotate with every render of the visits list, so
-     * this always reads a fresh one rather than the map cached for the details lightbox.
-     */
-    async function pastVisitGuidFor(code: string): Promise<string | null> {
-      const branch = SMILE_BRANCHES.find(candidate => candidate.code === code);
-      if (!branch) {
-        return null;
-      }
-
-      const detailsByTitle = await aggregation.visitGuidsByClinicTitle({ isRefreshed: true }).catch(() => null);
-      return detailsByTitle?.get(branch.title) ?? null;
-    }
-
-    let isMintInFlight = false;
-
-    /**
-     * A synthetic row's "לכל התורים": mint a fresh GUID and navigate straight to its slots page (the
-     * GUID dies with the next search, so navigation is immediate). When no specialization lists the
-     * branch, restore the user's search session, heal the visible rows' links, and open the row's own
-     * "מידע נוסף" instead - the honest phone/details view.
-     */
-    async function openBranchDiaries(code: string) {
-      if (isMintInFlight || !session.city()) {
-        return;
-      }
-
-      isMintInFlight = true;
-      setSiteLoader(true);
-      try {
-        const link = await mintDiaryLink({
-          navCode: code,
-          onStep: progress => captionLoader(sweepStepNote(progress))
-        }).catch(() => null);
-        if (link && !session.state.isSuperseded) {
-          // Loader stays up while the iframe navigates away, exactly like the site's own button.
-          captionLoader(MINT_NAVIGATE_NOTE);
-          window.location.assign(link);
-          return;
-        }
-
-        await session.restoreUserSearch().catch(() => {});
-
-        if (session.state.isSuperseded) {
-          return;
-        }
-
-        // The branch's own appointments page when a past visit keys one, and the service's appointments
-        // page when nothing does - the button always lands in the booking flow, never on a dead end.
-        const visitGuid = await pastVisitGuidFor(code);
-        captionLoader(visitGuid ? VISIT_APPOINTMENTS_NOTE : NO_DIARY_REDIRECT_NOTE);
-        window.location.assign(visitGuid ? `${VISIT_APPOINTMENTS_PATH}${visitGuid}` : SMILE_APPOINTMENTS_PATH);
-      } finally {
-        isMintInFlight = false;
-      }
-    }
-
     document.addEventListener("click", e => {
       const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
       if (session.state.isSuperseded || !session.state.isEnabled || e.defaultPrevented || isModified) {
@@ -413,7 +215,7 @@ export default defineContentScript({
         // live). Capture-phase + stopPropagation keeps the click ours alone.
         e.preventDefault();
         e.stopPropagation();
-        openBranchDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => {});
+        rowActions.openDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => {});
         return;
       }
 
@@ -425,7 +227,7 @@ export default defineContentScript({
       const code = elAnchor.getAttribute(DETAILS_CODE_ATTR) ?? "";
       const fallbackHref = elAnchor.getAttribute("href") ?? "";
       e.preventDefault();
-      openBranchDetails({
+      rowActions.openDetails({
         code,
         fallbackHref,
         note: NO_DIARY_ROW_NOTE
