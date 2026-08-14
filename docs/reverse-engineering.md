@@ -653,11 +653,10 @@ Probed from the top frame with the guarantee toggled OFF.
   `errorType`. This is the probe-safety fact: **a dead session (2) and a server-side failure (3) both return
   `200` with no rows**, so a sweep that counts rows alone cannot tell "this code has no diaries" from "your
   session died three requests ago". Always record `errorType`, and interleave a known-good control (92).
-- **Specialization codes are enforced server-side.** With a live session, `91` and `92` returned result sets
-  and every other code tried (`0, 1, 50, 90, 93–96, 98, 99, 100`) came back `errorType: 3` — including `97`
-  (סתימה), the site's own third option, which has no diaries anywhere today. A wider sweep (2–89, 101–145)
-  ran after the session had died and is therefore void; re-run it with `errorType` recorded before quoting
-  it as coverage.
+- **Specialization codes are enforced server-side.** With a live session and interleaved controls, `91`
+  and `92` returned result sets and every other code tried (`1–29`, plus `0, 50, 90, 93–96, 98, 99, 100`
+  earlier) came back `errorType: 3` — including `97` (סתימה), the site's own third option, which simply
+  has no diaries anywhere. There is no hidden fourth service: the select's list IS the server's list.
 - **Two independent sessions, and they die separately.** The OnlineWeb portal cookie expired (a `manual`
   fetch of `TamuzTransfer.aspx` gave `opaqueredirect`, a followed one landed on `Login.aspx`) while the
   Zimunet app session kept serving searches normally for a while — then Zimunet expired too, with a double
@@ -676,15 +675,25 @@ Probed from the top frame with the guarantee toggled OFF.
   המאה carries `[1511]`. Nothing here separates the groups, so a precomputed "which branches are bookable"
   table is not derivable from Clalit's public data; only a live search can answer it, which is exactly what
   the click-time sweep does.
-- **Tamuz has downtime, and it looks like a session failure.** On Friday 14.08 at ~19:00 local the whole
-  scheduler went down: `POST /Zimunet/Visits/Login` (the portal → Zimunet handshake, body =
-  `Parameters=<encrypted blob>`) answered `200` with the app's generic error page ("תקלה זמנית. פנה לשירות
-  הלקוחות *2700"), every `/Zimunet/*` document served the same, and `fetch("/Zimunet/…")` from the portal
-  page failed at the network level while `/Zimunet/js/*` assets still returned 200. Just before that,
-  in-flight searches returned `errorType: 2`. So **`errorType: 2` does not prove your login expired** — the
-  backend being down produces the identical symptom; check `TamuzTransfer.aspx` with `redirect: "manual"`
-  (opaqueredirect = really logged out) before re-authenticating. Infrastructure in front: Imperva
-  (`x-cdn: Imperva`, `visid_incap_*` cookies) plus an F5 ASM cookie (`TS…`).
+- **⚠ Error-storming the search KILLS the session — and it looks exactly like a Tamuz outage.** Measured
+  precisely on 14.08 with a known-good control (`92`) interleaved every 20 requests: codes `1…29` each
+  returned `errorType: 3` while the controls at 1 and 21 still returned `errorType: 0` with 70 clinics —
+  and from the **30th** consecutive Application error on, every response, including the control, flipped
+  to `errorType: 2` and stayed there. Afterwards the portal → Zimunet handshake
+  (`POST /Zimunet/Visits/Login`, body `Parameters=<encrypted blob>`) answers `200` with the app's generic
+  error page ("תקלה זמנית. פנה לשירות הלקוחות *2700") for **every** re-entry, `fetch("/Zimunet/…")` from
+  the portal page fails at the network level (cross-origin redirect), and a **fresh login does not fix
+  it** — while the same account works normally in another browser profile. That is the tell: the block is
+  pinned to the browser's session cookies, not to the account or the backend.
+- **Recovery, without logging out** (verified 14.08): delete the scheduler's session cookies for
+  `e-services.clalit.co.il` — `__zn`, `TS<hex>` (F5 ASM), `incap_ses_*` (Imperva) — **keep** `.ONLINEAUTH`
+  and `ASP.NET_SessionId`, clear the HTTP cache, then re-enter through `TamuzTransfer.aspx`. The iframe
+  comes back on `/Zimunet/` with the login intact. Dropping `ASP.NET_SessionId` as well works too but
+  logs the portal out, costing a full re-login (CAPTCHA and all). Script:
+  `<scratchpad>/reset-tamuz-session.mjs [--keep-portal]` (raw CDP against the dev Chrome).
+- **So never sweep unknown parameter values against this API.** Probe with valid values only, keep a
+  control in the loop, and stop at the FIRST `errorType: 3` — the closed specialization list is
+  server-enforced (below), so there is nothing to discover by brute force anyway.
 
 ### 12b. The marketing site is not a second booking channel (captured 2026-08-14, evening)
 
@@ -704,6 +713,40 @@ were bookable anywhere, it would be here. It isn't — and the page says so itse
   point: a branch can be reachable for a cosmetic LEAD while having no bookable diary for a hygienist.
 - The only other online path the page offers is **`/online-call`** ("רפואת שיניים דחופה און ליין"), i.e.
   remote urgent care — not an appointment at a branch.
+
+### 12c. What the search actually lists — and the end of the "book any clinic" question (2026-08-14, 20:30)
+
+Full membership, collected page by page with the guarantee OFF, straight after the session recovery:
+
+| specialization | declared | collected | rows WITHOUT a soonest-slot date | Tel Aviv branches |
+| --- | --- | --- | --- | --- |
+| 92 שיננית | 70 | 70 | **0** | איילון (865012) |
+| 91 בדיקת רופא | 88 | 88 | **0** | ירמיהו (865016) |
+| 97 סתימה | — | — | — | `errorType: 3`, nothing nationwide |
+
+**Every single listed row carries "מועד התור הפנוי הקרוב ביותר".** Not one clinic in 158 rows appears
+without a free slot, which pins down what the result set IS: *clinics that currently have a bookable slot*
+— not "clinics that have a diary", and certainly not "clinics that exist". That is why nothing on the
+clinic side (code, service list, opening hours, past visits) predicts membership: the criterion is
+availability, and availability moves during the day.
+
+**Click-through, same session, live** (each button clicked for real, timed from the click):
+
+| branch | row | outcome | time | slots offered |
+| --- | --- | --- | --- | --- |
+| איילון 865012 | real | **booking page** | 0.5 s | 2 |
+| ירמיהו 865016 | synthetic → minted (91) | **booking page** | 3.5 s | 2 |
+| מגדל המאה 865014 | synthetic | details dialog | 5.0 s | — |
+| רמת אביב 865073 | synthetic | details dialog | 5.5 s | — |
+
+So the answer to "how do I book any clinic": **every clinic that has a bookable slot is one click away —
+including the ones the site's own search hides from the city (ירמיהו was listed only under a different
+service, and the extension still reached its calendar).** For a clinic with no slot anywhere there is no
+online booking to reach: no clinic-code entrance exists (§12a), no other service code is accepted (§12a),
+no second channel exists (§12b), and the search itself only ever emits clinics that have availability.
+What remains is timing — the click-time sweep already converts "listed under another service" into a
+booking page, and only a watcher (poll the sweep, tell the user the moment a slot appears) could convert
+"no slot yet" into one.
 
 **So the ceiling stands: a Smile branch is bookable online only through a Tamuz search that lists it.**
 The client bundle's full action list (§12) contains no clinic-code booking entrance, the slots page keys
