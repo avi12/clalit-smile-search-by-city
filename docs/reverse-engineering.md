@@ -160,13 +160,15 @@ dialog:
   and the session is extended.
 - **"יציאה" (exit)** = `a#…btnMasterExit_lnkSubButton` (class `… weakButton`), `onclick` → `logOut()`.
 
-The extension now clicks the **continue** button itself (top-frame MutationObserver, [`session-keepalive.ts`](../src/lib/session-keepalive.ts)),
-reusing the portal's own refresh rather than reimplementing a keepalive. The exit button carries
-`weakButton` and its handler calls `logOut()`, so it is the resilient discriminator against clicking
-the wrong one.
+The **dev server** clicks the **continue** button (a 30 s CDP poll over the top frame,
+[`scripts/dev-shared.ts`](../scripts/dev-shared.ts)), reusing the portal's own refresh rather than
+reimplementing a keepalive. This is dev tooling only: the shipped extension deliberately leaves the
+portal's idle policy alone (an in-extension watcher existed briefly on 2026-08-14 and was removed the
+same day). The exit button carries `weakButton` and its handler calls `logOut()`, so it is the
+resilient discriminator against clicking the wrong one.
 
 **The discriminator trap (found by live trigger-test, 2026-08-14).** A "reject anything smelling of
-logout" hint of `/logout|יציאה/i` silently disabled BOTH keepalive belts: the **continue** button's own
+logout" hint of `/logout|יציאה/i` silently disabled the keepalive: the **continue** button's own
 signature contains "logout" — its id/href say `LogOutTimeOut` (the WebForms container both buttons live
 in) and its onclick calls `clearLogOutTimeout()` — so the guard rejected the continue button too and
 nothing ever clicked. Captured attributes of both buttons:
@@ -180,7 +182,8 @@ nothing ever clicked. Captured attributes of both buttons:
 The exit hint therefore matches only exit-unique markers — `weakButton|btnMasterExit|יציאה` — against a
 signature that includes id + class + text + onclick + href (`targets.ts`). **Repro to trigger the dialog
 on demand:** the top frame's `showMP()` (inline script; also arms the real `logOut()` countdown via
-`baseMasterSessionLogOutID`); the fixed keepalive clicks continue in ~200 ms (its debounce).
+`baseMasterSessionLogOutID`); the dev-server poll clicks continue within its 30 s interval — well
+inside the ~2 min countdown.
 
 ---
 

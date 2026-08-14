@@ -16,7 +16,6 @@ import {
 } from "../lib/messaging";
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { frameRelayMessageSchema, guaranteeStatusSchema } from "../lib/schemas";
-import { installSessionKeepalive } from "../lib/session-keepalive";
 import { mountStatusBadge } from "../lib/status-badge.svelte";
 import { CONTENT_MATCHES, isTargetHost, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "../lib/targets";
 import { defineContentScript } from "#imports";
@@ -66,17 +65,12 @@ export default defineContentScript({
 
     // Dev re-injection: a newer generation flips this; every handler below then ignores its events.
     let superseded = false;
-
-    // Keep the portal session alive by clicking its own "continue" on the idle "יש פה מישהו?" dialog.
-    // Top frame only — the dialog is a portal master-page control, not part of the search iframe.
-    const keepalive = isTopFrame ? installSessionKeepalive({ isActive: () => !superseded }) : null;
     if (import.meta.env.DEV) {
       installDevTakeover({
         script: "bridge",
         onSuperseded() {
           superseded = true;
           badge?.destroy();
-          keepalive?.destroy();
         }
       });
     }

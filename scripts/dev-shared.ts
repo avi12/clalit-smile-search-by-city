@@ -306,11 +306,10 @@ export async function reloadTargetTabsOverCdp(cdpPort: number) {
 //
 // A long dev/reverse-engineering session leaves the browser idle while we work, so the portal's
 // "יש פה מישהו?" dialog counts down and logs the session out (dropping the Tamuz search + our login).
-// The extension already auto-continues it (src/lib/session-keepalive.ts), but only while the content
-// script is live on the page - not on the login page or between navigations. This is the belt-and-braces
-// copy: the dev server holds the CDP connection regardless, so it polls the top frame and clicks the
-// site's own "המשך" (continue) button. Selectors are the SSOT ones from targets.ts; only the few lines
-// of click glue are restated here as a CDP-eval string (a live DOM module can't be serialized to eval).
+// This is the ONLY keepalive - the shipped extension deliberately leaves the portal's idle policy
+// alone, so the dev server holds the CDP connection and polls the top frame, clicking the site's own
+// "המשך" (continue) button. Selectors are the SSOT ones from targets.ts; only the few lines of click
+// glue are restated here as a CDP-eval string (a live DOM module can't be serialized to eval).
 
 const SESSION_KEEPALIVE_INTERVAL_MS = 30_000;
 

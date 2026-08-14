@@ -54,8 +54,9 @@ export const SEARCH_CITY_HINT = /(עיר|יישוב|ישוב|כתובת|מיקו
 // dialog (`#pnlSessionExpiringInfo`, an AjaxControlToolkit ModalPopupExtender, `role="alertdialog"`) in
 // the TOP frame with two buttons: "המשך" (continue → the portal's `clearLogOutTimer()` + a postback that
 // reloads `RefreshSession.aspx`) and "יציאה" (exit → `logOut()`). Left alone it counts down and logs
-// out, dropping the Tamuz search state. The keepalive watcher clicks the site's OWN continue button, so
-// the session refresh is the portal's, not ours.
+// out, dropping the Tamuz search state. The DEV-SERVER keepalive (scripts/dev-shared.ts) clicks the
+// site's OWN continue button, so the session refresh is the portal's, not ours. Dev tooling only - the
+// shipped extension leaves the portal's idle policy alone.
 
 /** The idle/session-expiring dialog panel (top frame). */
 export const SESSION_TIMEOUT_DIALOG_SELECTOR = "#pnlSessionExpiringInfo";
@@ -74,7 +75,7 @@ export const SESSION_TIMEOUT_CONTINUE_SELECTORS = [
  * href, and only exit-unique markers qualify: the exit button's `weakButton` class, its `btnMasterExit`
  * id, and its "יציאה" text. A generic /logout/ would reject the CONTINUE button too - its id/href say
  * "LogOutTimeOut" and its onclick calls "clearLogOutTimeout" (verified live 14.08.2026; that exact bug
- * silently disabled both keepalive belts).
+ * silently disabled the keepalive).
  */
 export const SESSION_TIMEOUT_EXIT_HINT = /weakButton|btnMasterExit|יציאה/i;
 
