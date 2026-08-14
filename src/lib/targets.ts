@@ -102,9 +102,33 @@ export function isTargetHost(hostname: string): boolean {
  * session's LAST search. That is why the guarantee rewrites the outgoing search to all-country and
  * filters/aggregates the live responses instead of splicing rows from a second search in.
  */
-export const SMILE_SEARCH_PATH = "/Zimunet/SmileClinic/SearchSmileClinicsDiaries";
-export const SMILE_PAGING_PATH = "/Zimunet/SmileClinic/Paging";
-export const SMILE_SORT_PATH = "/Zimunet/SmileClinic/SortSmileDiaries";
+export const SMILE_CLINIC_PAGE_PATH = "/Zimunet/SmileClinic";
+export const SMILE_SEARCH_PATH = `${SMILE_CLINIC_PAGE_PATH}/SearchSmileClinicsDiaries`;
+export const SMILE_PAGING_PATH = `${SMILE_CLINIC_PAGE_PATH}/Paging`;
+export const SMILE_SORT_PATH = `${SMILE_CLINIC_PAGE_PATH}/SortSmileDiaries`;
+
+/**
+ * "Back" from a slots page DOCUMENT-loads the clinic page with this flag, and the server re-renders the
+ * session's last search RAW into it — no fetch/XHR runs, so the guarantee would never touch it. The
+ * interceptor detects this document and re-drives the search through the site's own form (captured
+ * 2026-08-14, docs §6d).
+ */
+export const SMILE_RESTORE_PARAM = "isRestoreSearch";
+
+export function isSmileRestoreLocation({ pathname, search }: {
+  pathname: string;
+  search: string;
+}): boolean {
+  return pathname === SMILE_CLINIC_PAGE_PATH &&
+    (new URLSearchParams(search).get(SMILE_RESTORE_PARAM) ?? "").toLowerCase() === "true";
+}
+
+/**
+ * The Smile search form's own controls (the restore recovery drives the SITE's search, never its own):
+ * the specialization select and the submit button. The city box is SEARCH_CITY_SELECTORS above.
+ */
+export const SMILE_SPECIALIZATION_SELECT_SELECTOR = "select#SelectedSpecializationCode";
+export const SMILE_SEARCH_BUTTON_SELECTOR = "input.searchButton";
 
 /** Search-form field: "1" = clinics from the searched city's area, "0" = the whole country. */
 export const SMILE_AREA_FIELD = "IsShowClinicsFromAreaCity";

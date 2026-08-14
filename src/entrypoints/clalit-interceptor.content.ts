@@ -44,15 +44,18 @@ import {
   CONTENT_MATCHES,
   GUARANTEE_MODE,
   isInterestingUrl,
+  isSmileRestoreLocation,
   isSmileResultsUrl,
   matchEndpointRule,
   SMILE_AREA_FIELD,
   SMILE_CITY_FIELD,
   SMILE_PAGING_PATH,
+  SMILE_SEARCH_BUTTON_SELECTOR,
   SMILE_SEARCH_PATH,
   SMILE_SORT_PATH,
   SMILE_SPECIALIZATION_CODES,
-  SMILE_SPECIALIZATION_FIELD
+  SMILE_SPECIALIZATION_FIELD,
+  SMILE_SPECIALIZATION_SELECT_SELECTOR
 } from "../lib/targets";
 import { applyGuarantee, type TransformResult } from "../lib/transform";
 import { defineContentScript } from "#imports";
@@ -666,6 +669,88 @@ export default defineContentScript({
         fallbackHref
       }).catch(() => openDetailsFallback(fallbackHref));
     }, true);
+
+    // ── Restore-document recovery (the "back" hole, docs §6d) ─────────────────
+    // "Back" from a slots page is a DOCUMENT load (SmileClinic?isRestoreSearch=True): the server
+    // renders the session's last search RAW into the page — no fetch/XHR runs, so the guarantee never
+    // touches it, and the rendered rows are whatever Paging page the aggregation last fetched. Recovery
+    // re-drives that same search through the site's own form; the fresh XHR then flows through the
+    // normal pipeline. The restored form's specialization select is UNRELIABLE (observed 91 above a 92
+    // session) — the session's real specialization comes from the results header, matched against the
+    // select's own option labels.
+
+    function domReady(): Promise<void> {
+      if (document.readyState !== "loading") {
+        return Promise.resolve();
+      }
+
+      return new Promise(resolve => {
+        document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
+      });
+    }
+
+    function restoredSessionSpec(): string | null {
+      const header = document.querySelector("#am_diaries h2")?.textContent ?? "";
+      const select = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
+      if (!header || !select) {
+        return null;
+      }
+
+      const option = [...select.options].find(({ text }) => text.trim() && header.includes(text.trim()));
+      return option?.value ?? null;
+    }
+
+    function redriveSearch(spec: string): void {
+      const button = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
+      if (!button) {
+        return;
+      }
+
+      const select = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
+      if (select && select.value !== spec) {
+        select.value = spec;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      // Belt: until the site's own handler is bound, the submit button's default action would NATIVE-
+      // submit the form (a document POST). The real search flow is always XHR, so preventing the
+      // default keeps a too-early click harmless — the retry loop just tries again.
+      button.closest("form")?.addEventListener("submit", event => event.preventDefault(), { once: true });
+      button.click();
+    }
+
+    async function recoverRestoredSearch() {
+      await domReady();
+      const spec = restoredSessionSpec();
+      if (!spec) {
+        return;
+      }
+
+      for (let attempt = 0; attempt < 20; attempt++) {
+        if (superseded || !config.enabled) {
+          return;
+        }
+
+        // Stop once a search has run in this document: ours landing (the marked render), the user's
+        // own (activeSearchCity is set at send time), or a prior generation's before a dev re-inject.
+        if (activeSearchCity || document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`)) {
+          return;
+        }
+
+        // Re-drive only once BOTH are true: the city is known (the bridge has read it out of the
+        // restored search box — searching before that would re-run the same unfiltered search we are
+        // here to replace), and the site's bundle is up (before that the button is not an XHR search).
+        if (smileCity() && document.readyState === "complete" && window.z) {
+          redriveSearch(spec);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    if (isSmileRestoreLocation(window.location)) {
+      recoverRestoredSearch().catch(() => {});
+    }
 
     // Past-visit clinic-details links (title → ClinicDetailsByVisit GUID), so a synthetic branch can open
     // the site's OWN clinic-details lightbox for a clinic the user has visited. Fetched once per page.

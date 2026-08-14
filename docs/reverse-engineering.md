@@ -270,9 +270,9 @@ logged-in CDP session (extension toggled OFF; `fetch` POSTs of `SearchSmileClini
   cross-spec mint, back shows that specialization's raw list (the user re-searches; the form keeps the
   city); (2) a pre-existing hole — even without minting, back after any real row's slots page shows the
   RAW last search (with the guarantee on: the unfiltered all-country list, no city filter, no synthetic
-  rows), because document loads bypass the fetch/XHR patch entirely. Open item; a fix would transform
-  the server-rendered list in the DOM at document load. (Minor quirk: the restored form's specialization
-  select can disagree with the restored rows — observed 91 in the select above 92-search rows.)
+  rows), because document loads bypass the fetch/XHR patch entirely. Closed in §6d. (Minor quirk: the
+  restored form's specialization select can disagree with the restored rows — observed 91 in the select
+  above 92-search rows.)
 
 **The site's diary-button handler binds by class/id, NOT by `data-action-link`** (found the hard way,
 live): with the attribute stripped the site's delegated handler still fired, read the missing attribute
@@ -289,6 +289,53 @@ Sweep miss → re-run the user's search to restore the session, rewrite the visi
 details `data-action-link`s to the fresh GUIDs (every search churns ALL GUIDs, so the displayed ones
 just died), and open the row's own "מידע נוסף" (phones / details). Real rows are never intercepted —
 the native happy path is untouched.
+
+### 6d. The restore document — "back" from a slots page (captured 2026-08-14, afternoon)
+
+The hole §6c left open, probed on the live logged-in app (CDP, guarantee ON) and now closed.
+
+**The back control** is `a.backToDiaries` ("חזור לבחירת מרפאה בכללית סמייל") on the slots page, carrying
+`data-action-link="/Zimunet/SmileClinic?isRestoreSearch=True"` — the site's own delegated handler
+DOCUMENT-navigates the Zimunet iframe there. What the server renders into that document:
+
+- The full clinic page (search form + results), with `#am_diaries` rendered **server-side** — so no
+  `fetch`/XHR carries it and the guarantee's transform never sees it. Verified: `#am_diaries` had no
+  `data-clalit-city-marker`, 7 raw rows (נהריה, דימונה, צפת, …), header "נמצאו 70 תוצאות … באזור: כל
+  הארץ" — our own rewritten all-country search, unfiltered, straight back in the user's face.
+- **The result set is the last search's, not the last VIEW's**: the pager is restored too, and the rows
+  are page 1 — the aggregation's later `Paging` calls leave no trace here.
+- **The session is intact**: an immediate `Paging?pageNumber=1` from the restored document returns 200,
+  and the restored rows' GUIDs still navigate to real slots pages. Nothing needs re-authenticating.
+- **The form is restored with the city filled in** (`#SelectedCityName` = "תל אביב יפו"), but the
+  specialization `select` is NOT authoritative — it showed 91 above the rows of a 92 search. The
+  session's true specialization is only in the results header ("… חיפוש עבור **שיננית** …").
+- There is a second `h2` OUTSIDE `#am_diaries` reading "שגיאה" (a hidden error placeholder). Read the
+  header **scoped to `#am_diaries`**, never `document.querySelector("h2")`.
+- The search button is `input.searchButton`, `type="submit"`, inside a form whose `action` is
+  `SearchSmileClinicsDiaries`. The site binds a jQuery `submit` handler on the form itself that calls
+  `preventDefault()` and issues the XHR (confirmed by reading `$._data(form, "events")`, jQuery 1.12.4).
+  So before that handler is bound, a click would NATIVE-submit the form as a document POST.
+
+**Shipped fix** (interceptor, `isSmileRestoreLocation` in `targets.ts`): on a restore document, read the
+session's specialization from the `#am_diaries` header by matching the select's own option labels, then
+**re-drive the site's own search form** (set the select, click the search button). The resulting XHR is
+an ordinary search that flows through the whole existing pipeline — area→all-country rewrite, city
+filter, page aggregation, synthetic branch rows, live-location re-rank — so the restored page ends up
+identical to a fresh guaranteed search, with working GUIDs. Guards, each one earned from a live failure
+or from the wire:
+
+- Re-drive only once the **city is known** (`smileCity()`, i.e. the bridge has read the restored search
+  box). Firing before the config arrives searches with no city and reproduces the raw all-country list —
+  observed exactly once, during a dev re-injection into an already-open restore document.
+- Re-drive only at `readyState === "complete"` **and** with the site's `z` namespace present, plus a
+  one-shot `preventDefault` on the form's `submit`, so a too-early click can never become a native
+  document POST.
+- Stop as soon as any search has run in the document (our marked render, or `activeSearchCity` set by
+  `patchedSend`), so exactly one search is re-driven; retries are capped at 20 × 500 ms.
+
+After a **cross-specialization mint**, back restores that specialization's search (91), and the recovery
+guarantees it as-is: "נמצאו 5 תוצאות חיפוש עבור בדיקת רופא בעיר: תל אביב יפו" — city-complete for what
+the session actually holds, with ירמיהו as the real row. Switching back to שיננית is one form search.
 
 ---
 
