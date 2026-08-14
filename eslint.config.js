@@ -273,7 +273,9 @@ export default [
   },
   ...svelteEslint.configs["flat/recommended"],
   {
-    files: ["**/*.svelte"],
+    // Also *.svelte.{js,ts} - the recommended configs claim those for svelteParser, which needs the
+    // TS sub-parser below to read their TypeScript.
+    files: ["**/*.svelte", "**/*.svelte.{js,ts}"],
     languageOptions: {
       parser: svelteParser,
       parserOptions: {

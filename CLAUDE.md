@@ -5,7 +5,7 @@ A WXT MV3 Chrome extension that guarantees a searched city in Clalit's "Tamuz" /
 
 # Stack
 - pnpm
-- WXT extension framework, plain TypeScript content scripts (no UI framework - the badge is a hand-built shadow-DOM widget)
+- WXT extension framework, TypeScript content scripts; our own DOM is Svelte 5 (runes) mounted in a WXT shadow-root UI (`createShadowRootUi`, `cssInjectionMode: "ui"`) - never hand-rolled
 - TypeScript (100% type safety, let TypeScript infer return types - never write them explicitly)
 - zod for every external input (`src/lib/schemas.ts`)
 - @webext-core/messaging - only the window channel (`/page`, `src/lib/messaging-page.ts`); no runtime (chrome) messaging exists
@@ -21,7 +21,7 @@ Key lib modules:
 - `smile.ts` - the HTML-fragment guarantee (pure string→string); `transform.ts` - the generic JSON guarantee (heuristic/rule-based)
 - `schemas.ts` - zod schemas for every external input (call `schema.safeParse()` at the boundary); `messaging.ts`/`messaging-page.ts` - the window channel contracts
 - `geo.ts` (haversine) + `clinic-directory.ts` - GENERATED from Clalit's public `nearme.clalit.co.il/c.json` by `pnpm clinics:fetch`; never hand-edit (ESLint ignores it). `clinics.ts` is a different code space (marketing-site 9xxx codes), reference only
-- `dev-takeover.ts` - dev-only generation handoff; `status-badge.ts` - pure UI
+- `dev-takeover.ts` - dev-only generation handoff; `status-badge.svelte.ts` + `StatusBadge.svelte` - pure UI
 
 # Engineering conventions
 - SSOT / DRY - every fact has one authoritative home and everything else reads from it: hosts/selectors/endpoints live only in `targets.ts`, message shapes only in `messaging.ts` + `schemas.ts`, coordinates only in `clinic-directory.ts`. Never re-derive or duplicate a value another module already owns

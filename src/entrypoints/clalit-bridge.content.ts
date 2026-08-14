@@ -17,7 +17,7 @@ import {
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { frameRelayMessageSchema, guaranteeStatusSchema } from "../lib/schemas";
 import { installSessionKeepalive } from "../lib/session-keepalive";
-import { mountStatusBadge } from "../lib/status-badge";
+import { mountStatusBadge } from "../lib/status-badge.svelte";
 import { CONTENT_MATCHES, isTargetHost, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "../lib/targets";
 import { defineContentScript } from "#imports";
 
@@ -25,7 +25,9 @@ export default defineContentScript({
   matches: [...CONTENT_MATCHES],
   runAt: "document_start",
   allFrames: true,
-  main() {
+  // The badge's Svelte styles are fetched into its shadow root instead of being injected page-wide.
+  cssInjectionMode: "ui",
+  main(ctx) {
     const isTopFrame = window.self === window.top;
     let enabled = true; // session-only; resets to on each load (a guarantee tool defaults to guarding)
     let city = "";
@@ -58,7 +60,7 @@ export default defineContentScript({
     }
 
     const badge = isTopFrame
-      ? mountStatusBadge(() => {
+      ? mountStatusBadge(ctx, () => {
         setEnabled(!enabled);
         broadcastToggle(window.self);
       })
