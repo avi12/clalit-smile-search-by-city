@@ -144,6 +144,27 @@ only way to observe the appointment API. Everything in §6–§9 was captured th
   (or 500 on the legacy path) means logged out, a direct `200` means logged in — or just watch for the
   tab title to become "עמוד ראשי" (`FamilyHomePage.aspx`). Never probe `Login.aspx` itself (see above).
 
+### 5b. The idle session-timeout dialog (captured 2026-08-14)
+
+The portal logs an idle session out on a client-side timer, and ~2 minutes before it does it shows an
+**"יש פה מישהו?"** dialog in the **top frame** (not the iframe). Left unanswered it counts down and
+logs out — which resets the Tamuz SPA and loses the search. Structure, captured live from the open
+dialog:
+
+- Panel: **`#pnlSessionExpiringInfo`** (class `ModalPopupTimeout`, an AjaxControlToolkit
+  ModalPopupExtender, `role="alertdialog"`). It also hosts an inner `iframe#frmRefreshSession` →
+  `/OnlineWeb/ServicesForAll/RefreshSession.aspx`.
+- **"המשך" (continue)** = `a#ctl00_ctl00_LogOutTimeOut_btnMasterOk_lnkSubButton` (class
+  `Btn online_blue_button`), `onclick` runs `clearLogOutTimer()` then
+  `__doPostBack('ctl00$ctl00$LogOutTimeOut$btnMasterOk…')` — the postback reloads `RefreshSession.aspx`
+  and the session is extended.
+- **"יציאה" (exit)** = `a#…btnMasterExit_lnkSubButton` (class `… weakButton`), `onclick` → `logOut()`.
+
+The extension now clicks the **continue** button itself (top-frame MutationObserver, [`session-keepalive.ts`](../src/lib/session-keepalive.ts)),
+reusing the portal's own refresh rather than reimplementing a keepalive. The exit button carries
+`weakButton` and its handler calls `logOut()`, so it is the resilient discriminator against clicking
+the wrong one.
+
 ---
 
 ## 6. The real Tamuz "Clalit Smile" clinic-search API
@@ -384,6 +405,39 @@ param-matrix probes, a specialization sweep via the site's own serialized form, 
 
 ---
 
+## 12. Client bundle: endpoint catalogue + `window.z` API — and the waiting-list dead end (captured 2026-08-14)
+
+Fetched `/Zimunet/bundles/z` (the Zimunet SPA, ~90 KB) and enumerated `window.z` from the iframe, to
+re-confirm from the code (not just probes) that no clinic-code booking path exists.
+
+**Every appointment endpoint the bundle names** (all under `/Zimunet/`): `SmileClinic/{Search,Paging,Sort}SmileClinicsDiaries` (dental),
+`FamilyClinic/SearchFamilyClinicDiaries`, `NurseBloodTestClinic/SearchNurseBloodTestDiaries`,
+`FluVaccine/SearchDiaries`, `Diary/GetCities`, `Diary/GetDiariesResultsMessageForSpecialization`,
+`Diary/GetProfessionalUiVisibility`, `AvailableVisit/{GetMonthlyAvailableVisit,GetDailyAvailableVisit,Create}`,
+`Diary/{RegisterToNewVisitWaitingList,SetOfVisitUpdateAndCreateNewVisit}`, `Visit/{CreateNewVisitWaitingList,CancelWaitingListVisit,SendReminderEmail}`.
+**None takes a clinic code** — availability is `GetDailyAvailableVisit?id={diaryGUID}` /
+`GetMonthlyAvailableVisit`, booking is `AvailableVisit/Create/{slotGUID}` (both GUID-keyed). This is the
+same wall §9–§10 reached, now confirmed from the source list rather than inferred.
+
+**The waiting list is not a no-diary lever (checked this session).** `RegisterToNewVisitWaitingList`
+reads `#WaitingListCellPhoneNumber` inside `#diaryPanel_{diaryID}` and posts `{diaryID, cellPhoneNumber}`
+— it is **keyed to an existing diary ID** (register interest against a diary that exists), lives in the
+general **`z.Diary`** module (`initNewVisitWaitingList` / `bindPublicActions`), and the Smile module
+(`z.SmileClinic`) renders no waiting-list panel at all. So a branch with no diary has no `diaryID` to
+register against — the waiting list dead-ends exactly where booking does.
+
+**`window.z` public API** (reusable from the MAIN world; the extension already uses `showDialog` for the
+composed lightbox): UI — `showDialog/closeDialog`, `showMessage/showMessageWithCallback/closeMessage`,
+`showInfo`, `showNetworkError`, `showHelp`, `hideAllLightboxes`, `showLoader/hideLoader`, `resizeMe`,
+`disableParentBg/enableParentBg`; net — `Ajax.send({action,data,options})` (shows the loader + logs, so
+it is for user-initiated calls, **not** the silent page aggregation the interceptor does); util —
+`format`, `isEmpty`, `isIE`, `clearSession`, `log/warn/logError`, `ErrorType`; feature modules —
+`SmileClinic`, `Diary`, `AvailableVisits`, `Visits`, `FamilyClinic`, `Nurse`, … each `.init()`-shaped.
+Reuse the **public** methods (stable-ish); the per-feature handlers inside `bundles/z` are minified
+single-letter names (`ct`, `et`, `p`, `g`) and are not a stable surface.
+
+---
+
 ## 11. TL;DR
 
 - Hygienist booking is on Clalit's **Tamuz** scheduler (`e-services.clalit.co.il`, in an iframe),
@@ -398,8 +452,10 @@ param-matrix probes, a specialization sweep via the site's own serialized form, 
   baked into the build so ranking needs no runtime network.
 - **Booking a branch the search omits is phone-only** for a hygienist — the clinic search is dental's
   sole online surface, provider re-book is general-medicine only, and no clinic-code booking endpoint
-  exists (verified against the API and Clalit's own booking guides). Synthetic rows say so and link
-  `tel:`.
+  exists (verified against the API, the full `bundles/z` endpoint list, and Clalit's own booking guides;
+  even the waiting list is keyed to an existing `diaryID` — §12). Synthetic rows say so and link `tel:`.
 - **"מידע נוסף" is uniform anyway:** every branch opens the site's own clinic-details lightbox — a
   native GUID endpoint when one exists, otherwise a fragment recomposed from the committed directory
   and shown via the page's own `z.showDialog` (§10b).
+- **The idle "יש פה מישהו?" logout dialog is auto-answered** — a top-frame watcher clicks the portal's
+  own "המשך" (continue) button so an idle session no longer drops the search state (§5b).
