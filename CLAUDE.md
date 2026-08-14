@@ -39,7 +39,19 @@ Key lib modules:
 - No comments unless necessary - descriptive names first; no em dashes, use hyphens
 - No type assertions (`consistent-type-assertions: never`), no `any`, no `@ts-` comments
 - Content-script code never reads `process` - Node globals exist only in `scripts/` and config files
+- Minimize indentation: avoid nested `try`/`catch` - flatten with early returns, `.catch()` on the awaited promise, or an extracted function. One `try` per function is the ceiling
+- Extract an `if`/ternary/guard condition into a descriptive `is`-prefixed boolean rather than inlining the raw expression - the named boolean reads as the documentation
 - Double quotes, 2-space indent, 120-char lines - ESLint enforces the rest, don't fight it
+
+# Naming conventions
+Shared with `avi/youtube-time-manager` - the same conventions apply across Avi's extensions.
+- Variables and functions: `camelCase`, full words (no abbreviations - `specialization`, not `spec`)
+- Module-level constants: `SCREAMING_SNAKE_CASE`; a closed set of strings is an enum or `as const`
+- Element variables: `el` prefix (`elRow`, `elDialog`, `elLoader`)
+- Index variables: `i` prefix (`iRow`), or bare `i` when iterating in a `for` loop / higher-order function
+- Booleans: `is` prefix, phrased positively (`isEnabled`, never `isDisabled`/`isNotEnabled`)
+- Event-handler first parameter is always `e`
+- `safeParse` results: collapse to a boolean when only validity matters (`schema.safeParse(x).success`), otherwise store as `parsed` - never `result` or `<x>Parse`
 
 # Dev workflow
 `pnpm ext:dev` (tsx `scripts/dev.ts`) is the whole loop:
