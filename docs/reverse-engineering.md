@@ -320,6 +320,25 @@ make it possible to speak through the site's own chrome instead of drawing our o
   `#clinicDetailsLightbox`, one insertion point covers both lightboxes — and the prepend is synchronous,
   so a composed dialog can be annotated immediately while the native one is polled for.
 
+### 6e. Watching a branch until its diary opens (shipped 2026-08-14, evening)
+
+The sweep answers "is there a slot right now?"; the watch answers "tell me when there is one". Offered on
+the row and inside the fallback dialog after a miss, session-only, and deliberately cheap:
+
+- **One service per tick, every 15 minutes**, rotating over the services that can still answer.
+- **It rides the city sort**: search → `SortSmileDiaries?sortValue=4&sortDirection=1` puts the searched
+  city's own branches on page 1, so a check is 1 search + 1 page (+ page 2 as a safety net) instead of
+  paging the whole country. Each tick then re-runs the user's search, so the visible rows keep live GUIDs.
+- **On a hit** the row reads "נפתח תור לסניף! לחצו על לכל התורים" and the service that listed it is
+  remembered, so the next click mints in ONE search — measured live at **1.7 s** to the booking page.
+- **It reads the envelope's status** (§12a): a service answering `errorType: 3` is dropped for the rest of
+  the session (97 סתימה is empty nationwide, and every sweep used to spend a request on it), and
+  `errorType: 2` stops every watch and shows "פג תוקף החיבור" — never keep asking a scheduler that has
+  already locked the session.
+
+Verified live: armed on איילון while the list was the 91 (בדיקת רופא) search; the first tick found it
+under 92 after 13 s, the row flipped, and its button then reached the booking page with 2 open slots.
+
 ### 6d. The restore document — "back" from a slots page (captured 2026-08-14, afternoon)
 
 The hole §6c left open, probed on the live logged-in app (CDP, guarantee ON) and now closed.
