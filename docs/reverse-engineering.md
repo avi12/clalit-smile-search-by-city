@@ -298,8 +298,9 @@ bypasses it and is then dropped by the interceptor's `mintInFlight` guard, silen
 Sweep miss -> re-run the user's search to restore the session, rewrite the visible real rows' slots +
 details `data-action-link`s to the fresh GUIDs (every search churns ALL GUIDs, so the displayed ones
 just died), then **always land in the booking flow** (Avi's call, 14.08): the branch's OWN appointments
-page when a past visit keys one (§12e), otherwise the service's appointments page
-(`SmileClinic/Index/ClalitSmile`, which keeps the typed city). The button never ends on a modal now; the
+page when a past visit keys one (§12e), otherwise the service's own page
+(`SmileClinic/Index/ClalitSmile` - its SEARCH FORM, not an appointments page: it keeps the typed city but
+drops the service and shows no results, §12f). The button never ends on a modal now; the
 clinic's details - with the reason, the phones and the "עדכנו אותי כשייפתח תור" watch - live behind the
 row's own "מידע נוסף". Real rows are never intercepted - the native happy path is untouched.
 
@@ -833,6 +834,38 @@ The client bundle's full action list (§12) contains no clinic-code booking entr
 on the session GUID alone (§12a), and the public marketing channel is a lead form. What is left is
 timing, not access - a branch becomes bookable the moment its diary publishes a slot, which is precisely
 what the click-time sweep (§6c) catches.
+
+### 12f. מגדל המאה has no appointments page - measured, not inferred (captured 2026-08-14, 21:45)
+
+Avi asked for proof that the branch's own appointments page is unreachable rather than merely unfound.
+Four independent checks, all from the logged-in dev session:
+
+- **The whole nationwide result set, read raw.** A probe iframe (`about:blank` inside the Zimunet
+  document, so our own `fetch` patch is NOT installed - `String(fetch).includes("native code")` confirms
+  it) ran the site's own search body for each service and paged to the end:
+  `92 שיננית → 68 clinics / 10 pages`, `91 בדיקת רופא → 88 clinics / 13 pages`, `97 סתימה → errorType 3`
+  (empty nationwide, as in §12b). **865014 appears in none of them.** Scanning by NAME rather than by
+  nav code rules out a code mismatch in our sweep: the only `/מגדל|גבירול/` row in either set is
+  `כללית סמייל - מגדל העמק` (865145). Tel Aviv is represented by exactly one row per service - ירמיהו
+  (91) and איילון (92).
+- **The page's own module has no clinic-keyed route.** `z.SmileClinic` (in `bundles/z`) posts exactly
+  `{SelectedSpecializationCode, SelectedCityName, IsShowClinicsFromAreaCity}` and otherwise only follows
+  server-minted `data-action-link`s (`a.diaryButton` → `window.location = link`; `a.clinicDetails` →
+  `z.showDialog`). Its single hard-coded URL is `/Zimunet/Diary/GetCities`. There is nothing to point at
+  a clinic code even if one were accepted.
+- **Route inventory of every `/Zimunet/` script on the page** (11 tags, 6 same-origin bundles) adds only
+  `Diary/{GetDiariesResultsMessageForSpecialization,GetProfessionalUiVisibility,GetSpecializationMessages,
+  GetMedicalReferralsLinksBySpecializationId,RegisterToNewVisitWaitingList,SetOfVisitUpdateAndCreateNewVisit}`
+  and `Visit/{CreateNewVisitWaitingList,CancelWaitingListVisit,SendReminderEmail}` - waiting-list and
+  message endpoints of the GENERAL diary flow, all diary/visit-GUID keyed, none clinic-keyed.
+- **Clalit's own directory page is navigation-only.** `nearme.clalit.co.il/nav/865014` renders "דרכי
+  הגעה" with `tel:035235676` and Waze/Google/Moovit/Gett/Apple links - no booking control at all.
+
+**Therefore the third destination is not an appointments page.** `SmileClinic/Index/ClalitSmile` is the
+service's **search form** - it keeps the typed city but resets סוג תור to בדיקת רופא and shows no
+results, so a click on a branch with neither a diary nor a past visit lands the user back at the start of
+their own search. Nothing else exists to land on: the three keys are a diary GUID (needs a listing), a
+visit GUID (needs a past visit at that branch) and a clinic code (opens nothing).
 
 ---
 
