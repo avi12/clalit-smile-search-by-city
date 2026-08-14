@@ -4,14 +4,16 @@ import multilineArgParenNewline from "./eslint-rules/multiline-arg-paren-newline
 import stylistic from "@stylistic/eslint-plugin";
 import importNewlines from "eslint-plugin-import-newlines";
 import perfectionist from "eslint-plugin-perfectionist";
+import svelteEslint from "eslint-plugin-svelte";
 import unusedImports from "eslint-plugin-unused-imports";
 import { globalIgnores } from "eslint/config";
 import globals from "globals";
+import svelteParser from "svelte-eslint-parser";
 import tsEslint from "typescript-eslint";
 
 // Logic and correctness rules live in oxlint (.oxlintrc.json) - ESLint only carries what oxlint
-// cannot: formatting, selector bans and the local custom rules. Adapted from youtube-time-manager
-// (Svelte parts dropped - this extension is plain TS content scripts).
+// cannot: formatting, selector bans, the local custom rules and the .svelte template rules. Adapted
+// from youtube-time-manager.
 const tsStyleRules = {
   "perfectionist/sort-imports": [
     "error",
@@ -267,6 +269,26 @@ export default [
     files: nodeToolingFiles,
     languageOptions: {
       globals: globals.node
+    }
+  },
+  ...svelteEslint.configs["flat/recommended"],
+  {
+    files: ["**/*.svelte"],
+    languageOptions: {
+      parser: svelteParser,
+      parserOptions: {
+        parser: tsEslint.parser,
+        extraFileExtensions: [".svelte"]
+      },
+      globals: browserGlobals
+    },
+    rules: {
+      "svelte/indent": ["error", { indent: 2 }],
+      "svelte/sort-attributes": "error",
+      "svelte/shorthand-directive": ["error", { prefer: "always" }],
+      "svelte/shorthand-attribute": ["error", { prefer: "always" }],
+      "svelte/no-at-html-tags": "off",
+      "prefer-const": ["error", { destructuring: "all" }]
     }
   }
 ];

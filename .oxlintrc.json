@@ -59,6 +59,15 @@
       "rules": {
         "no-restricted-globals": "off"
       }
+    },
+    {
+      "files": ["**/*.svelte"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "prefer-const": "off",
+        "no-self-assign": "off",
+        "no-unassigned-vars": "off"
+      }
     }
   ],
   "ignorePatterns": [
