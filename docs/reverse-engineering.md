@@ -222,6 +222,23 @@ which the address-parsed city "תל אביב יפו" appeared on more rows than 
 Tamuz only lists clinics that currently have a **bookable diary** — a branch with no open diary is
 absent entirely, even though it exists.
 
+### 6b. The diary GUID is minted at search time, inside the row markup (proved live 2026-08-14)
+
+Captured with a logged-in CDP session via the DevTools network log — which sees the **raw server
+response before our MAIN-world transform touches it**. The raw `SearchSmileClinicsDiaries` envelope
+carries, in every `li.diary`, the row's diary GUID already baked into TWO `data-action-link`s:
+
+```
+<a … data-action-link="/Zimunet/AvailableVisit/Smile/bedb8527-fee0-4009-b3fa-ad492b4a0879">לכל התורים</a>
+<a … data-action-link="/Zimunet/ClinicDoctor/ClinicDetailsByDiary/bedb8527-…">מידע נוסף</a>
+```
+
+The complete network trace for a search is: `Diary/GetCities` (autocomplete) → the ONE
+`SearchSmileClinicsDiaries` POST → our aggregation `Paging?pageNumber=N` GETs. **No separate GUID-fetch
+call exists** — the server mints each diary GUID during the search and renders it into the HTML
+fragment; DOM clicks only consume `data-action-link`. This closes the "how is the GUID triggered"
+question §10 argued from the client bundle: confirmed now from the wire.
+
 ---
 
 ## 7. The three guarantees (how the extension rewrites this)
