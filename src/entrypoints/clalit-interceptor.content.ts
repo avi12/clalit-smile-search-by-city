@@ -18,7 +18,7 @@
 import { DENTAL_CLINIC_COORDS, SMILE_BRANCHES, type SmileBranch } from "../lib/clinic-directory";
 import { installDevTakeover } from "../lib/dev-takeover";
 import { haversineKm, type LatLng } from "../lib/geo";
-import { type GuaranteeStatus, PageMsg, type SearchConfig } from "../lib/messaging";
+import { type GuaranteeStatus, PageMsg } from "../lib/messaging";
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { searchConfigSchema, smileEnvelopeSchema } from "../lib/schemas";
 import {
@@ -34,36 +34,27 @@ import {
   cityMatches,
   DETAILS_CODE_ATTR,
   detailsLinkFromRowHtml,
-  envelopeStatus,
   extractCityRows,
   filterSmileEnvelope,
   MINT_CODE_ATTR,
   MINT_NAVIGATE_NOTE,
   NO_DIARY_REDIRECT_NOTE,
   NO_DIARY_ROW_NOTE,
-  NO_DIARY_SWEEP_NOTE,
-  NOTE_ATTR,
-  refreshRowActionLinks,
   rowClinicName,
   rowNavCode,
   scanEnvelopeForNavCode,
-  SESSION_LOST_NOTE,
   setHeaderCount,
   setRowDistanceLabel,
-  setRowWatchState,
-  setWatchControl,
   SMILE_ENVELOPE_STATUS,
   SMILE_MARKER_ATTR,
   type SmileFilterOutcome,
   sweepStepNote,
   SYNTHETIC_ROW_ATTR,
   VISIT_APPOINTMENTS_NOTE,
-  WATCH_ACTIVE_NOTE,
-  WATCH_CODE_ATTR,
-  WATCH_HIT_NOTE,
-  WATCH_START_LABEL,
-  WATCH_STOP_LABEL
+  WATCH_CODE_ATTR
 } from "../lib/smile";
+import { createSmileSession } from "../lib/smile-session";
+import { createBranchWatch } from "../lib/smile-watch";
 import {
   CONTENT_MATCHES,
   GUARANTEE_MODE,
@@ -80,7 +71,6 @@ import {
   SMILE_SEARCH_PATH,
   SMILE_SORT_PATH,
   SMILE_SORT_VALUES,
-  SMILE_SPECIALIZATION_CODES,
   SMILE_SPECIALIZATION_FIELD,
   SMILE_SPECIALIZATION_SELECT_SELECTOR,
   VISIT_APPOINTMENTS_PATH
@@ -94,18 +84,27 @@ export default defineContentScript({
   allFrames: true,
   world: "MAIN",
   main() {
-    // Default enabled with no city: idle until the bridge reports what's in the search box.
-    let config: SearchConfig = {
-      isEnabled: true,
-      city: ""
-    };
-    // Dev re-injection: a newer generation flips this and the patches below become pass-throughs.
-    let isSuperseded = false;
+    // The page's UNPATCHED fetch, captured before the patches below - the session's own calls must not
+    // flow through our transforms.
+    const nativeFetch = window.fetch;
+    // One shared view of the server session: what was searched, which services answer, whether we are
+    // still the active generation. Everything else in this file reads and writes it.
+    const session = createSmileSession(nativeFetch);
+    // A branch whose diary opened while it was being watched: remember the service that listed it, so
+    // the next click sweeps that one FIRST and reaches the slots page in one search instead of three.
+    const knownSpecializationByNavCode = new Map<string, string>();
+    const branchWatch = createBranchWatch({
+      session,
+      isMintInFlight: () => isMintInFlight,
+      onDiaryFound({ navCode, specialization }) {
+        knownSpecializationByNavCode.set(navCode, specialization);
+      }
+    });
     if (import.meta.env.DEV) {
       installDevTakeover({
         script: "interceptor",
         onSuperseded() {
-          isSuperseded = true;
+          session.state.isSuperseded = true;
         }
       });
     }
@@ -113,7 +112,8 @@ export default defineContentScript({
     onPageMessage(PageMsg.Config, ({ data }) => {
       const parsed = searchConfigSchema.safeParse(data);
       if (parsed.success) {
-        config = parsed.data;
+        session.state.isEnabled = parsed.data.isEnabled;
+        session.state.configCity = parsed.data.city;
       }
     });
 
@@ -133,32 +133,13 @@ export default defineContentScript({
         json: unknown;
       }
     ) {
-      if (import.meta.env.DEV && !isSuperseded && isInterestingUrl(url)) {
+      if (import.meta.env.DEV && !session.state.isSuperseded && isInterestingUrl(url)) {
         console.log(`[clalit-city] ${method} ${url} → ${status}`, json);
       }
     }
 
-    // ── Smile clinic search (HTML fragments in a JSON envelope) ────────────────
-    // The city the server session's result set was actually searched for - read from the outgoing
-    // search request itself, so filtering never drifts from what's in the search box vs what was
-    // submitted. Sort/paging calls inherit it (they operate on the same server session).
-    let activeSearchCity = "";
-    // The specialization the user's search submitted - the minting sweep tries it first, and it is
-    // what a session restore re-runs after a failed sweep.
-    let activeSearchSpecialization: string = SMILE_SPECIALIZATION_CODES[0];
     let renderCounter = 0;
     let aggregationRun = 0;
-    let latestTemplateRowHtml = "";
-    // The sort the server session currently applies. "home" (מרחק מהבית שלך) is hijacked: rows are
-    // re-ranked by distance from the user's LIVE location (navigator.geolocation), falling back to the
-    // server's home-distance order when the position is denied/unavailable.
-    type SmileSort = "cityDistance" | "soonest" | "home";
-    let activeSort: SmileSort = "cityDistance";
-    let isSortDescending = false;
-
-    function smileCity(): string {
-      return (activeSearchCity || config.city).trim();
-    }
 
     function isSmileAggregationTrigger(url: string): boolean {
       return url.includes(SMILE_SEARCH_PATH) || url.includes(SMILE_SORT_PATH);
@@ -179,8 +160,8 @@ export default defineContentScript({
         inCityCount: 0,
         json
       };
-      const city = smileCity();
-      if (isSuperseded || !config.isEnabled || !city) {
+      const city = session.city();
+      if (session.state.isSuperseded || !session.state.isEnabled || !city) {
         return untouched;
       }
 
@@ -198,7 +179,7 @@ export default defineContentScript({
       // A real row of the CURRENT search - its ClinicDetailsByDiary link feeds the composed lightbox
       // (GUIDs die with the search session, so keep replacing this with the freshest render's row).
       if (templateRowHtml) {
-        latestTemplateRowHtml = templateRowHtml;
+        session.state.latestTemplateRowHtml = templateRowHtml;
       }
 
       reportStatus({
@@ -226,27 +207,6 @@ export default defineContentScript({
       });
     }
 
-    /** GET/POST a /Zimunet/ endpoint with the PAGE's own session, bypassing our own patches. */
-    async function fetchSessionJson({ url, body }: {
-      url: string;
-      body?: string;
-    }): Promise<unknown> {
-      const headers: Record<string, string> = {
-        "X-Requested-With": "XMLHttpRequest"
-      };
-      if (body !== undefined) {
-        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8";
-      }
-
-      const response = await nativeFetch.call(window, url, {
-        method: body === undefined ? "GET" : "POST",
-        headers,
-        body,
-        credentials: "same-origin"
-      });
-      return await response.json();
-    }
-
     /** The site renders our filtered fragment asynchronously; wait for OUR marker to hit the DOM. */
     function waitForMarkedList(marker: string): Promise<Element | null> {
       return waitForElement({ selector: `#am_diaries[${SMILE_MARKER_ATTR}="${marker}"] ul` });
@@ -262,7 +222,7 @@ export default defineContentScript({
       { marker, pageRowCount, totalDeclared, keptRowCount, templateRowHtml }: MarkedSmileOutcome
     ) {
       const run = ++aggregationRun;
-      const city = smileCity();
+      const city = session.city();
       if (!city || !pageRowCount) {
         return;
       }
@@ -276,12 +236,12 @@ export default defineContentScript({
       const seenNames = new Set([...elList.querySelectorAll("li.diary")].map(rowClinicName));
       let kept = keptRowCount;
       for (let page = 2; page <= totalPages; page++) {
-        if (isSuperseded || run !== aggregationRun || !config.isEnabled) {
+        if (session.state.isSuperseded || run !== aggregationRun || !session.state.isEnabled) {
           return;
         }
 
-        const envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }).catch(() => null);
-        if (!envelope || isSuperseded || run !== aggregationRun) {
+        const envelope = await session.fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }).catch(() => null);
+        if (!envelope || session.state.isSuperseded || run !== aggregationRun) {
           return;
         }
 
@@ -311,13 +271,13 @@ export default defineContentScript({
         });
       }
 
-      if (isSuperseded || run !== aggregationRun) {
+      if (session.state.isSuperseded || run !== aggregationRun) {
         return;
       }
 
       // City completeness beyond Tamuz: branches with no bookable diary still belong in the list.
       const detailsByTitle = await getPastVisitDetails();
-      if (isSuperseded || run !== aggregationRun) {
+      if (session.state.isSuperseded || run !== aggregationRun) {
         return;
       }
 
@@ -344,10 +304,10 @@ export default defineContentScript({
         });
       }
 
-      if (activeSort === "home") {
+      if (session.state.activeSort === "home") {
         await reorderByLiveLocation({
           elList,
-          isDescending: isSortDescending
+          isDescending: session.state.isSortDescending
         });
       }
     }
@@ -419,12 +379,12 @@ export default defineContentScript({
      */
     /** The branch's lightbox fragment, composed from a real row of the CURRENT search session. */
     async function composeDetailsFragment(branch: SmileBranch): Promise<string | null> {
-      const templateLink = detailsLinkFromRowHtml(latestTemplateRowHtml);
+      const templateLink = detailsLinkFromRowHtml(session.state.latestTemplateRowHtml);
       if (!templateLink) {
         return null;
       }
 
-      const envelope = await fetchSessionJson({ url: templateLink }).catch(() => null);
+      const envelope = await session.fetchSessionJson({ url: templateLink }).catch(() => null);
       const parsed = smileEnvelopeSchema.safeParse(envelope);
       return parsed.success ? applyBranchToDetailsFragment({
         template: parsed.data.data,
@@ -447,10 +407,10 @@ export default defineContentScript({
       // template link means "stale", not "impossible": re-run the user's search once and compose again,
       // otherwise the row would open the nearme page in a new tab instead of the lightbox.
       const fragment = await composeDetailsFragment(branch) ?? await (async () => {
-        await restoreUserSearchSession().catch(() => {});
+        await session.restoreUserSearch().catch(() => {});
         return composeDetailsFragment(branch);
       })();
-      if (isSuperseded || !fragment || !showDetailsDialog({
+      if (session.state.isSuperseded || !fragment || !showDetailsDialog({
         html: fragment,
         note
       })) {
@@ -458,7 +418,7 @@ export default defineContentScript({
         return;
       }
 
-      offerWatch({
+      branchWatch.offer({
         navCode: branch.code,
         elDialog: document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR)
       });
@@ -471,67 +431,16 @@ export default defineContentScript({
     // until one lists the branch (the diary set fluctuates intraday, and a branch may hold a diary
     // under another specialization - the list of three is closed), then navigate immediately.
 
-    function searchBody(specialization: string): string {
-      return [
-        `${SMILE_SPECIALIZATION_FIELD}=${specialization}`,
-        `${SMILE_CITY_FIELD}=${encodeURIComponent(smileCity())}`,
-        `${SMILE_AREA_FIELD}=0`
-      ].join("&");
-    }
-
-    /** Runaway guard for the page scans (an all-country result set is ~10 pages today). */
-    const MAX_MINT_PAGES = 30;
-
-    // Clalit's scheduler pushes back on volume and on repeated failures: a search that answers
-    // `errorType: 3` has nothing to give (97 סתימה is empty nationwide for days at a time), and once it
-    // answers `errorType: 2` the whole session is gone until the page is reloaded. Both are remembered
-    // so the extension never asks the same losing question twice (docs §12a).
-    const emptySpecializations = new Set<string>();
-    let isSessionLost = false;
-
-    /** Read a search envelope's status, remembering an empty service and a lost session. */
-    function trackEnvelopeStatus({ json, specialization }: {
-      json: unknown;
-      specialization?: string;
-    }): number | null {
-      const status = envelopeStatus(json);
-      if (status === SMILE_ENVELOPE_STATUS.authorization) {
-        isSessionLost = true;
-        for (const watch of watchedNavCodes.values()) {
-          clearTimeout(watch.timer);
-        }
-
-        watchedNavCodes.clear();
-      }
-
-      if (status === SMILE_ENVELOPE_STATUS.application && specialization) {
-        emptySpecializations.add(specialization);
-      }
-
-      return status;
-    }
-
-    function bookableSpecializations(): string[] {
-      return SMILE_SPECIALIZATION_CODES.filter(code => !emptySpecializations.has(code));
-    }
-
-    function pagesOf({ totalDeclared, pageRowCount }: {
-      totalDeclared: number;
-      pageRowCount: number;
-    }): number {
-      return pageRowCount ? Math.min(Math.ceil(totalDeclared / pageRowCount), MAX_MINT_PAGES) : 0;
-    }
-
     /** One NEW all-country search for a specialization, scanned page by page for the branch's link. */
     async function scanSearchForBranch({ specialization, navCode }: {
       specialization: string;
       navCode: string;
     }): Promise<string | null> {
-      const first = await fetchSessionJson({
+      const first = await session.fetchSessionJson({
         url: SMILE_SEARCH_PATH,
-        body: searchBody(specialization)
+        body: session.searchBody(specialization)
       });
-      if (trackEnvelopeStatus({
+      if (session.trackEnvelopeStatus({
         json: first,
         specialization
       }) !== SMILE_ENVELOPE_STATUS.success) {
@@ -544,23 +453,19 @@ export default defineContentScript({
       });
       // A row of the newest search - keeps the composed-lightbox template's GUID current.
       if (scan.firstRowHtml) {
-        latestTemplateRowHtml = scan.firstRowHtml;
+        session.state.latestTemplateRowHtml = scan.firstRowHtml;
       }
 
-      const totalPages = pagesOf(scan);
+      const totalPages = session.pagesOf(scan);
       for (let page = 2; !scan.actionLink && page <= totalPages; page++) {
         scan = scanEnvelopeForNavCode({
-          json: await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }),
+          json: await session.fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }),
           navCode
         });
       }
 
       return scan.actionLink;
     }
-
-    // A branch whose diary opened while it was being watched: the specialization that listed it, so the
-    // next click sweeps that one FIRST and reaches the slots page in one search instead of up to three.
-    const knownSpecializationByNavCode = new Map<string, string>();
 
     /** Sweep the closed specialization list, the user's searched service first. */
     async function mintDiaryLink({ navCode, onStep }: {
@@ -570,13 +475,13 @@ export default defineContentScript({
         total: number;
       }) => void;
     }): Promise<string | null> {
-      const preferred = [knownSpecializationByNavCode.get(navCode), activeSearchSpecialization].filter(
-        (code): code is string => code !== undefined && !emptySpecializations.has(code)
+      const preferred = [knownSpecializationByNavCode.get(navCode), session.state.activeSearchSpecialization].filter(
+        (code): code is string => code !== undefined && !session.isSpecializationEmpty(code)
       );
-      const otherCodes = bookableSpecializations().filter(code => !preferred.includes(code));
+      const otherCodes = session.bookableSpecializations().filter(code => !preferred.includes(code));
       const specializations = [...new Set([...preferred, ...otherCodes])];
       for (const [i, specialization] of specializations.entries()) {
-        if (isSuperseded || !config.isEnabled || isSessionLost) {
+        if (session.state.isSuperseded || !session.state.isEnabled || session.state.isSessionLost) {
           return null;
         }
 
@@ -596,228 +501,6 @@ export default defineContentScript({
       }
 
       return null;
-    }
-
-    /**
-     * After a failed sweep the session's last search is a foreign one and every displayed GUID is dead
-     * (GUIDs churn per search). Re-run the user's own search to restore the session, then rewrite the
-     * visible rows' slots/details links to the fresh GUIDs, page by page until every real row is healed.
-     */
-    async function restoreUserSearchSession() {
-      const first = await fetchSessionJson({
-        url: SMILE_SEARCH_PATH,
-        body: searchBody(activeSearchSpecialization)
-      });
-      if (trackEnvelopeStatus({ json: first }) !== SMILE_ENVELOPE_STATUS.success) {
-        return;
-      }
-
-      const scan = scanEnvelopeForNavCode({ json: first });
-      if (scan.firstRowHtml) {
-        latestTemplateRowHtml = scan.firstRowHtml;
-      }
-
-      const elList = document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}] ul`);
-      if (!elList) {
-        return;
-      }
-
-      const pending = new Set(
-        [...elList.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)].map(rowNavCode)
-      );
-      for (const code of refreshRowActionLinks({
-        elList,
-        json: first
-      })) {
-        pending.delete(code);
-      }
-
-      const totalPages = pagesOf(scan);
-      for (let page = 2; pending.size > 0 && page <= totalPages; page++) {
-        const envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` });
-        for (const code of refreshRowActionLinks({
-          elList,
-          json: envelope
-        })) {
-          pending.delete(code);
-        }
-      }
-    }
-
-    // ── Watching a branch until its diary opens ────────────────────────────────
-    // A branch with no diary in any service cannot be booked - but the diary set moves during the day
-    // (docs §6c), so the only thing left is to keep looking. A watch ticks one specialization at a time
-    // and rides the city-distance sort: the searched city's own branches float to the first page, so a
-    // check costs one search plus one page instead of the whole result set. Every tick ends by restoring
-    // the user's own search, so the visible rows keep working GUIDs between checks.
-
-    const WATCH_INTERVAL_MS = 15 * 60_000;
-    const WATCH_MAX_TICKS = 16;
-    const watchedNavCodes = new Map<string, {
-      timer: ReturnType<typeof setTimeout>;
-      ticks: number;
-    }>();
-
-    function isWatching(navCode: string): boolean {
-      return watchedNavCodes.has(navCode);
-    }
-
-    function stopWatching(navCode: string) {
-      const watch = watchedNavCodes.get(navCode);
-      if (watch) {
-        clearTimeout(watch.timer);
-        watchedNavCodes.delete(navCode);
-      }
-    }
-
-    function watchedRow(navCode: string): Element | null {
-      return [...document.querySelectorAll("li.diary")].find(elRow => rowNavCode(elRow) === navCode) ?? null;
-    }
-
-    /** Is this branch listed under `specialization` right now? Costs one search plus the first sorted page. */
-    async function findBranchInCitySort({ specialization, navCode }: {
-      specialization: string;
-      navCode: string;
-    }): Promise<boolean> {
-      await fetchSessionJson({
-        url: SMILE_SEARCH_PATH,
-        body: searchBody(specialization)
-      });
-      const sorted = await fetchSessionJson({
-        url: `${SMILE_SORT_PATH}?sortValue=${SMILE_SORT_VALUES.cityDistance}&sortDirection=1`
-      });
-      const scan = scanEnvelopeForNavCode({
-        json: sorted,
-        navCode
-      });
-      if (scan.actionLink) {
-        return true;
-      }
-
-      // The city's own branches sit first, but a dense city can push them past page 1 - check one more.
-      const second = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=2` });
-      return scanEnvelopeForNavCode({
-        json: second,
-        navCode
-      }).actionLink !== null;
-    }
-
-    async function runWatchTick(navCode: string) {
-      const watch = watchedNavCodes.get(navCode);
-      if (!watch || isSuperseded || !config.isEnabled || isSessionLost || !smileCity()) {
-        stopWatching(navCode);
-        return;
-      }
-
-      const specializations = bookableSpecializations();
-      if (!isMintInFlight && specializations.length > 0) {
-        const specialization = specializations[watch.ticks % specializations.length];
-        const isListed = await findBranchInCitySort({
-          specialization,
-          navCode
-        }).catch(() => false);
-        await restoreUserSearchSession().catch(() => {});
-
-        if (isSessionLost) {
-          const elLostRow = watchedRow(navCode);
-          if (elLostRow) {
-            setRowWatchState({
-              elRow: elLostRow,
-              note: SESSION_LOST_NOTE,
-              label: WATCH_START_LABEL
-            });
-          }
-
-          stopWatching(navCode);
-          return;
-        }
-
-        if (isListed) {
-          knownSpecializationByNavCode.set(navCode, specialization);
-          stopWatching(navCode);
-          const elRow = watchedRow(navCode);
-          if (elRow) {
-            setRowWatchState({
-              elRow,
-              note: WATCH_HIT_NOTE,
-              label: WATCH_START_LABEL
-            });
-          }
-
-          return;
-        }
-      }
-
-      watch.ticks += 1;
-
-      if (watch.ticks >= WATCH_MAX_TICKS) {
-        stopWatching(navCode);
-        return;
-      }
-
-      watch.timer = setTimeout(() => {
-        runWatchTick(navCode).catch(() => {});
-      }, WATCH_INTERVAL_MS);
-    }
-
-    function startWatching(navCode: string) {
-      stopWatching(navCode);
-      watchedNavCodes.set(navCode, {
-        timer: setTimeout(() => {
-          runWatchTick(navCode).catch(() => {});
-        }, WATCH_INTERVAL_MS),
-        ticks: 0
-      });
-    }
-
-    /** The watch control's click: arm or cancel, and say which state the row is now in. */
-    function toggleWatch(navCode: string) {
-      const isNowWatching = !isWatching(navCode);
-      if (isNowWatching) {
-        startWatching(navCode);
-      } else {
-        stopWatching(navCode);
-      }
-
-      const elRow = watchedRow(navCode);
-      if (elRow) {
-        setRowWatchState({
-          elRow,
-          note: isNowWatching ? WATCH_ACTIVE_NOTE : NO_DIARY_SWEEP_NOTE,
-          label: isNowWatching ? WATCH_STOP_LABEL : WATCH_START_LABEL
-        });
-      }
-    }
-
-    /** Offer the watch for a branch with no diary - on its row, and inside its details lightbox. */
-    function offerWatch({ navCode, elDialog }: {
-      navCode: string;
-      elDialog?: Element | null;
-    }) {
-      if (!navCode) {
-        return;
-      }
-
-      const elRow = watchedRow(navCode);
-      const label = isWatching(navCode) ? WATCH_STOP_LABEL : WATCH_START_LABEL;
-      const elActions = elRow?.querySelector(".pull-left");
-      if (elActions) {
-        setWatchControl({
-          elHost: elActions,
-          code: navCode,
-          label,
-          elButtonTemplate: elActions.querySelector("a")
-        });
-      }
-
-      const elNote = elDialog?.querySelector(`[${NOTE_ATTR}]`);
-      if (elNote) {
-        setWatchControl({
-          elHost: elNote,
-          code: navCode,
-          label
-        });
-      }
     }
 
     /**
@@ -844,7 +527,7 @@ export default defineContentScript({
      * "מידע נוסף" instead - the honest phone/details view.
      */
     async function openBranchDiaries(code: string) {
-      if (isMintInFlight || !smileCity()) {
+      if (isMintInFlight || !session.city()) {
         return;
       }
 
@@ -855,16 +538,16 @@ export default defineContentScript({
           navCode: code,
           onStep: progress => captionLoader(sweepStepNote(progress))
         }).catch(() => null);
-        if (link && !isSuperseded) {
+        if (link && !session.state.isSuperseded) {
           // Loader stays up while the iframe navigates away, exactly like the site's own button.
           captionLoader(MINT_NAVIGATE_NOTE);
           window.location.assign(link);
           return;
         }
 
-        await restoreUserSearchSession().catch(() => {});
+        await session.restoreUserSearch().catch(() => {});
 
-        if (isSuperseded) {
+        if (session.state.isSuperseded) {
           return;
         }
 
@@ -880,7 +563,7 @@ export default defineContentScript({
 
     document.addEventListener("click", e => {
       const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
-      if (isSuperseded || !config.isEnabled || e.defaultPrevented || isModified) {
+      if (session.state.isSuperseded || !session.state.isEnabled || e.defaultPrevented || isModified) {
         return;
       }
 
@@ -893,7 +576,7 @@ export default defineContentScript({
       if (elWatchControl) {
         e.preventDefault();
         e.stopPropagation();
-        toggleWatch(elWatchControl.getAttribute(WATCH_CODE_ATTR) ?? "");
+        branchWatch.toggle(elWatchControl.getAttribute(WATCH_CODE_ATTR) ?? "");
         return;
       }
 
@@ -980,20 +663,20 @@ export default defineContentScript({
       }
 
       for (let attempt = 0; attempt < 20; attempt++) {
-        if (isSuperseded || !config.isEnabled) {
+        if (session.state.isSuperseded || !session.state.isEnabled) {
           return;
         }
 
         // Stop once a search has run in this document: ours landing (the marked render), the user's
-        // own (activeSearchCity is set at send time), or a prior generation's before a dev re-inject.
-        if (activeSearchCity || document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`)) {
+        // own (session.state.activeSearchCity is set at send time), or a prior generation's before a dev re-inject.
+        if (session.state.activeSearchCity || document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`)) {
           return;
         }
 
         // Re-drive only once BOTH are true: the city is known (the bridge has read it out of the
         // restored search box - searching before that would re-run the same unfiltered search we are
         // here to replace), and the site's bundle is up (before that the button is not an XHR search).
-        if (smileCity() && document.readyState === "complete" && window.z) {
+        if (session.city() && document.readyState === "complete" && window.z) {
           redriveSearch(specialization);
         }
 
@@ -1081,7 +764,7 @@ export default defineContentScript({
       isDescending: boolean;
     }) {
       const position = await currentPosition();
-      if (!position || isSuperseded) {
+      if (!position || session.state.isSuperseded) {
         return;
       }
 
@@ -1124,8 +807,8 @@ export default defineContentScript({
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
     function transformJson({ json, url, method }: UrlTransformInput): TransformResult {
-      const { isEnabled, city } = config;
-      if (isSuperseded || !isEnabled || !city.trim()) {
+      const city = session.state.configCity;
+      if (!session.isActive() || !city.trim()) {
         return {
           isTransformed: false,
           resultsCount: 0,
@@ -1176,11 +859,10 @@ export default defineContentScript({
       return input.url;
     }
 
-    const nativeFetch = window.fetch;
     window.fetch = async function patchedFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit) {
       const response = await nativeFetch.call(this, input, init);
       const url = requestUrl(input);
-      if (isSuperseded || !/json/i.test(response.headers.get("content-type") ?? "")) {
+      if (session.state.isSuperseded || !/json/i.test(response.headers.get("content-type") ?? "")) {
         return response;
       }
 
@@ -1312,13 +994,13 @@ export default defineContentScript({
       // A "distance" sort must reference the user's location: rewrite the "distance from the searched
       // city" sort (4) to the site's own "distance from your home" sort (3). The link is also removed
       // from our filtered fragments; this covers renders that predate the guarantee.
-      if (!isSuperseded && config.isEnabled && smileCity() && targetUrl.includes(SMILE_SORT_PATH)) {
+      if (session.isActive() && session.city() && targetUrl.includes(SMILE_SORT_PATH)) {
         targetUrl = targetUrl.replace(
           `sortValue=${SMILE_SORT_VALUES.cityDistance}`,
           `sortValue=${SMILE_SORT_VALUES.homeDistance}`
         );
-        activeSort = targetUrl.includes(`sortValue=${SMILE_SORT_VALUES.homeDistance}`) ? "home" : "soonest";
-        isSortDescending = targetUrl.includes("sortDirection=2");
+        session.state.activeSort = targetUrl.includes(`sortValue=${SMILE_SORT_VALUES.homeDistance}`) ? "home" : "soonest";
+        session.state.isSortDescending = targetUrl.includes("sortDirection=2");
       }
 
       const state: XhrState = {
@@ -1375,7 +1057,7 @@ export default defineContentScript({
     }
 
     XHR.send = function patchedSend(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-      const state = isSuperseded ? undefined : xhrStates.get(this);
+      const state = session.state.isSuperseded ? undefined : xhrStates.get(this);
       if (state) {
         defineResponseGetters({
           xhr: this,
@@ -1384,26 +1066,26 @@ export default defineContentScript({
       }
 
       let outgoing = body;
-      if (state && !isSuperseded && config.isEnabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
+      if (state && !session.state.isSuperseded && session.state.isEnabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
         // The submitted city and specialization are the authoritative ones for this server session.
         const submitted = new URLSearchParams(outgoing);
         const submittedCity = submitted.get(SMILE_CITY_FIELD)?.trim();
         if (submittedCity) {
-          activeSearchCity = submittedCity;
+          session.state.activeSearchCity = submittedCity;
         }
 
         const submittedSpecialization = submitted.get(SMILE_SPECIALIZATION_FIELD)?.trim();
         if (submittedSpecialization) {
-          activeSearchSpecialization = submittedSpecialization;
+          session.state.activeSearchSpecialization = submittedSpecialization;
         }
 
         // A fresh search resets the server session to its default order (distance from searched city).
-        activeSort = "cityDistance";
-        isSortDescending = false;
+        session.state.activeSort = "cityDistance";
+        session.state.isSortDescending = false;
 
         // City completeness: search the WHOLE country, then filter - the area subset can miss some of
         // the city's own clinics, and rows spliced from a second search would carry dead session GUIDs.
-        if (smileCity()) {
+        if (session.city()) {
           outgoing = outgoing.replace(`${SMILE_AREA_FIELD}=1`, `${SMILE_AREA_FIELD}=0`);
         }
       }
