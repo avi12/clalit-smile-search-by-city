@@ -140,6 +140,9 @@ export const MINT_NAVIGATE_NOTE = "נמצא יומן - פותחים את התו�
 /** On the loader when the sweep missed but the branch has a past visit to open its own page with. */
 export const VISIT_APPOINTMENTS_NOTE = "פותחים את דף התורים של המרפאה";
 
+/** On the loader when nothing keys a page for this branch: back to the service's appointments page. */
+export const NO_DIARY_REDIRECT_NOTE = "אין יומן מקוון לסניף - פותחים את דף זימון התורים";
+
 /** On the loader during the sweep - the wait is one fresh search per service, so say which one. */
 export function sweepStepNote({ step, total }: {
   step: number;

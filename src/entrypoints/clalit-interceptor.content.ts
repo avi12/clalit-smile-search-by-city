@@ -32,6 +32,7 @@ import {
   filterSmileEnvelope,
   MINT_CODE_ATTR,
   MINT_NAVIGATE_NOTE,
+  NO_DIARY_REDIRECT_NOTE,
   NO_DIARY_ROW_NOTE,
   NO_DIARY_SWEEP_NOTE,
   NOTE_ATTR,
@@ -66,6 +67,7 @@ import {
   isSmileResultsUrl,
   matchEndpointRule,
   SITE_LOADER_SELECTOR,
+  SMILE_APPOINTMENTS_PATH,
   SMILE_AREA_FIELD,
   SMILE_CITY_FIELD,
   SMILE_DETAILS_DIALOG_SELECTOR,
@@ -517,47 +519,13 @@ export default defineContentScript({
         note
       })) {
         openDetailsFallback(fallbackHref);
-      }
-    }
-
-    /**
-     * The details view for a synthetic row, carrying `note` inside the lightbox: our composed fragment
-     * when the branch has no GUID at all, or the site's OWN ClinicDetailsByVisit lightbox when the row
-     * links a past visit there - same container either way, so the note lands in both.
-     */
-    async function openRowDetails({ elRow, note }: {
-      elRow: Element | null;
-      note: string;
-    }) {
-      const elMoreInfo = elRow?.querySelector<HTMLElement>(
-        `a.pull-left[data-action-link], a.pull-left[${DETAILS_CODE_ATTR}]`
-      );
-      if (!elMoreInfo) {
         return;
       }
 
-      const code = elMoreInfo.getAttribute(DETAILS_CODE_ATTR);
-      if (code) {
-        await openBranchDetails({
-          code,
-          fallbackHref: elMoreInfo.getAttribute("href") ?? "",
-          note
-        });
-        return;
-      }
-
-      const stale = document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR);
-      elMoreInfo.click();
-      const elDialog = await waitForElement({
-        selector: SMILE_DETAILS_DIALOG_SELECTOR,
-        exclude: stale
+      offerWatch({
+        navCode: branch.code,
+        elDialog: document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR)
       });
-      if (elDialog && !isSuperseded) {
-        setDialogNote({
-          elDialog,
-          text: note
-        });
-      }
     }
 
     // ── Click-time GUID minting (synthetic rows' "לכל התורים") ─────────────────
@@ -922,16 +890,16 @@ export default defineContentScript({
       }
     }
 
-    /** Offer the watch on a branch the sweep just missed - on the row, and inside the fallback dialog. */
-    function offerWatch({ elRow, elDialog }: {
-      elRow: Element | null;
-      elDialog: Element | null;
+    /** Offer the watch for a branch with no diary - on its row, and inside its details lightbox. */
+    function offerWatch({ navCode, elDialog }: {
+      navCode: string;
+      elDialog?: Element | null;
     }) {
-      const navCode = elRow ? rowNavCode(elRow) : "";
       if (!navCode) {
         return;
       }
 
+      const elRow = watchedRow(navCode);
       const label = isWatching(navCode) ? WATCH_STOP_LABEL : WATCH_START_LABEL;
       const elActions = elRow?.querySelector(".pull-left");
       if (elActions) {
@@ -976,10 +944,7 @@ export default defineContentScript({
      * branch, restore the user's search session, heal the visible rows' links, and open the row's own
      * "מידע נוסף" instead - the honest phone/details view.
      */
-    async function openBranchDiaries({ code, elRow }: {
-      code: string;
-      elRow: Element | null;
-    }) {
+    async function openBranchDiaries(code: string) {
       if (isMintInFlight || !smileCity()) {
         return;
       }
@@ -999,22 +964,16 @@ export default defineContentScript({
         }
 
         await restoreUserSearchSession().catch(() => {});
-        const visitGuid = await pastVisitGuidFor(code);
-        if (visitGuid && !isSuperseded) {
-          captionLoader(VISIT_APPOINTMENTS_NOTE);
-          window.location.assign(`${VISIT_APPOINTMENTS_PATH}${visitGuid}`);
+
+        if (isSuperseded) {
           return;
         }
 
-        setSiteLoader(false);
-        await openRowDetails({
-          elRow,
-          note: NO_DIARY_SWEEP_NOTE
-        }).catch(() => {});
-        offerWatch({
-          elRow,
-          elDialog: document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR)
-        });
+        // The branch's own appointments page when a past visit keys one, and the service's appointments
+        // page when nothing does - the button always lands in the booking flow, never on a dead end.
+        const visitGuid = await pastVisitGuidFor(code);
+        captionLoader(visitGuid ? VISIT_APPOINTMENTS_NOTE : NO_DIARY_REDIRECT_NOTE);
+        window.location.assign(visitGuid ? `${VISIT_APPOINTMENTS_PATH}${visitGuid}` : SMILE_APPOINTMENTS_PATH);
       } finally {
         isMintInFlight = false;
       }
@@ -1046,10 +1005,7 @@ export default defineContentScript({
         // live). Capture-phase + stopPropagation keeps the click ours alone.
         e.preventDefault();
         e.stopPropagation();
-        openBranchDiaries({
-          code: elMintButton.getAttribute(MINT_CODE_ATTR) ?? "",
-          elRow: elMintButton.closest("li.diary")
-        }).catch(() => {});
+        openBranchDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => {});
         return;
       }
 
