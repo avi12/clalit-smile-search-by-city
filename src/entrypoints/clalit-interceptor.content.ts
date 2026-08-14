@@ -641,7 +641,11 @@ export default defineContentScript({
 
       const mintButton = target.closest(`a[${MINT_CODE_ATTR}]`);
       if (mintButton) {
+        // The site's delegated handler binds by class/id, NOT by data-action-link — left alone it reads
+        // the stripped attribute as undefined and navigates the iframe to /Zimunet/undefined (observed
+        // live). Capture-phase + stopPropagation keeps the click ours alone.
         event.preventDefault();
+        event.stopPropagation();
         openBranchDiaries({
           code: mintButton.getAttribute(MINT_CODE_ATTR) ?? "",
           row: mintButton.closest("li.diary")
@@ -661,7 +665,7 @@ export default defineContentScript({
         code,
         fallbackHref
       }).catch(() => openDetailsFallback(fallbackHref));
-    });
+    }, true);
 
     // Past-visit clinic-details links (title → ClinicDetailsByVisit GUID), so a synthetic branch can open
     // the site's OWN clinic-details lightbox for a clinic the user has visited. Fetched once per page.

@@ -274,8 +274,14 @@ logged-in CDP session (extension toggled OFF; `fetch` POSTs of `SearchSmileClini
   the server-rendered list in the DOM at document load. (Minor quirk: the restored form's specialization
   select can disagree with the restored rows — observed 91 in the select above 92-search rows.)
 
+**The site's diary-button handler binds by class/id, NOT by `data-action-link`** (found the hard way,
+live): with the attribute stripped the site's delegated handler still fired, read the missing attribute
+as `undefined`, and navigated the iframe to `/Zimunet/undefined` → 302 → clalit.co.il's MissingPage.
+`preventDefault` does not silence other listeners — the interceptor must claim the click in the CAPTURE
+phase and `stopPropagation` so the site's handler never sees it.
+
 **Shipped mechanism** (interceptor + `smile.ts`): a synthetic row keeps the native button, stripped of
-`data-action-link` (so the site's delegated handler stays quiet) and marked `data-clalit-city-mint-code`.
+`data-action-link` and marked `data-clalit-city-mint-code`; clicks are claimed in capture phase.
 Click → sweep NEW all-country searches, the user's submitted specialization first, then the remaining
 codes (`SMILE_SPECIALIZATION_CODES`), scanning each search's pages for the branch by nav code — first
 hit navigates the iframe to the fresh slots link (the site's own loader shown via `z.showLoader`).
