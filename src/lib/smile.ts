@@ -146,15 +146,6 @@ function appendPhoneLinks({ container, phones }: {
   }
 }
 
-/** Set an element's visible text without disturbing a leading label text node (e.g. "כתובת: "). */
-function setDetailValue({ element, label, value }: {
-  element: Element;
-  label: string;
-  value: string;
-}): void {
-  element.textContent = `${label}${value}`;
-}
-
 export interface BranchRowInput {
   /** A cloned REAL server row (li.diary) to repurpose — never markup we authored. */
   row: Element;
@@ -205,11 +196,7 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
   for (const detail of row.querySelectorAll(".clinicDetails")) {
     const text = detail.textContent?.trim() ?? "";
     if (text.startsWith(ADDRESS_PREFIX)) {
-      setDetailValue({
-        element: detail,
-        label: `${ADDRESS_PREFIX} `,
-        value: address
-      });
+      detail.textContent = `${ADDRESS_PREFIX} ${address}`;
     } else if (text.startsWith("מועד התור") || text.includes("מרחק")) {
       detail.remove();
     }
