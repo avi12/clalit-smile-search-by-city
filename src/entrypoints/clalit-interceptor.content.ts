@@ -138,7 +138,7 @@ export default defineContentScript({
     let activeSearchCity = "";
     // The specialization the user's search submitted — the minting sweep tries it first, and it is
     // what a session restore re-runs after a failed sweep.
-    let activeSearchSpec: string = SMILE_SPECIALIZATION_CODES[0];
+    let activeSearchSpecialization: string = SMILE_SPECIALIZATION_CODES[0];
     let renderCounter = 0;
     let aggregationRun = 0;
     let latestTemplateRowHtml = "";
@@ -538,9 +538,9 @@ export default defineContentScript({
     // until one lists the branch (the diary set fluctuates intraday, and a branch may hold a diary
     // under another specialization — the list of three is closed), then navigate immediately.
 
-    function searchBody(spec: string): string {
+    function searchBody(specialization: string): string {
       return [
-        `${SMILE_SPECIALIZATION_FIELD}=${spec}`,
+        `${SMILE_SPECIALIZATION_FIELD}=${specialization}`,
         `${SMILE_CITY_FIELD}=${encodeURIComponent(smileCity())}`,
         `${SMILE_AREA_FIELD}=0`
       ].join("&");
@@ -557,13 +557,13 @@ export default defineContentScript({
     }
 
     /** One NEW all-country search for a specialization, scanned page by page for the branch's link. */
-    async function scanSearchForBranch({ spec, navCode }: {
-      spec: string;
+    async function scanSearchForBranch({ specialization, navCode }: {
+      specialization: string;
       navCode: string;
     }): Promise<string | null> {
       const first = await fetchSessionJson({
         url: SMILE_SEARCH_PATH,
-        body: searchBody(spec)
+        body: searchBody(specialization)
       });
       let scan = scanEnvelopeForNavCode({
         json: first,
@@ -630,19 +630,20 @@ export default defineContentScript({
         total: number;
       }) => void;
     }): Promise<string | null> {
-      const specs = [activeSearchSpec, ...SMILE_SPECIALIZATION_CODES.filter(code => code !== activeSearchSpec)];
-      for (const [index, spec] of specs.entries()) {
+      const otherCodes = SMILE_SPECIALIZATION_CODES.filter(code => code !== activeSearchSpecialization);
+      const specializations = [activeSearchSpecialization, ...otherCodes];
+      for (const [i, specialization] of specializations.entries()) {
         if (isSuperseded || !config.isEnabled) {
           return null;
         }
 
         onStep({
-          step: index + 1,
-          total: specs.length
+          step: i + 1,
+          total: specializations.length
         });
         try {
           const link = await scanSearchForBranch({
-            spec,
+            specialization,
             navCode
           });
           if (link) {
@@ -662,7 +663,7 @@ export default defineContentScript({
     async function restoreUserSearchSession() {
       const first = await fetchSessionJson({
         url: SMILE_SEARCH_PATH,
-        body: searchBody(activeSearchSpec)
+        body: searchBody(activeSearchSpecialization)
       });
       const scan = scanEnvelopeForNavCode({ json: first });
       if (scan.firstRowHtml) {
@@ -796,7 +797,7 @@ export default defineContentScript({
       });
     }
 
-    function restoredSessionSpec(): string | null {
+    function restoredSessionSpecialization(): string | null {
       const headerText = document.querySelector("#am_diaries h2")?.textContent ?? "";
       const elSelect = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
       if (!headerText || !elSelect) {
@@ -807,15 +808,15 @@ export default defineContentScript({
       return elOption?.value ?? null;
     }
 
-    function redriveSearch(spec: string): void {
+    function redriveSearch(specialization: string): void {
       const elSearchButton = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
       if (!elSearchButton) {
         return;
       }
 
       const elSelect = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
-      if (elSelect && elSelect.value !== spec) {
-        elSelect.value = spec;
+      if (elSelect && elSelect.value !== specialization) {
+        elSelect.value = specialization;
         elSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
@@ -828,8 +829,8 @@ export default defineContentScript({
 
     async function recoverRestoredSearch() {
       await domReady();
-      const spec = restoredSessionSpec();
-      if (!spec) {
+      const specialization = restoredSessionSpecialization();
+      if (!specialization) {
         return;
       }
 
@@ -848,7 +849,7 @@ export default defineContentScript({
         // restored search box — searching before that would re-run the same unfiltered search we are
         // here to replace), and the site's bundle is up (before that the button is not an XHR search).
         if (smileCity() && document.readyState === "complete" && window.z) {
-          redriveSearch(spec);
+          redriveSearch(specialization);
         }
 
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -876,8 +877,8 @@ export default defineContentScript({
       }).then(response => response.text()).catch(() => "");
 
       const map = new Map<string, string>();
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      for (const elAnchor of doc.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
+      const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+      for (const elAnchor of parsedDocument.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
         const guid = elAnchor.getAttribute("data-action-link")?.split("/").pop();
         const title = elAnchor.textContent?.trim();
         if (guid && title && !map.has(title)) {
@@ -939,11 +940,11 @@ export default defineContentScript({
         return;
       }
 
-      const ranked = [...elList.querySelectorAll("li.diary")].map((elRow, index) => {
+      const ranked = [...elList.querySelectorAll("li.diary")].map((elRow, i) => {
         const coords = DENTAL_CLINIC_COORDS[rowNavCode(elRow)];
         return {
           elRow,
-          index,
+          iRow: i,
           km: coords ? haversineKm({
             from: position,
             to: coords
@@ -962,7 +963,7 @@ export default defineContentScript({
           delta = isDescending ? second.km - first.km : first.km - second.km;
         }
 
-        return delta || first.index - second.index;
+        return delta || first.iRow - second.iRow;
       });
       for (const { elRow, km } of ranked) {
         elList.appendChild(elRow);
@@ -1243,9 +1244,9 @@ export default defineContentScript({
           activeSearchCity = submittedCity;
         }
 
-        const submittedSpec = submitted.get(SMILE_SPECIALIZATION_FIELD)?.trim();
-        if (submittedSpec) {
-          activeSearchSpec = submittedSpec;
+        const submittedSpecialization = submitted.get(SMILE_SPECIALIZATION_FIELD)?.trim();
+        if (submittedSpecialization) {
+          activeSearchSpecialization = submittedSpecialization;
         }
 
         // A fresh search resets the server session to its default order (distance from searched city).

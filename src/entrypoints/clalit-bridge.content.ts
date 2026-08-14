@@ -75,18 +75,18 @@ export default defineContentScript({
       });
     }
 
-    function setEnabled(next: boolean) {
-      isEnabled = next;
+    function setEnabled(isNextEnabled: boolean) {
+      isEnabled = isNextEnabled;
       pushConfig();
       refreshBadge();
     }
 
     /** Top → every descendant frame (indexed access + length are cross-origin-safe). */
-    function broadcastToggle(win: Window) {
-      for (let i = 0; i < win.length; i++) {
-        const child: Window = win[i];
+    function broadcastToggle(parentFrame: Window) {
+      for (let i = 0; i < parentFrame.length; i++) {
+        const childFrame: Window = parentFrame[i];
         postRelay({
-          target: child,
+          target: childFrame,
           message: {
             source: FRAME_RELAY_SOURCE,
             kind: "toggle",
@@ -94,7 +94,7 @@ export default defineContentScript({
           }
         });
         try {
-          broadcastToggle(child);
+          broadcastToggle(childFrame);
         } catch { /* inaccessible frame subtree */ }
       }
     }
@@ -184,24 +184,24 @@ export default defineContentScript({
       return [...document.querySelectorAll<HTMLInputElement>("input")].find(isSearchInput) ?? null;
     }
 
-    let debounce: ReturnType<typeof setTimeout> | undefined;
-    function setCity(next: string) {
-      const trimmed = next.trim();
-      if (trimmed === city) {
+    let cityDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+    function setCity(nextCity: string) {
+      const trimmedCity = nextCity.trim();
+      if (trimmedCity === city) {
         return;
       }
 
-      city = trimmed;
-      clearTimeout(debounce);
-      debounce = setTimeout(() => {
+      city = trimmedCity;
+      clearTimeout(cityDebounceTimer);
+      cityDebounceTimer = setTimeout(() => {
         pushConfig();
         refreshBadge();
         relayStateToTop();
       }, 150);
     }
 
-    for (const type of ["input", "change"] as const) {
-      document.addEventListener(type, ({ target }) => {
+    for (const eventType of ["input", "change"] as const) {
+      document.addEventListener(eventType, ({ target }) => {
         if (!isSuperseded && target instanceof HTMLInputElement && isSearchInput(target)) {
           setCity(target.value);
         }

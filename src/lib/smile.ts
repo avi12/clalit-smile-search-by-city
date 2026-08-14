@@ -290,8 +290,8 @@ export function setDialogNote({ elDialog, text }: {
   elDialog: Element;
   text: string;
 }): void {
-  for (const stale of elDialog.querySelectorAll(`[${NOTE_ATTR}]`)) {
-    stale.remove();
+  for (const elStale of elDialog.querySelectorAll(`[${NOTE_ATTR}]`)) {
+    elStale.remove();
   }
 
   const { ownerDocument } = elDialog;
@@ -473,8 +473,8 @@ export function detailsLinkFromRowHtml(html: string): string | null {
     return null;
   }
 
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  return doc.querySelector("a[data-action-link*=\"ClinicDetailsByDiary\"]")?.getAttribute("data-action-link") ?? null;
+  const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+  return parsedDocument.querySelector("a[data-action-link*=\"ClinicDetailsByDiary\"]")?.getAttribute("data-action-link") ?? null;
 }
 
 /**
@@ -489,13 +489,13 @@ export function applyBranchToDetailsFragment({ template, branch }: {
   template: string;
   branch: SmileBranch;
 }): string | null {
-  const doc = new DOMParser().parseFromString(template, "text/html");
-  if (!doc.querySelector(".css_Table")) {
+  const parsedDocument = new DOMParser().parseFromString(template, "text/html");
+  if (!parsedDocument.querySelector(".css_Table")) {
     return null;
   }
 
   const { title, code, hours } = branch;
-  const elNameLabel = [...doc.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
+  const elNameLabel = [...parsedDocument.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
   if (elNameLabel?.parentElement) {
     setLabeledLine({
       elLine: elNameLabel.parentElement,
@@ -503,31 +503,31 @@ export function applyBranchToDetailsFragment({ template, branch }: {
     });
   }
 
-  doc.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${code}`);
+  parsedDocument.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${code}`);
 
-  for (const elLine of doc.querySelector(".css_NoPaddingCell.clinicDetails")?.querySelectorAll(":scope > div") ?? []) {
+  for (const elLine of parsedDocument.querySelector(".css_NoPaddingCell.clinicDetails")?.querySelectorAll(":scope > div") ?? []) {
     applyBranchToDetailLine({
       elLine,
       branch
     });
   }
 
-  const elHoursTable = doc.querySelector("#receptionHours");
+  const elHoursTable = parsedDocument.querySelector("#receptionHours");
   if (!elHoursTable) {
-    return doc.body.innerHTML;
+    return parsedDocument.body.innerHTML;
   }
 
   if (hours.length === 0) {
-    doc.querySelector(".receptionHoursHeader")?.remove();
+    parsedDocument.querySelector(".receptionHoursHeader")?.remove();
     elHoursTable.remove();
-    return doc.body.innerHTML;
+    return parsedDocument.body.innerHTML;
   }
 
   rebuildHoursTable({
     elTable: elHoursTable,
     hours
   });
-  return doc.body.innerHTML;
+  return parsedDocument.body.innerHTML;
 }
 
 /** Replace an element's text while keeping child elements (the sort links carry an icon <i>). */
@@ -551,8 +551,8 @@ export function setHeaderCount({ elHeader, count }: {
   elHeader.textContent = (elHeader.textContent ?? "").replace(/נמצאו\s+\d+/, `נמצאו ${count}`);
 }
 
-function readDeclaredTotal(doc: Document): number {
-  const match = doc.querySelector("h2")?.textContent?.match(/נמצאו\s+(\d+)/);
+function readDeclaredTotal(parsedDocument: Document): number {
+  const match = parsedDocument.querySelector("h2")?.textContent?.match(/נמצאו\s+(\d+)/);
   return match ? Number(match[1]) : 0;
 }
 
@@ -596,10 +596,10 @@ export function filterSmileEnvelope(
     return untouched;
   }
 
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const elRows = [...doc.querySelectorAll("li.diary")];
+  const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+  const elRows = [...parsedDocument.querySelectorAll("li.diary")];
   const templateRowHtml = elRows[0]?.outerHTML ?? "";
-  const totalDeclared = readDeclaredTotal(doc);
+  const totalDeclared = readDeclaredTotal(parsedDocument);
   let keptRowCount = 0;
   for (const elRow of elRows) {
     if (cityMatches({
@@ -612,14 +612,14 @@ export function filterSmileEnvelope(
     }
   }
 
-  for (const pager of doc.querySelectorAll("#pager")) {
+  for (const pager of parsedDocument.querySelectorAll("#pager")) {
     pager.remove();
   }
 
-  doc.querySelector("a[data-action-link*=\"sortValue=4\"]")?.closest("h3")?.remove();
+  parsedDocument.querySelector("a[data-action-link*=\"sortValue=4\"]")?.closest("h3")?.remove();
 
   // The remaining distance sort is hijacked to rank by the user's live location, so label it truthfully.
-  const elHomeSortLink = doc.querySelector("a[data-action-link*=\"sortValue=3\"]");
+  const elHomeSortLink = parsedDocument.querySelector("a[data-action-link*=\"sortValue=3\"]");
   if (elHomeSortLink) {
     replaceTextNode({
       elTarget: elHomeSortLink,
@@ -628,7 +628,7 @@ export function filterSmileEnvelope(
     elHomeSortLink.setAttribute("title", LIVE_DISTANCE_SORT_LABEL);
   }
 
-  const elHeader = doc.querySelector("h2");
+  const elHeader = parsedDocument.querySelector("h2");
   if (elHeader?.textContent) {
     elHeader.textContent = elHeader.textContent.replace(/באזור:.*$/, `בעיר: ${searchedCity.trim()}`);
     setHeaderCount({
@@ -638,13 +638,13 @@ export function filterSmileEnvelope(
   }
 
   if (marker) {
-    doc.querySelector("#am_diaries")?.setAttribute(SMILE_MARKER_ATTR, marker);
+    parsedDocument.querySelector("#am_diaries")?.setAttribute(SMILE_MARKER_ATTR, marker);
   }
 
   const parsed = smileEnvelopeSchema.safeParse(json);
   const envelope = {
     ...(parsed.success ? parsed.data : {}),
-    data: doc.body.innerHTML
+    data: parsedDocument.body.innerHTML
   };
   return {
     isChanged: true,
@@ -686,12 +686,12 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
     };
   }
 
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const elRows = [...doc.querySelectorAll("li.diary")];
+  const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+  const elRows = [...parsedDocument.querySelectorAll("li.diary")];
   const match = navCode ? elRows.find(elRow => rowNavCode(elRow) === navCode) : undefined;
   return {
     actionLink: match?.querySelector(SLOTS_LINK_SELECTOR)?.getAttribute("data-action-link") ?? null,
-    totalDeclared: readDeclaredTotal(doc),
+    totalDeclared: readDeclaredTotal(parsedDocument),
     pageRowCount: elRows.length,
     firstRowHtml: elRows[0]?.outerHTML ?? ""
   };
@@ -716,9 +716,9 @@ export function refreshRowActionLinks({ elList, json }: {
     liveRowsByNavCode.set(rowNavCode(elRow), elRow);
   }
 
-  const doc = new DOMParser().parseFromString(html, "text/html");
+  const parsedDocument = new DOMParser().parseFromString(html, "text/html");
   const refreshed: string[] = [];
-  for (const elFreshRow of doc.querySelectorAll("li.diary")) {
+  for (const elFreshRow of parsedDocument.querySelectorAll("li.diary")) {
     const elLiveRow = liveRowsByNavCode.get(rowNavCode(elFreshRow));
     if (!elLiveRow) {
       continue;
@@ -752,8 +752,8 @@ export function extractCityRows({ json, searchedCity }: {
     return [];
   }
 
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  return [...doc.querySelectorAll("li.diary")]
+  const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+  return [...parsedDocument.querySelectorAll("li.diary")]
     .filter(elRow => cityMatches({
       rowCity: rowCityName(elRow),
       searchedCity

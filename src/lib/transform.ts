@@ -93,14 +93,14 @@ function collectStrings({ row, depth = 0 }: {
     return [];
   }
 
-  const out: string[] = [];
+  const collected: string[] = [];
   for (const value of Object.values(row)) {
     if (typeof value === "string") {
-      out.push(value);
+      collected.push(value);
     } else if (typeof value === "number") {
-      out.push(String(value));
+      collected.push(String(value));
     } else if (isRecord(value)) {
-      out.push(
+      collected.push(
         ...collectStrings({
           row: value,
           depth: depth + 1
@@ -109,7 +109,7 @@ function collectStrings({ row, depth = 0 }: {
     }
   }
 
-  return out;
+  return collected;
 }
 
 function rowInCity(
@@ -156,27 +156,27 @@ export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: Tra
     return untouched;
   }
 
-  let array: Record<string, unknown>[] | undefined;
+  let resultRows: Record<string, unknown>[] | undefined;
   if (rule?.resultsPath) {
     const located = getByPath({
       source: json,
       path: rule.resultsPath
     });
     if (isObjectArray(located)) {
-      array = located;
+      resultRows = located;
     }
   }
 
-  array ??= findResultsArray(json);
+  resultRows ??= findResultsArray(json);
 
-  if (!array) {
+  if (!resultRows) {
     return untouched;
   }
 
-  const resultsCount = array.length;
+  const resultsCount = resultRows.length;
   const inCity: Record<string, unknown>[] = [];
   const others: Record<string, unknown>[] = [];
-  for (const row of array) {
+  for (const row of resultRows) {
     (rowInCity({
       row,
       needle,
@@ -185,8 +185,8 @@ export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: Tra
   }
 
   // Order preserved within each group → the site's distance/time sort is respected.
-  const next = guaranteeMode === "filter" ? inCity : [...inCity, ...others];
-  array.splice(0, array.length, ...next);
+  const nextRows = guaranteeMode === "filter" ? inCity : [...inCity, ...others];
+  resultRows.splice(0, resultRows.length, ...nextRows);
 
   return {
     isTransformed: true,
