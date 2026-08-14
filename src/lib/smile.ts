@@ -362,6 +362,12 @@ export function applyBranchToDetailsFragment({ template, branch }: {
         header.textContent = letter;
         const value = doc.createElement("td");
         value.textContent = byDay.get(day) ?? "";
+        // The site's empty remark div is load-bearing: its 210px width is what holds the value column
+        // open (the CSS gives td.header width:100%, which otherwise crushes the hours to a word a line).
+        const remark = doc.createElement("div");
+        remark.className = "clinicDetailsReceptionRemark";
+        remark.setAttribute("title", "");
+        value.appendChild(remark);
         row.appendChild(header);
         row.appendChild(value);
         hoursTable.appendChild(row);
