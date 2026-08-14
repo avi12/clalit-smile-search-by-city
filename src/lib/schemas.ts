@@ -50,7 +50,8 @@ export const frameRelayMessageSchema = z.discriminatedUnion("kind", [
 export const devTakeoverMessageSchema = z.object({
   source: z.literal(`${PAGE_NAMESPACE}/dev-takeover`),
   script: z.enum(["bridge", "interceptor"]),
-  token: z.string()
+  token: z.string(),
+  bornAt: z.number()
 });
 
 // ── Smile network envelope ──────────────────────────────────────────────────────
