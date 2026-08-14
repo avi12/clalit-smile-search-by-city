@@ -5,7 +5,7 @@ A WXT MV3 Chrome extension that guarantees a searched city in Clalit's "Tamuz" /
 
 # Stack
 - pnpm
-- WXT extension framework, TypeScript content scripts; our own DOM is Svelte 5 (runes) mounted in a WXT shadow-root UI (`createShadowRootUi`, `cssInjectionMode: "ui"`) - never hand-rolled
+- WXT extension framework, TypeScript content scripts; our own DOM is Svelte 5 (runes) mounted in a WXT shadow-root UI (`createShadowRootUi`; component CSS compiled in via `css: "injected"` so re-injected dev generations need no chrome.* APIs) - never hand-rolled
 - TypeScript (100% type safety, let TypeScript infer return types - never write them explicitly)
 - zod for every external input (`src/lib/schemas.ts`)
 - @webext-core/messaging - only the window channel (`/page`, `src/lib/messaging-page.ts`); no runtime (chrome) messaging exists

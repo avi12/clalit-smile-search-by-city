@@ -5,6 +5,16 @@ import { defineConfig } from "wxt";
 export default defineConfig({
   srcDir: "src",
   modules: ["@wxt-dev/module-svelte"],
+  svelte: {
+    vite: {
+      // Inline component CSS into the JS (Svelte's append_styles is shadow-root-aware) instead of
+      // emitting a CSS file the content script would fetch via browser.runtime.getURL - the dev loop
+      // re-injects bundles into MAIN-world contexts that have no chrome.* APIs at all.
+      compilerOptions: {
+        css: "injected"
+      }
+    }
+  },
   manifest: {
     name: "Clalit Smile – Search by City",
     description:

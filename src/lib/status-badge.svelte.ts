@@ -3,7 +3,9 @@
  * guarantee is active, which city it's guarding (read from the search box), and the last result's
  * in-city count. Pure UI: it owns its DOM and knows nothing about messaging. The bridge feeds it
  * state and a toggle callback; updates land in a $state proxy the component reads reactively, so a
- * badge that mounts late (the UI creation is async - it fetches the entrypoint CSS) shows current state.
+ * badge that mounts late (the shadow-root UI creation is async) shows current state. Component CSS is
+ * compiled into the JS (`css: "injected"`, shadow-root-aware), so mounting needs no chrome.* APIs and
+ * works in the dev loop's re-injected MAIN-world generations too.
  */
 
 import type { GuaranteeStatus } from "./messaging";

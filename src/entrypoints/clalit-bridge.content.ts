@@ -25,8 +25,6 @@ export default defineContentScript({
   matches: [...CONTENT_MATCHES],
   runAt: "document_start",
   allFrames: true,
-  // The badge's Svelte styles are fetched into its shadow root instead of being injected page-wide.
-  cssInjectionMode: "ui",
   main(ctx) {
     const isTopFrame = window.self === window.top;
     let enabled = true; // session-only; resets to on each load (a guarantee tool defaults to guarding)
