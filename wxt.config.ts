@@ -16,10 +16,10 @@ export default defineConfig({
     }
   },
   manifest: {
-    name: "Clalit Smile – Search by City",
+    name: "Clalit Smile - Search by City",
     description:
       "Guarantees the city you searched shows appointments in Clalit dental scheduling, keeping the site's distance-vs-time sort.",
-    // No permissions at all — the extension is only content scripts: the city comes from the page's
+    // No permissions at all - the extension is only content scripts: the city comes from the page's
     // search box, nothing is stored, and there is no background.
     host_permissions: HOST_PERMISSIONS
   },

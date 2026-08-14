@@ -1,4 +1,4 @@
-/** Shared HTML escaping — the single source of truth for both the popup and the in-page status badge. */
+/** Shared HTML escaping - the single source of truth for both the popup and the in-page status badge. */
 
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",

@@ -2,7 +2,7 @@
  * The city guarantee. Given a parsed appointment-search response and the searched city, keep only that
  * city's rows (filter) or float them to the top (boost).
  *
- * It deliberately PRESERVES the site's row order within each group — the response already came back
+ * It deliberately PRESERVES the site's row order within each group - the response already came back
  * sorted by the distance-vs-time option the user picked, so not re-sorting is exactly what "respect the
  * sort" means. Pure and dependency-light so the MAIN-world interceptor can import it.
  */
@@ -51,7 +51,7 @@ function isObjectArray(value: unknown): value is Record<string, unknown>[] {
 
 /**
  * Locate the array most likely to be the list of appointment/slot rows: the largest array of objects.
- * Returned so callers can mutate it IN PLACE (splice) — the only way to affect a top-level-array
+ * Returned so callers can mutate it IN PLACE (splice) - the only way to affect a top-level-array
  * response, whose reference the page already holds.
  */
 function findResultsArray(root: unknown): Record<string, unknown>[] | undefined {

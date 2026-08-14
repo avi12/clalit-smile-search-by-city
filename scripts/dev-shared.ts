@@ -7,7 +7,7 @@
  * the new content scripts inject. The CDP port it launches is reused to drive the browser for
  * verification (see scripts/verify-city-filter.ts).
  *
- * Must run via tsx (Node), not Bun — web-ext-run waits for the browser's debug port to start listening,
+ * Must run via tsx (Node), not Bun - web-ext-run waits for the browser's debug port to start listening,
  * which depends on Node's child_process socket handling.
  */
 
@@ -165,7 +165,7 @@ export function cloneFile({ sourcePath, destinationPath }: {
   try {
     cpSync(sourcePath, destinationPath);
   } catch (error) {
-    // A running source browser holds some profile files open (Cookies, History) — skip the locked file
+    // A running source browser holds some profile files open (Cookies, History) - skip the locked file
     // and clone the rest; only tolerate lock errors, rethrow the rest.
     if (!/EBUSY|EPERM/.test(String(error))) {
       throw error;
@@ -180,7 +180,7 @@ export const PROJECT_ROOT = resolve(import.meta.dirname, "..");
 export const USER_PROFILES_DIR = resolve(PROJECT_ROOT, "user-profiles");
 const OUTPUT_DIR_NAME = "chrome-mv3-dev";
 export const OUTPUT_DIR = resolve(PROJECT_ROOT, ".output", OUTPUT_DIR_NAME);
-// Built bundles re-injected into live pages on rebuild — interceptor first, so its patches are in
+// Built bundles re-injected into live pages on rebuild - interceptor first, so its patches are in
 // place before the bridge pushes config. Names follow the entrypoint file names.
 const CONTENT_SCRIPT_BUILD_PATHS = [
   join(OUTPUT_DIR, "content-scripts", "clalit-interceptor.js"),

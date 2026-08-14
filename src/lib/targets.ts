@@ -11,7 +11,7 @@ import type { GuaranteeMode } from "./messaging";
 // ── Hosts ────────────────────────────────────────────────────────────────────
 
 /**
- * `e-services.clalit.co.il` is the Clalit "Tamuz" scheduler — where a Clalit Smile hygienist (שיננית)
+ * `e-services.clalit.co.il` is the Clalit "Tamuz" scheduler - where a Clalit Smile hygienist (שיננית)
  * booking actually happens (behind login), and the only surface that sorts appointment slots by
  * distance vs. time. `clalitsmile.co.il` is the marketing site (its `/search` is a plain directory).
  */
@@ -30,7 +30,7 @@ export const HOST_PERMISSIONS = [...CONTENT_MATCHES];
 
 /**
  * How to guarantee the searched city:
- *   filter = keep ONLY that city's rows (strongest — "search by a city, get that city");
+ *   filter = keep ONLY that city's rows (strongest - "search by a city, get that city");
  *   boost  = float that city's rows to the top, keep the rest.
  * Either way the site's own row order is preserved WITHIN each group, so the distance-vs-time sort the
  * user chose on the site is respected automatically (we never re-sort).
@@ -63,7 +63,7 @@ export const SESSION_TIMEOUT_DIALOG_SELECTOR = "#pnlSessionExpiringInfo";
 
 /**
  * The "המשך" (continue) button, most-specific first: the exact master-page id, then a resilient fallback
- * (the panel's strong action button — the "יציאה" exit button carries `weakButton`, this one does not).
+ * (the panel's strong action button - the "יציאה" exit button carries `weakButton`, this one does not).
  */
 export const SESSION_TIMEOUT_CONTINUE_SELECTORS = [
   "#ctl00_ctl00_LogOutTimeOut_btnMasterOk_lnkSubButton",
@@ -97,7 +97,7 @@ export function isTargetHost(hostname: string): boolean {
 /**
  * The Smile booking UI lives in the Tamuz iframe and talks XHR to /Zimunet/SmileClinic/*. Responses are
  * a JSON envelope `{ data, errorType, message }` where `data` is a SERVER-RENDERED HTML fragment:
- * `li.diary` rows (7 per page), an `h2` header ("נמצאו N תוצאות…"), sort links and a `nav#pager` — all
+ * `li.diary` rows (7 per page), an `h2` header ("נמצאו N תוצאות…"), sort links and a `nav#pager` - all
  * paged/sorted against a server-session result set, so row links (diary GUIDs) are only valid for the
  * session's LAST search. That is why the guarantee rewrites the outgoing search to all-country and
  * filters/aggregates the live responses instead of splicing rows from a second search in.
@@ -109,7 +109,7 @@ export const SMILE_SORT_PATH = `${SMILE_CLINIC_PAGE_PATH}/SortSmileDiaries`;
 
 /**
  * "Back" from a slots page DOCUMENT-loads the clinic page with this flag, and the server re-renders the
- * session's last search RAW into it — no fetch/XHR runs, so the guarantee would never touch it. The
+ * session's last search RAW into it - no fetch/XHR runs, so the guarantee would never touch it. The
  * interceptor detects this document and re-drives the search through the site's own form (captured
  * 2026-08-14, docs §6d).
  */
@@ -150,12 +150,12 @@ export const SMILE_SORT_VALUES = {
  */
 export const VISIT_APPOINTMENTS_PATH = "/Zimunet/AvailableVisit/Index/";
 
-/** The clinic-details lightbox — the site's own ClinicDetailsByVisit view and our composed one share it. */
+/** The clinic-details lightbox - the site's own ClinicDetailsByVisit view and our composed one share it. */
 export const SMILE_DETAILS_DIALOG_SELECTOR = "#clinicDetailsLightbox";
 
 /**
  * The site's full-screen loader. `z.showLoader` inside the iframe delegates to the TOP frame's
- * `StandbyScreenShow`, which appends this div to the top document's body — so the minting sweep's
+ * `StandbyScreenShow`, which appends this div to the top document's body - so the minting sweep's
  * caption belongs in the PARENT document, not the booking iframe (captured 2026-08-14, docs §6c).
  */
 export const SITE_LOADER_SELECTOR = "div.loader.lottie";
@@ -172,7 +172,7 @@ export const SMILE_SPECIALIZATION_FIELD = "SelectedSpecializationCode";
 /**
  * The site's CLOSED specialization list (its own form's options, re-verified live 2026-08-14):
  * 91 בדיקת רופא · 97 סתימה · 92 שיננית. A diary GUID is mintable only by a search, so a branch absent
- * from all three has no server entrance at all (docs §10b) — this list is what the click-time minting
+ * from all three has no server entrance at all (docs §10b) - this list is what the click-time minting
  * sweep iterates.
  */
 export const SMILE_SPECIALIZATION_CODES = ["92", "91", "97"] as const;
@@ -203,7 +203,7 @@ export interface EndpointRule {
 }
 
 /**
- * ACTIVE RULES — empty: the Tamuz appointment API sits behind Clalit login and couldn't be observed
+ * ACTIVE RULES - empty: the Tamuz appointment API sits behind Clalit login and couldn't be observed
  * without a session. Run the dev build, do a real hygienist search, read the captured request/response
  * in the page console, and add a rule. Until then the transform auto-detects the results array and
  * matches the city by name.

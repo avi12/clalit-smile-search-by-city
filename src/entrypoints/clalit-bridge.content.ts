@@ -1,9 +1,9 @@
 /**
  * ISOLATED bridge. It reads the city out of the site's search box and pushes it (plus a session on/off)
- * to the MAIN interceptor over the window channel. Runs in ALL frames — the Tamuz booking UI lives in
- * an iframe — and each frame feeds its own MAIN interceptor. The status badge renders only in the top
+ * to the MAIN interceptor over the window channel. Runs in ALL frames - the Tamuz booking UI lives in
+ * an iframe - and each frame feeds its own MAIN interceptor. The status badge renders only in the top
  * frame: child frames relay their {city, status} up and receive the toggle back (see FrameRelayMessage).
- * No storage, no runtime messaging — the searched city is the only "setting".
+ * No storage, no runtime messaging - the searched city is the only "setting".
  */
 
 import { installDevTakeover } from "../lib/dev-takeover";
@@ -128,7 +128,7 @@ export default defineContentScript({
 
     // ── Frame ⇄ top relay ──────────────────────────────────────────────────────
     /**
-     * Frame relay events always come from windows; rule out the port/worker sources by elimination —
+     * Frame relay events always come from windows; rule out the port/worker sources by elimination -
      * `instanceof Window` would be false for a CROSS-ORIGIN child frame (its proxy's prototype is
      * null), and top and child frames may sit on different Clalit hosts.
      */

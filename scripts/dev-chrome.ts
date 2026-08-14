@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import webExtRun from "web-ext-run";
 
 // Fixed so the MCP / verification can always reach this instance. This is the single source of truth
-// for the port, but .mcp.json cannot import it — when changing it, update .mcp.json's --browser-url to
+// for the port, but .mcp.json cannot import it - when changing it, update .mcp.json's --browser-url to
 // match. Not 9222: other apps (e.g. WebView2-embedded ones) commonly squat on that default.
 export const CDP_PORT = 9223;
 const DEFAULT_CHROMIUM_PROFILE_NAME = "Default";

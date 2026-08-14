@@ -1,13 +1,13 @@
 /**
- * MAIN-world interceptor — runs in the PAGE's own JS context (world: "MAIN", document_start) so it can
+ * MAIN-world interceptor - runs in the PAGE's own JS context (world: "MAIN", document_start) so it can
  * patch `window.fetch` and `XMLHttpRequest` before the site's scripts capture references to them.
  *
  * Two guarantees (see docs/reverse-engineering.md):
- *   1. City completeness — a Smile clinic search shows ALL of the searched city's clinics and ONLY
+ *   1. City completeness - a Smile clinic search shows ALL of the searched city's clinics and ONLY
  *      them: the outgoing search is rewritten from "area" to "all country" (so the server session holds
  *      the full set and every row link stays valid), each response is filtered to the city, and the
  *      remaining server pages are aggregated into the one visible list.
- *   2. A "distance" sort references the USER's location — the "distance from the searched city" sort is
+ *   2. A "distance" sort references the USER's location - the "distance from the searched city" sort is
  *      removed/rewritten to the site's own "מרחק מהבית שלך" sort.
  *
  * Generic JSON responses (non-Smile) go through the heuristic transform in transform.ts. No chrome.*
@@ -82,7 +82,7 @@ import {
 import { applyGuarantee, type TransformResult } from "../lib/transform";
 import { defineContentScript } from "#imports";
 
-/** The Zimunet site bundle's own UI namespace — the MAIN world sees the page's globals. */
+/** The Zimunet site bundle's own UI namespace - the MAIN world sees the page's globals. */
 interface ZimunetPageUi {
   showDialog?: (selector: string, html: string) => void;
   showLoader?: () => void;
@@ -146,11 +146,11 @@ export default defineContentScript({
     }
 
     // ── Smile clinic search (HTML fragments in a JSON envelope) ────────────────
-    // The city the server session's result set was actually searched for — read from the outgoing
+    // The city the server session's result set was actually searched for - read from the outgoing
     // search request itself, so filtering never drifts from what's in the search box vs what was
     // submitted. Sort/paging calls inherit it (they operate on the same server session).
     let activeSearchCity = "";
-    // The specialization the user's search submitted — the minting sweep tries it first, and it is
+    // The specialization the user's search submitted - the minting sweep tries it first, and it is
     // what a session restore re-runs after a failed sweep.
     let activeSearchSpecialization: string = SMILE_SPECIALIZATION_CODES[0];
     let renderCounter = 0;
@@ -202,7 +202,7 @@ export default defineContentScript({
       }
 
       const { templateRowHtml, totalDeclared, keptRowCount } = outcome;
-      // A real row of the CURRENT search — its ClinicDetailsByDiary link feeds the composed lightbox
+      // A real row of the CURRENT search - its ClinicDetailsByDiary link feeds the composed lightbox
       // (GUIDs die with the search session, so keep replacing this with the freshest render's row).
       if (templateRowHtml) {
         latestTemplateRowHtml = templateRowHtml;
@@ -282,7 +282,7 @@ export default defineContentScript({
 
     /**
      * City completeness: the first response is one server page of the (rewritten, all-country) result
-     * set — fetch the remaining pages with the PAGE's own session and append the city's rows to the
+     * set - fetch the remaining pages with the PAGE's own session and append the city's rows to the
      * live list, order preserved, deduped by clinic name (diary GUIDs change per search). Then, if the
      * distance sort is active, re-rank the finished list by the user's live location.
      */
@@ -400,7 +400,7 @@ export default defineContentScript({
 
     /**
      * Append the searched city's Smile branches the search omits. Each row is a CLONE of a real server
-     * row (never markup we authored — see applyBranchToRow), repurposed for the branch; "מידע נוסף"
+     * row (never markup we authored - see applyBranchToRow), repurposed for the branch; "מידע נוסף"
      * opens the site's native clinic-details lightbox when the user has a visit there.
      */
     function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle }: AppendBranchesInput): number {
@@ -438,7 +438,7 @@ export default defineContentScript({
     }
 
     // ── Composed clinic-details lightbox (no-GUID branches) ────────────────────
-    /** Call the page's own z.showDialog with a fragment — the exact call the site's handlers make. */
+    /** Call the page's own z.showDialog with a fragment - the exact call the site's handlers make. */
     function pageShowDialog({ html, note }: {
       html: string;
       note: string;
@@ -474,7 +474,7 @@ export default defineContentScript({
 
     /**
      * "מידע נוסף" for a branch with no GUID of any kind: fetch a REAL current-search row's details
-     * fragment (ClinicDetailsByDiary — the only endpoints that serve the lightbox are GUID- or
+     * fragment (ClinicDetailsByDiary - the only endpoints that serve the lightbox are GUID- or
      * session-bound, see docs/reverse-engineering.md §10b), recompose it for this branch from the
      * committed directory, and open it in the site's own lightbox. Any failure falls back to the
      * anchor's nearme href in a new tab.
@@ -508,7 +508,7 @@ export default defineContentScript({
     /**
      * The details view for a synthetic row, carrying `note` inside the lightbox: our composed fragment
      * when the branch has no GUID at all, or the site's OWN ClinicDetailsByVisit lightbox when the row
-     * links a past visit there — same container either way, so the note lands in both.
+     * links a past visit there - same container either way, so the note lands in both.
      */
     async function openRowDetails({ elRow, note }: {
       elRow: Element | null;
@@ -547,10 +547,10 @@ export default defineContentScript({
 
     // ── Click-time GUID minting (synthetic rows' "לכל התורים") ─────────────────
     // A diary GUID exists only inside the server session's LAST search, so it cannot be minted ahead
-    // of time — a later search kills it (the slots page then errors, verified live). The only way to a
+    // of time - a later search kills it (the slots page then errors, verified live). The only way to a
     // working "לכל התורים" for a branch the search omitted is to mint at click time: run NEW searches
     // until one lists the branch (the diary set fluctuates intraday, and a branch may hold a diary
-    // under another specialization — the list of three is closed), then navigate immediately.
+    // under another specialization - the list of three is closed), then navigate immediately.
 
     function searchBody(specialization: string): string {
       return [
@@ -623,7 +623,7 @@ export default defineContentScript({
         json: first,
         navCode
       });
-      // A row of the newest search — keeps the composed-lightbox template's GUID current.
+      // A row of the newest search - keeps the composed-lightbox template's GUID current.
       if (scan.firstRowHtml) {
         latestTemplateRowHtml = scan.firstRowHtml;
       }
@@ -664,7 +664,7 @@ export default defineContentScript({
       }
     }
 
-    /** The site's own full-screen loader — cosmetic, so a missing/throwing z is never the caller's problem. */
+    /** The site's own full-screen loader - cosmetic, so a missing/throwing z is never the caller's problem. */
     function setSiteLoader(isVisible: boolean) {
       try {
         const pageUi = window.z;
@@ -763,7 +763,7 @@ export default defineContentScript({
     }
 
     // ── Watching a branch until its diary opens ────────────────────────────────
-    // A branch with no diary in any service cannot be booked — but the diary set moves during the day
+    // A branch with no diary in any service cannot be booked - but the diary set moves during the day
     // (docs §6c), so the only thing left is to keep looking. A watch ticks one specialization at a time
     // and rides the city-distance sort: the searched city's own branches float to the first page, so a
     // check costs one search plus one page instead of the whole result set. Every tick ends by restoring
@@ -812,7 +812,7 @@ export default defineContentScript({
         return true;
       }
 
-      // The city's own branches sit first, but a dense city can push them past page 1 — check one more.
+      // The city's own branches sit first, but a dense city can push them past page 1 - check one more.
       const second = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=2` });
       return scanEnvelopeForNavCode({
         json: second,
@@ -907,7 +907,7 @@ export default defineContentScript({
       }
     }
 
-    /** Offer the watch on a branch the sweep just missed — on the row, and inside the fallback dialog. */
+    /** Offer the watch on a branch the sweep just missed - on the row, and inside the fallback dialog. */
     function offerWatch({ elRow, elDialog }: {
       elRow: Element | null;
       elDialog: Element | null;
@@ -959,7 +959,7 @@ export default defineContentScript({
      * A synthetic row's "לכל התורים": mint a fresh GUID and navigate straight to its slots page (the
      * GUID dies with the next search, so navigation is immediate). When no specialization lists the
      * branch, restore the user's search session, heal the visible rows' links, and open the row's own
-     * "מידע נוסף" instead — the honest phone/details view.
+     * "מידע נוסף" instead - the honest phone/details view.
      */
     async function openBranchDiaries({ code, elRow }: {
       code: string;
@@ -1026,7 +1026,7 @@ export default defineContentScript({
 
       const elMintButton = target.closest(`a[${MINT_CODE_ATTR}]`);
       if (elMintButton) {
-        // The site's delegated handler binds by class/id, NOT by data-action-link — left alone it reads
+        // The site's delegated handler binds by class/id, NOT by data-action-link - left alone it reads
         // the stripped attribute as undefined and navigates the iframe to /Zimunet/undefined (observed
         // live). Capture-phase + stopPropagation keeps the click ours alone.
         e.preventDefault();
@@ -1055,11 +1055,11 @@ export default defineContentScript({
 
     // ── Restore-document recovery (the "back" hole, docs §6d) ─────────────────
     // "Back" from a slots page is a DOCUMENT load (SmileClinic?isRestoreSearch=True): the server
-    // renders the session's last search RAW into the page — no fetch/XHR runs, so the guarantee never
+    // renders the session's last search RAW into the page - no fetch/XHR runs, so the guarantee never
     // touches it, and the rendered rows are whatever Paging page the aggregation last fetched. Recovery
     // re-drives that same search through the site's own form; the fresh XHR then flows through the
     // normal pipeline. The restored form's specialization select is UNRELIABLE (observed 91 above a 92
-    // session) — the session's real specialization comes from the results header, matched against the
+    // session) - the session's real specialization comes from the results header, matched against the
     // select's own option labels.
 
     function domReady(): Promise<void> {
@@ -1097,7 +1097,7 @@ export default defineContentScript({
 
       // Belt: until the site's own handler is bound, the submit button's default action would NATIVE-
       // submit the form (a document POST). The real search flow is always XHR, so preventing the
-      // default keeps a too-early click harmless — the retry loop just tries again.
+      // default keeps a too-early click harmless - the retry loop just tries again.
       elSearchButton.closest("form")?.addEventListener("submit", e => e.preventDefault(), { once: true });
       elSearchButton.click();
     }
@@ -1121,7 +1121,7 @@ export default defineContentScript({
         }
 
         // Re-drive only once BOTH are true: the city is known (the bridge has read it out of the
-        // restored search box — searching before that would re-run the same unfiltered search we are
+        // restored search box - searching before that would re-run the same unfiltered search we are
         // here to replace), and the site's bundle is up (before that the button is not an XHR search).
         if (smileCity() && document.readyState === "complete" && window.z) {
           redriveSearch(specialization);
@@ -1143,7 +1143,7 @@ export default defineContentScript({
         return pastVisitDetails;
       }
 
-      // No history / not reachable leaves the map empty — synthetic rows fall back to the nearme page.
+      // No history / not reachable leaves the map empty - synthetic rows fall back to the nearme page.
       const html = await nativeFetch.call(window, "/Zimunet/", {
         headers: {
           "X-Requested-With": "XMLHttpRequest"
@@ -1203,7 +1203,7 @@ export default defineContentScript({
 
     /**
      * Stable re-rank of the finished list by great-circle distance from the user's live position
-     * (clinic coordinates come from the committed nearme dataset — no runtime network). Rows without
+     * (clinic coordinates come from the committed nearme dataset - no runtime network). Rows without
      * known coordinates keep their server order at the end; a denied position leaves the list as-is.
      */
     async function reorderByLiveLocation({ elList, isDescending }: {
@@ -1359,7 +1359,7 @@ export default defineContentScript({
     // too: it rewrites the Smile search body (area → all country) and hooks aggregation onto load.
     const XHR = XMLHttpRequest.prototype;
     // Widened to a rest-args signature (open's first overload satisfies it) so the patch below can
-    // forward the page's EXACT argument list — open(m, u) and open(m, u, undefined) differ natively.
+    // forward the page's EXACT argument list - open(m, u) and open(m, u, undefined) differ natively.
     const nativeOpen: (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) => void =
       XHR.open;
     const nativeSend = XHR.send;
@@ -1531,7 +1531,7 @@ export default defineContentScript({
         activeSort = "cityDistance";
         isSortDescending = false;
 
-        // City completeness: search the WHOLE country, then filter — the area subset can miss some of
+        // City completeness: search the WHOLE country, then filter - the area subset can miss some of
         // the city's own clinics, and rows spliced from a second search would carry dead session GUIDs.
         if (smileCity()) {
           outgoing = outgoing.replace(`${SMILE_AREA_FIELD}=1`, `${SMILE_AREA_FIELD}=0`);

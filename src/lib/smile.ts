@@ -2,7 +2,7 @@
  * The city guarantee for the Clalit Smile clinic search, whose results arrive as a SERVER-RENDERED
  * HTML fragment inside a JSON envelope (shape captured in targets.ts). The interceptor rewrites the
  * outgoing search to all-country, and these transforms then keep ONLY the searched city's rows in each
- * response — order preserved, so the site's chosen sort is respected — while the interceptor aggregates
+ * response - order preserved, so the site's chosen sort is respected - while the interceptor aggregates
  * the remaining server pages into the same list (see clalit-interceptor.content.ts).
  *
  * Runs in the page's MAIN world, so DOMParser is available. Pure string→string: nothing here touches
@@ -41,8 +41,8 @@ const ADDRESS_PREFIX = "כתובת:";
 
 /**
  * A row's city = the last comma-segment of its "כתובת: …" line (some addresses are city-only). The
- * site already renders the clinic's canonical city here — the exact same string its city autocomplete
- * produces for the search box — so it compares 1:1 against the searched city with no normalization.
+ * site already renders the clinic's canonical city here - the exact same string its city autocomplete
+ * produces for the search box - so it compares 1:1 against the searched city with no normalization.
  */
 export function rowCityName(elRow: Element): string {
   const address =
@@ -53,14 +53,14 @@ export function rowCityName(elRow: Element): string {
   return address.split(",").pop()?.trim() ?? "";
 }
 
-/** Clinic display name — the stable identity for dedup (diary GUIDs change per search session). */
+/** Clinic display name - the stable identity for dedup (diary GUIDs change per search session). */
 export function rowClinicName(elRow: Element): string {
   return elRow.querySelector("a.clinicDetails")?.textContent?.trim() ?? "";
 }
 
 /**
- * Exact match against the site's OWN canonical city. `searchedCity` is `SelectedCityName` — the value
- * Clalit's autocomplete committed when the user picked a city in the search box — and `rowCity` is the
+ * Exact match against the site's OWN canonical city. `searchedCity` is `SelectedCityName` - the value
+ * Clalit's autocomplete committed when the user picked a city in the search box - and `rowCity` is the
  * same canonical string the server rendered into the row, so equality is authoritative. No fuzzy
  * normalization: the site is the single source of truth for what a city is called.
  */
@@ -73,7 +73,7 @@ export function cityMatches({ rowCity, searchedCity }: {
 
 const NAV_CODE_PATTERN = /\/nav\/(\d+)/;
 
-/** The clinic's nearme code from the row's "הצגת מפה" link — the key into CLINIC_COORDS. */
+/** The clinic's nearme code from the row's "הצגת מפה" link - the key into CLINIC_COORDS. */
 export function rowNavCode(elRow: Element): string {
   const href = elRow.querySelector("a.mapLocationLink")?.getAttribute("href") ?? "";
   return NAV_CODE_PATTERN.exec(href)?.[1] ?? "";
@@ -94,7 +94,7 @@ export function setRowDistanceLabel({ elRow, km }: {
     return;
   }
 
-  // Synthetic branch rows have no server distance line — add one.
+  // Synthetic branch rows have no server distance line - add one.
   const elContainer = elRow.querySelector(".pull-right");
   if (elContainer) {
     const elLine = elContainer.ownerDocument.createElement("div");
@@ -113,8 +113,8 @@ export const SYNTHETIC_ROW_ATTR = "data-clalit-city-synthetic";
 export const DETAILS_CODE_ATTR = "data-clalit-city-details-code";
 
 /**
- * Marks a synthetic row's "לכל התורים" button (value = branch code). The row has no diary GUID — one
- * only exists inside the server session's LAST search — so the interceptor's click handler mints a
+ * Marks a synthetic row's "לכל התורים" button (value = branch code). The row has no diary GUID - one
+ * only exists inside the server session's LAST search - so the interceptor's click handler mints a
  * fresh GUID on demand (a specialization sweep of new searches) and navigates to it (docs §6c).
  */
 export const MINT_CODE_ATTR = "data-clalit-city-mint-code";
@@ -129,23 +129,23 @@ export const NOTE_ATTR = "data-clalit-city-note";
 const CALL_INSTEAD = "ניתן להתקשר למרפאה או למוקד";
 
 /** On a synthetic row: this search's service has no online diary for the branch. */
-export const NO_DIARY_ROW_NOTE = `אין יומן מקוון לשירות זה — ${CALL_INSTEAD}`;
+export const NO_DIARY_ROW_NOTE = `אין יומן מקוון לשירות זה - ${CALL_INSTEAD}`;
 
 /** In the fallback lightbox: the click-time sweep just checked every service and found none (docs §6c). */
-export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו את כל שירותי כללית סמייל ואין יומן מקוון לסניף זה — ${CALL_INSTEAD}`;
+export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו את כל שירותי כללית סמייל ואין יומן מקוון לסניף זה - ${CALL_INSTEAD}`;
 
 /** On the loader once the sweep hits: the iframe is about to navigate to the branch's slots page. */
-export const MINT_NAVIGATE_NOTE = "נמצא יומן — פותחים את התורים";
+export const MINT_NAVIGATE_NOTE = "נמצא יומן - פותחים את התורים";
 
 /** On the loader when the sweep missed but the branch has a past visit to open its own page with. */
 export const VISIT_APPOINTMENTS_NOTE = "פותחים את דף התורים של המרפאה";
 
-/** On the loader during the sweep — the wait is one fresh search per service, so say which one. */
+/** On the loader during the sweep - the wait is one fresh search per service, so say which one. */
 export function sweepStepNote({ step, total }: {
   step: number;
   total: number;
 }): string {
-  return `בודקים אם יש יומן מקוון לסניף — שירות ${step} מתוך ${total}`;
+  return `בודקים אם יש יומן מקוון לסניף - שירות ${step} מתוך ${total}`;
 }
 
 // ── Watching a branch until its diary opens ────────────────────────────────────
@@ -160,7 +160,7 @@ export const WATCH_ACTIVE_NOTE = "בודקים ברקע כל כמה דקות ו�
 export const WATCH_HIT_NOTE = "נפתח תור לסניף! לחצו על \"לכל התורים\"";
 
 /** The scheduler dropped our session (errorType 2) - only a reload gets it back. */
-export const SESSION_LOST_NOTE = "פג תוקף החיבור לזימון התורים — רעננו את העמוד ונסו שוב";
+export const SESSION_LOST_NOTE = "פג תוקף החיבור לזימון התורים - רעננו את העמוד ונסו שוב";
 
 /**
  * The watch control, cloned from the row's own "מידע נוסף" button so it carries the site's exact button
@@ -219,7 +219,7 @@ export function setRowWatchState({ elRow, note, label }: {
 }
 
 /**
- * Directory phones come without the leading 0 ("36316561") — render like the site ("03-6316561").
+ * Directory phones come without the leading 0 ("36316561") - render like the site ("03-6316561").
  * A parenthesized IVR hint like "077-8012222 (1)" stays visible but its digit is never dialed.
  */
 function formatPhone(raw: string) {
@@ -283,7 +283,7 @@ function buildHotlineNote({ ownerDocument, text }: {
 }
 
 export interface BranchRowInput {
-  /** A cloned REAL server row (li.diary) to repurpose — never markup we authored. */
+  /** A cloned REAL server row (li.diary) to repurpose - never markup we authored. */
   elRow: Element;
   branch: SmileBranch;
   /** A past visit at this branch → the site's native clinic-details lightbox; null → nearme page. */
@@ -347,7 +347,7 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid }: BranchRowI
     });
   }
 
-  // No diary GUID exists YET for this branch — keep the native "לכל התורים" button but strip its
+  // No diary GUID exists YET for this branch - keep the native "לכל התורים" button but strip its
   // data-action-link (the site's delegated handler only fires on that attribute) and mark it for the
   // interceptor's click-time GUID minting instead. The diary set fluctuates intraday, so a diary may
   // exist by the time the user clicks even though the search omitted this branch.
@@ -368,7 +368,7 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid }: BranchRowI
 }
 
 /**
- * Put the reason INSIDE the clinic-details lightbox — the row's own note is hidden behind the dialog
+ * Put the reason INSIDE the clinic-details lightbox - the row's own note is hidden behind the dialog
  * while it is open, and after a failed minting sweep that dialog IS the answer to "לכל התורים". Works
  * on the site's native ClinicDetailsByVisit view and on our composed fragment alike: both are the same
  * container (targets.ts SMILE_DETAILS_DIALOG_SELECTOR).
@@ -392,7 +392,7 @@ export function setDialogNote({ elDialog, text }: {
 }
 
 // The loader is a full-screen fixed flex box holding ONLY the animation, so the caption is absolutely
-// positioned under it — the site's own element and layout stay untouched, and hiding the loader removes
+// positioned under it - the site's own element and layout stay untouched, and hiding the loader removes
 // the whole div, caption included.
 const LOADER_NOTE_STYLE = {
   position: "absolute",
@@ -554,7 +554,7 @@ function rebuildHoursTable({ elTable, hours }: {
   }
 }
 
-/** The ClinicDetailsByDiary action link of a real server row's HTML — the details-template source. */
+/** The ClinicDetailsByDiary action link of a real server row's HTML - the details-template source. */
 export function detailsLinkFromRowHtml(html: string): string | null {
   if (!html) {
     return null;
@@ -566,8 +566,8 @@ export function detailsLinkFromRowHtml(html: string): string | null {
 
 /**
  * Compose the clinic-details lightbox fragment for a branch with no GUID: take a REAL clinic's
- * fragment (fetched via ClinicDetailsByDiary on a current-search row) as the template — the site's own
- * markup — and rewrite name / map / address / phones from the directory, rebuild the hours table and
+ * fragment (fetched via ClinicDetailsByDiary on a current-search row) as the template - the site's own
+ * markup - and rewrite name / map / address / phones from the directory, rebuild the hours table and
  * accessibility list from the same public dataset the site uses, and drop the lines we cannot source
  * honestly (fax, buses, notes, per-clinic remarks). Returns null when the template isn't a details
  * fragment (e.g. a stale-GUID empty envelope).
@@ -646,9 +646,9 @@ function readDeclaredTotal(parsedDocument: Document): number {
 export interface SmileFilterOutcome {
   isChanged: boolean;
   json: unknown;
-  /** N from the "נמצאו N תוצאות" header — the size of the server's full (all-country) result set. */
+  /** N from the "נמצאו N תוצאות" header - the size of the server's full (all-country) result set. */
   totalDeclared: number;
-  /** Rows this page carried before filtering — the server's page size. */
+  /** Rows this page carried before filtering - the server's page size. */
   pageRowCount: number;
   keptRowCount: number;
   /** outerHTML of a real server row (pre-filter), so synthetic branch rows clone the site's own markup. */
@@ -660,7 +660,7 @@ export const SMILE_MARKER_ATTR = "data-clalit-city-marker";
 
 /**
  * Filter one results envelope to the searched city. Also removes the pager (the aggregator flattens
- * every server page into this one list) and the "מרחק מהיישוב שחיפשת" sort — a distance sort must
+ * every server page into this one list) and the "מרחק מהיישוב שחיפשת" sort - a distance sort must
  * reference the USER's location, and the remaining "מרחק מהבית שלך" is exactly that.
  */
 export function filterSmileEnvelope(
@@ -749,11 +749,11 @@ const SLOTS_LINK_SELECTOR = "a[data-action-link*=\"/AvailableVisit/Smile/\"]";
 const DETAILS_LINK_SELECTOR = "a[data-action-link*=\"ClinicDetailsByDiary\"]";
 
 export interface SmileEnvelopeScan {
-  /** The branch's fresh "לכל התורים" link (slots page, /AvailableVisit/Smile/{guid}) — null if absent. */
+  /** The branch's fresh "לכל התורים" link (slots page, /AvailableVisit/Smile/{guid}) - null if absent. */
   actionLink: string | null;
   totalDeclared: number;
   pageRowCount: number;
-  /** A real row of THIS search — its ClinicDetailsByDiary GUID is current while the search is last. */
+  /** A real row of THIS search - its ClinicDetailsByDiary GUID is current while the search is last. */
   firstRowHtml: string;
 }
 
