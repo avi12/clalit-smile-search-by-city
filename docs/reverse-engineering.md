@@ -242,6 +242,48 @@ call exists** — the server mints each diary GUID during the search and renders
 fragment; DOM clicks only consume `data-action-link`. This closes the "how is the GUID triggered"
 question §10 argued from the client bundle: confirmed now from the wire.
 
+### 6c. Click-time GUID minting — a synthetic row's "לכל התורים" (captured 2026-08-14, afternoon)
+
+Chasing "can a branch the search omits still get a working לכל התורים button", by direct probes from a
+logged-in CDP session (extension toggled OFF; `fetch` POSTs of `SearchSmileClinicsDiaries` +
+`Paging` GETs with `X-Requested-With: XMLHttpRequest`, rows parsed with DOMParser):
+
+- **A GUID cannot be pre-minted — it dies with the next search.** After running a 91 search, a GUID
+  from the immediately preceding 92 search GETs `AvailableVisit/Smile/{guid}` → **200** but an error
+  shell: empty `#diaryName`, `#error-panel` "תקלה זמנית. פנה לשירות הלקוחות \*2700", no
+  `#availableVisitsClinicDetails`. So "mint GUIDs in the background, use them later" can never work;
+  the mint must happen at click time and navigation must follow immediately.
+- **A cross-specialization GUID renders a fully working slots page.** ירמיהו has no שיננית (92) diary
+  but does have a בדיקת רופא (91) diary: its fresh 91 GUID rendered a real slots page — title
+  "תור לבדיקת רופא שיניים", clinic ירמיהו, bookable slots (17.12.2026 14:15/14:45, ד"ר יוסף רימא). A
+  branch omitted from the user's search can still carry a live "לכל התורים" if ANY of the three
+  specializations lists it.
+- **Same-day snapshot of the three sweeps (all-country):** 92 → 70 clinics (Tel Aviv: איילון only);
+  91 → 88 clinics (Tel Aviv: ירמיהו only); 97 → **0 nationwide**. The specialization select is still
+  the closed list 91/97/92. So מגדל המאה / רמת אביב / אוניברסיטה remain absent from every sweep — for
+  them §10's verdict (phone only) stands unchanged; there is nothing for the server to mint.
+- **"לכל התורים" is a plain iframe navigation** to `/Zimunet/AvailableVisit/Smile/{guid}` (observed by
+  clicking a real row: the Zimunet iframe's location changes to that URL; the response is a full HTML
+  document, not an envelope).
+- **"Back" from the slots page is a DOCUMENT load** — `GET /Zimunet/SmileClinic?isRestoreSearch=True`
+  re-renders the session's LAST search **server-side into the page**. Two consequences: (1) after a
+  cross-spec mint, back shows that specialization's raw list (the user re-searches; the form keeps the
+  city); (2) a pre-existing hole — even without minting, back after any real row's slots page shows the
+  RAW last search (with the guarantee on: the unfiltered all-country list, no city filter, no synthetic
+  rows), because document loads bypass the fetch/XHR patch entirely. Open item; a fix would transform
+  the server-rendered list in the DOM at document load. (Minor quirk: the restored form's specialization
+  select can disagree with the restored rows — observed 91 in the select above 92-search rows.)
+
+**Shipped mechanism** (interceptor + `smile.ts`): a synthetic row keeps the native button, stripped of
+`data-action-link` (so the site's delegated handler stays quiet) and marked `data-clalit-city-mint-code`.
+Click → sweep NEW all-country searches, the user's submitted specialization first, then the remaining
+codes (`SMILE_SPECIALIZATION_CODES`), scanning each search's pages for the branch by nav code — first
+hit navigates the iframe to the fresh slots link (the site's own loader shown via `z.showLoader`).
+Sweep miss → re-run the user's search to restore the session, rewrite the visible real rows' slots +
+details `data-action-link`s to the fresh GUIDs (every search churns ALL GUIDs, so the displayed ones
+just died), and open the row's own "מידע נוסף" (phones / details). Real rows are never intercepted —
+the native happy path is untouched.
+
 ---
 
 ## 7. The three guarantees (how the extension rewrites this)
@@ -375,10 +417,11 @@ flowchart TD
   Fri 08:00–13:00). No guide describes an online way to book a branch without availability — the
   fallback is the phone. This matches the API reality exactly.
 
-**Conclusion:** a branch with no online hygienist diary is bookable only **by phone**. The extension
-therefore shows every branch (completeness) but, for the ones with no diary, renders an honest
-"אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד \*2700" note with `tel:` links (clinic +
-central hotline), and never a dead "לכל התורים" button.
+**Conclusion:** a branch with no online diary in ANY specialization is bookable only **by phone**. The
+extension therefore shows every branch (completeness) and, for the ones the search omitted, renders an
+honest "אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד \*2700" note with `tel:` links (clinic +
+central hotline). The row's "לכל התורים" button stays but is never dead: it mints a fresh GUID at click
+time (§6c) and, when no specialization lists the branch, falls back to the details/phone lightbox.
 
 **The diary set fluctuates — even intraday (observed 2026-08-14).** Which branches have a bookable
 diary is live server state, not a fixed roster: ירמיהו had no שיננית diary on 13.08, appeared as a
@@ -392,8 +435,9 @@ automatically with the server's diary state, in both directions.
 
 For each searched-city branch the search omits (`SMILE_BRANCHES`, from the nearme directory), the
 interceptor **clones a real server row** (never hand-authored markup — [`applyBranchToRow`](../src/lib/smile.ts))
-and rewrites it: clinic name / address / phones / map, drop the slot date and the booking button, make
-the phone a `tel:` link, and point **"מידע נוסף"** at the site's **own** clinic-details lightbox
+and rewrites it: clinic name / address / phones / map, drop the slot date, re-arm the booking button
+for click-time GUID minting (§6c), make the phone a `tel:` link, and point **"מידע נוסף"** at the
+site's **own** clinic-details lightbox
 (`z.showDialog('#clinicDetailsLightbox', …)` via `ClinicDoctor/ClinicDetailsByVisit/{visitGuid}`) when
 the user has a past visit at that branch — matched by clinic title against `/Zimunet/` past visits —
 otherwise a **composed fragment in the same lightbox** (§10b), with the official
