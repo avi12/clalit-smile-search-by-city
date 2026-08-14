@@ -171,12 +171,12 @@ export default defineContentScript({
     });
 
     // ── Read the searched city out of the site's search box ────────────────────
-    function isSearchInput(input: HTMLInputElement): boolean {
-      if (SEARCH_CITY_SELECTORS.some(selector => input.matches(selector))) {
+    function isSearchInput(elInput: HTMLInputElement): boolean {
+      if (SEARCH_CITY_SELECTORS.some(selector => elInput.matches(selector))) {
         return true;
       }
 
-      const haystack = `${input.placeholder} ${input.getAttribute("aria-label") ?? ""} ${input.name} ${input.id}`;
+      const haystack = `${elInput.placeholder} ${elInput.getAttribute("aria-label") ?? ""} ${elInput.name} ${elInput.id}`;
       return SEARCH_CITY_HINT.test(haystack);
     }
 
@@ -210,9 +210,9 @@ export default defineContentScript({
 
     // Initial read once the input exists (it may carry a value from the URL / a prior search).
     function initialScan() {
-      const input = findSearchInput();
-      if (input) {
-        city = input.value.trim();
+      const elInput = findSearchInput();
+      if (elInput) {
+        city = elInput.value.trim();
       }
 
       pushConfig();

@@ -43,13 +43,13 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
       alignment: "bottom-left",
       zIndex: 2147483647,
       anchor: "body",
-      onMount(container, _shadow, shadowHost) {
+      onMount(elContainer, _shadow, elShadowHost) {
         // WXT's overlay positioning is anchor-relative; the badge floats over the viewport instead.
-        shadowHost.style.position = "fixed";
-        shadowHost.style.bottom = "16px";
-        shadowHost.style.left = "16px";
+        elShadowHost.style.position = "fixed";
+        elShadowHost.style.bottom = "16px";
+        elShadowHost.style.left = "16px";
         return mount(StatusBadge, {
-          target: container,
+          target: elContainer,
           props: {
             state,
             onToggle
@@ -71,8 +71,8 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
         return;
       }
 
-      for (const stale of document.querySelectorAll(HOST_TAG)) {
-        stale.remove(); // a leftover host from a superseded dev generation
+      for (const elStale of document.querySelectorAll(HOST_TAG)) {
+        elStale.remove(); // a leftover host from a superseded dev generation
       }
 
       ui = created;

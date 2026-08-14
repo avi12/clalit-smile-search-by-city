@@ -250,9 +250,9 @@ export default defineContentScript({
       exclude?: Element | null;
     }): Promise<Element | null> {
       for (let attempt = 0; attempt < 25; attempt++) {
-        const element = document.querySelector(selector);
-        if (element && element !== exclude) {
-          return element;
+        const elMatch = document.querySelector(selector);
+        if (elMatch && elMatch !== exclude) {
+          return elMatch;
         }
 
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -281,13 +281,13 @@ export default defineContentScript({
         return;
       }
 
-      const list = await waitForMarkedList(marker);
-      if (!list) {
+      const elList = await waitForMarkedList(marker);
+      if (!elList) {
         return;
       }
 
       const totalPages = Math.ceil(totalDeclared / pageRowCount);
-      const seenNames = new Set([...list.querySelectorAll("li.diary")].map(rowClinicName));
+      const seenNames = new Set([...elList.querySelectorAll("li.diary")].map(rowClinicName));
       let kept = keptRowCount;
       for (let page = 2; page <= totalPages; page++) {
         if (isSuperseded || run !== aggregationRun || !config.isEnabled) {
@@ -305,15 +305,15 @@ export default defineContentScript({
         })) {
           if (!seenNames.has(name)) {
             seenNames.add(name);
-            list.insertAdjacentHTML("beforeend", html);
+            elList.insertAdjacentHTML("beforeend", html);
             kept += 1;
           }
         }
 
-        const header = list.closest("#am_diaries")?.querySelector("h2");
-        if (header) {
+        const elHeader = elList.closest("#am_diaries")?.querySelector("h2");
+        if (elHeader) {
           setHeaderCount({
-            header,
+            elHeader,
             count: kept
           });
         }
@@ -336,17 +336,17 @@ export default defineContentScript({
       }
 
       const added = appendMissingBranches({
-        list,
+        elList,
         city,
         templateRowHtml,
         detailsByTitle
       });
       if (added) {
         kept += added;
-        const header = list.closest("#am_diaries")?.querySelector("h2");
-        if (header) {
+        const elHeader = elList.closest("#am_diaries")?.querySelector("h2");
+        if (elHeader) {
           setHeaderCount({
-            header,
+            elHeader,
             count: kept
           });
         }
@@ -360,7 +360,7 @@ export default defineContentScript({
 
       if (activeSort === "home") {
         await reorderByLiveLocation({
-          list,
+          elList,
           isDescending: isSortDescending
         });
       }
@@ -372,13 +372,13 @@ export default defineContentScript({
         return null;
       }
 
-      const template = document.createElement("template");
-      template.innerHTML = html;
-      return template.content.firstElementChild;
+      const elTemplate = document.createElement("template");
+      elTemplate.innerHTML = html;
+      return elTemplate.content.firstElementChild;
     }
 
     interface AppendBranchesInput {
-      list: Element;
+      elList: Element;
       city: string;
       templateRowHtml: string;
       detailsByTitle: Map<string, string>;
@@ -389,11 +389,11 @@ export default defineContentScript({
      * row (never markup we authored — see applyBranchToRow), repurposed for the branch; "מידע נוסף"
      * opens the site's native clinic-details lightbox when the user has a visit there.
      */
-    function appendMissingBranches({ list, city, templateRowHtml, detailsByTitle }: AppendBranchesInput): number {
-      const seenCodes = new Set([...list.querySelectorAll("li.diary")].map(rowNavCode));
-      const template =
-        list.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
-      if (!template) {
+    function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle }: AppendBranchesInput): number {
+      const seenCodes = new Set([...elList.querySelectorAll("li.diary")].map(rowNavCode));
+      const elTemplate =
+        elList.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
+      if (!elTemplate) {
         return 0;
       }
 
@@ -406,17 +406,17 @@ export default defineContentScript({
           continue;
         }
 
-        const clone = template.cloneNode(true);
-        if (!(clone instanceof Element)) {
+        const elRowClone = elTemplate.cloneNode(true);
+        if (!(elRowClone instanceof Element)) {
           continue;
         }
 
         applyBranchToRow({
-          row: clone,
+          elRow: elRowClone,
           branch,
           detailsVisitGuid: detailsByTitle.get(branch.title) ?? null
         });
-        list.appendChild(clone);
+        elList.appendChild(elRowClone);
         added += 1;
       }
 
@@ -441,10 +441,10 @@ export default defineContentScript({
       }
 
       // showDialog prepends the dialog synchronously, so the note lands in the same frame as the open.
-      const dialog = document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR);
-      if (dialog) {
+      const elDialog = document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR);
+      if (elDialog) {
         setDialogNote({
-          dialog,
+          elDialog,
           text: note
         });
       }
@@ -496,36 +496,36 @@ export default defineContentScript({
      * when the branch has no GUID at all, or the site's OWN ClinicDetailsByVisit lightbox when the row
      * links a past visit there — same container either way, so the note lands in both.
      */
-    async function openRowDetails({ row, note }: {
-      row: Element | null;
+    async function openRowDetails({ elRow, note }: {
+      elRow: Element | null;
       note: string;
     }) {
-      const moreInfo = row?.querySelector<HTMLElement>(
+      const elMoreInfo = elRow?.querySelector<HTMLElement>(
         `a.pull-left[data-action-link], a.pull-left[${DETAILS_CODE_ATTR}]`
       );
-      if (!moreInfo) {
+      if (!elMoreInfo) {
         return;
       }
 
-      const code = moreInfo.getAttribute(DETAILS_CODE_ATTR);
+      const code = elMoreInfo.getAttribute(DETAILS_CODE_ATTR);
       if (code) {
         await openBranchDetails({
           code,
-          fallbackHref: moreInfo.getAttribute("href") ?? "",
+          fallbackHref: elMoreInfo.getAttribute("href") ?? "",
           note
         });
         return;
       }
 
       const stale = document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR);
-      moreInfo.click();
-      const dialog = await waitForElement({
+      elMoreInfo.click();
+      const elDialog = await waitForElement({
         selector: SMILE_DETAILS_DIALOG_SELECTOR,
         exclude: stale
       });
-      if (dialog && !isSuperseded) {
+      if (elDialog && !isSuperseded) {
         setDialogNote({
-          dialog,
+          elDialog,
           text: note
         });
       }
@@ -600,11 +600,11 @@ export default defineContentScript({
      * the top document's body), so the sweep's caption goes into the parent document when there is one.
      */
     function captionLoader(text: string) {
-      const loader =
+      const elLoader =
         parentDocument()?.querySelector(SITE_LOADER_SELECTOR) ?? document.querySelector(SITE_LOADER_SELECTOR);
-      if (loader) {
+      if (elLoader) {
         setLoaderNote({
-          loader,
+          elLoader,
           text
         });
       }
@@ -669,16 +669,16 @@ export default defineContentScript({
         latestTemplateRowHtml = scan.firstRowHtml;
       }
 
-      const list = document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}] ul`);
-      if (!list) {
+      const elList = document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}] ul`);
+      if (!elList) {
         return;
       }
 
       const pending = new Set(
-        [...list.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)].map(rowNavCode)
+        [...elList.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)].map(rowNavCode)
       );
       for (const code of refreshRowActionLinks({
-        list,
+        elList,
         json: first
       })) {
         pending.delete(code);
@@ -688,7 +688,7 @@ export default defineContentScript({
       for (let page = 2; pending.size > 0 && page <= totalPages; page++) {
         const envelope = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` });
         for (const code of refreshRowActionLinks({
-          list,
+          elList,
           json: envelope
         })) {
           pending.delete(code);
@@ -704,9 +704,9 @@ export default defineContentScript({
      * branch, restore the user's search session, heal the visible rows' links, and open the row's own
      * "מידע נוסף" instead — the honest phone/details view.
      */
-    async function openBranchDiaries({ code, row }: {
+    async function openBranchDiaries({ code, elRow }: {
       code: string;
-      row: Element | null;
+      elRow: Element | null;
     }) {
       if (isMintInFlight || !smileCity()) {
         return;
@@ -729,7 +729,7 @@ export default defineContentScript({
         await restoreUserSearchSession().catch(() => {});
         setSiteLoader(false);
         await openRowDetails({
-          row,
+          elRow,
           note: NO_DIARY_SWEEP_NOTE
         }).catch(() => {});
       } finally {
@@ -748,27 +748,27 @@ export default defineContentScript({
         return;
       }
 
-      const mintButton = target.closest(`a[${MINT_CODE_ATTR}]`);
-      if (mintButton) {
+      const elMintButton = target.closest(`a[${MINT_CODE_ATTR}]`);
+      if (elMintButton) {
         // The site's delegated handler binds by class/id, NOT by data-action-link — left alone it reads
         // the stripped attribute as undefined and navigates the iframe to /Zimunet/undefined (observed
         // live). Capture-phase + stopPropagation keeps the click ours alone.
         e.preventDefault();
         e.stopPropagation();
         openBranchDiaries({
-          code: mintButton.getAttribute(MINT_CODE_ATTR) ?? "",
-          row: mintButton.closest("li.diary")
+          code: elMintButton.getAttribute(MINT_CODE_ATTR) ?? "",
+          elRow: elMintButton.closest("li.diary")
         }).catch(() => {});
         return;
       }
 
-      const anchor = target.closest(`a[${DETAILS_CODE_ATTR}]`);
-      if (!anchor) {
+      const elAnchor = target.closest(`a[${DETAILS_CODE_ATTR}]`);
+      if (!elAnchor) {
         return;
       }
 
-      const code = anchor.getAttribute(DETAILS_CODE_ATTR) ?? "";
-      const fallbackHref = anchor.getAttribute("href") ?? "";
+      const code = elAnchor.getAttribute(DETAILS_CODE_ATTR) ?? "";
+      const fallbackHref = elAnchor.getAttribute("href") ?? "";
       e.preventDefault();
       openBranchDetails({
         code,
@@ -797,33 +797,33 @@ export default defineContentScript({
     }
 
     function restoredSessionSpec(): string | null {
-      const header = document.querySelector("#am_diaries h2")?.textContent ?? "";
-      const select = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
-      if (!header || !select) {
+      const headerText = document.querySelector("#am_diaries h2")?.textContent ?? "";
+      const elSelect = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
+      if (!headerText || !elSelect) {
         return null;
       }
 
-      const option = [...select.options].find(({ text }) => text.trim() && header.includes(text.trim()));
-      return option?.value ?? null;
+      const elOption = [...elSelect.options].find(({ text }) => text.trim() && headerText.includes(text.trim()));
+      return elOption?.value ?? null;
     }
 
     function redriveSearch(spec: string): void {
-      const button = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
-      if (!button) {
+      const elSearchButton = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
+      if (!elSearchButton) {
         return;
       }
 
-      const select = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
-      if (select && select.value !== spec) {
-        select.value = spec;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
+      const elSelect = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
+      if (elSelect && elSelect.value !== spec) {
+        elSelect.value = spec;
+        elSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
       // Belt: until the site's own handler is bound, the submit button's default action would NATIVE-
       // submit the form (a document POST). The real search flow is always XHR, so preventing the
       // default keeps a too-early click harmless — the retry loop just tries again.
-      button.closest("form")?.addEventListener("submit", e => e.preventDefault(), { once: true });
-      button.click();
+      elSearchButton.closest("form")?.addEventListener("submit", e => e.preventDefault(), { once: true });
+      elSearchButton.click();
     }
 
     async function recoverRestoredSearch() {
@@ -877,9 +877,9 @@ export default defineContentScript({
 
       const map = new Map<string, string>();
       const doc = new DOMParser().parseFromString(html, "text/html");
-      for (const anchor of doc.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
-        const guid = anchor.getAttribute("data-action-link")?.split("/").pop();
-        const title = anchor.textContent?.trim();
+      for (const elAnchor of doc.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
+        const guid = elAnchor.getAttribute("data-action-link")?.split("/").pop();
+        const title = elAnchor.textContent?.trim();
         if (guid && title && !map.has(title)) {
           map.set(title, guid);
         }
@@ -930,8 +930,8 @@ export default defineContentScript({
      * (clinic coordinates come from the committed nearme dataset — no runtime network). Rows without
      * known coordinates keep their server order at the end; a denied position leaves the list as-is.
      */
-    async function reorderByLiveLocation({ list, isDescending }: {
-      list: Element;
+    async function reorderByLiveLocation({ elList, isDescending }: {
+      elList: Element;
       isDescending: boolean;
     }) {
       const position = await currentPosition();
@@ -939,10 +939,10 @@ export default defineContentScript({
         return;
       }
 
-      const ranked = [...list.querySelectorAll("li.diary")].map((row, index) => {
-        const coords = DENTAL_CLINIC_COORDS[rowNavCode(row)];
+      const ranked = [...elList.querySelectorAll("li.diary")].map((elRow, index) => {
+        const coords = DENTAL_CLINIC_COORDS[rowNavCode(elRow)];
         return {
-          row,
+          elRow,
           index,
           km: coords ? haversineKm({
             from: position,
@@ -964,12 +964,12 @@ export default defineContentScript({
 
         return delta || first.index - second.index;
       });
-      for (const { row, km } of ranked) {
-        list.appendChild(row);
+      for (const { elRow, km } of ranked) {
+        elList.appendChild(elRow);
 
         if (Number.isFinite(km)) {
           setRowDistanceLabel({
-            row,
+            elRow,
             km
           });
         }

@@ -30,18 +30,18 @@ const ADDRESS_PREFIX = "כתובת:";
  * site already renders the clinic's canonical city here — the exact same string its city autocomplete
  * produces for the search box — so it compares 1:1 against the searched city with no normalization.
  */
-export function rowCityName(row: Element): string {
+export function rowCityName(elRow: Element): string {
   const address =
-    [...row.querySelectorAll(".clinicDetails")]
-      .map(element => element.textContent?.trim() ?? "")
+    [...elRow.querySelectorAll(".clinicDetails")]
+      .map(elDetail => elDetail.textContent?.trim() ?? "")
       .find(text => text.startsWith(ADDRESS_PREFIX))
       ?.slice(ADDRESS_PREFIX.length) ?? "";
   return address.split(",").pop()?.trim() ?? "";
 }
 
 /** Clinic display name — the stable identity for dedup (diary GUIDs change per search session). */
-export function rowClinicName(row: Element): string {
-  return row.querySelector("a.clinicDetails")?.textContent?.trim() ?? "";
+export function rowClinicName(elRow: Element): string {
+  return elRow.querySelector("a.clinicDetails")?.textContent?.trim() ?? "";
 }
 
 /**
@@ -60,8 +60,8 @@ export function cityMatches({ rowCity, searchedCity }: {
 const NAV_CODE_PATTERN = /\/nav\/(\d+)/;
 
 /** The clinic's nearme code from the row's "הצגת מפה" link — the key into CLINIC_COORDS. */
-export function rowNavCode(row: Element): string {
-  const href = row.querySelector("a.mapLocationLink")?.getAttribute("href") ?? "";
+export function rowNavCode(elRow: Element): string {
+  const href = elRow.querySelector("a.mapLocationLink")?.getAttribute("href") ?? "";
   return NAV_CODE_PATTERN.exec(href)?.[1] ?? "";
 }
 
@@ -69,24 +69,24 @@ export function rowNavCode(row: Element): string {
 export const LIVE_DISTANCE_SORT_LABEL = "מרחק ממיקומך";
 
 /** Rewrite a live row's server-computed "מרחק מהבית שלך" line with the live-location distance. */
-export function setRowDistanceLabel({ row, km }: {
-  row: Element;
+export function setRowDistanceLabel({ elRow, km }: {
+  elRow: Element;
   km: number;
 }): void {
   const text = `${LIVE_DISTANCE_SORT_LABEL}: ${km.toFixed(2)} ק"מ`;
-  const label = [...row.querySelectorAll(".clinicDetails")].find(element => element.textContent?.includes("מרחק"));
-  if (label) {
-    label.textContent = text;
+  const elLabel = [...elRow.querySelectorAll(".clinicDetails")].find(elDetail => elDetail.textContent?.includes("מרחק"));
+  if (elLabel) {
+    elLabel.textContent = text;
     return;
   }
 
   // Synthetic branch rows have no server distance line — add one.
-  const container = row.querySelector(".pull-right");
-  if (container) {
-    const line = container.ownerDocument.createElement("div");
-    line.className = "clinicDetails";
-    line.textContent = text;
-    container.appendChild(line);
+  const elContainer = elRow.querySelector(".pull-right");
+  if (elContainer) {
+    const elLine = elContainer.ownerDocument.createElement("div");
+    elLine.className = "clinicDetails";
+    elLine.textContent = text;
+    elContainer.appendChild(elLine);
   }
 }
 
@@ -153,26 +153,26 @@ function formatPhone(raw: string) {
 }
 
 /** Render directory phones as tel: links into a telephone slot (the row and the lightbox share this). */
-function appendPhoneLinks({ container, phones }: {
-  container: Element;
+function appendPhoneLinks({ elContainer, phones }: {
+  elContainer: Element;
   phones: string[];
 }) {
-  const { ownerDocument } = container;
-  container.textContent = "";
+  const { ownerDocument } = elContainer;
+  elContainer.textContent = "";
   for (const phone of phones) {
     const formatted = formatPhone(phone);
     if (!formatted) {
       continue;
     }
 
-    const link = ownerDocument.createElement("a");
+    const elLink = ownerDocument.createElement("a");
     // The site's own inline-link class (anchors already inherit its color; this adds the underline).
-    link.className = "underline";
-    link.setAttribute("href", `tel:${formatted.dial}`);
+    elLink.className = "underline";
+    elLink.setAttribute("href", `tel:${formatted.dial}`);
     // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
-    link.setAttribute("dir", "ltr");
-    link.textContent = `${formatted.display} `;
-    container.appendChild(link);
+    elLink.setAttribute("dir", "ltr");
+    elLink.textContent = `${formatted.display} `;
+    elContainer.appendChild(elLink);
   }
 }
 
@@ -181,23 +181,23 @@ function buildHotlineNote({ ownerDocument, text }: {
   ownerDocument: Document;
   text: string;
 }) {
-  const note = ownerDocument.createElement("div");
-  note.className = "clinicDetails";
-  note.setAttribute(NOTE_ATTR, "1");
-  note.textContent = `${text} `;
-  const hotline = ownerDocument.createElement("a");
-  hotline.className = "underline";
-  hotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
+  const elNote = ownerDocument.createElement("div");
+  elNote.className = "clinicDetails";
+  elNote.setAttribute(NOTE_ATTR, "1");
+  elNote.textContent = `${text} `;
+  const elHotline = ownerDocument.createElement("a");
+  elHotline.className = "underline";
+  elHotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
   // dir=ltr keeps "*2700" from flipping to "2700*" inside the RTL note.
-  hotline.setAttribute("dir", "ltr");
-  hotline.textContent = CENTRAL_BOOKING_PHONE;
-  note.appendChild(hotline);
-  return note;
+  elHotline.setAttribute("dir", "ltr");
+  elHotline.textContent = CENTRAL_BOOKING_PHONE;
+  elNote.appendChild(elHotline);
+  return elNote;
 }
 
 export interface BranchRowInput {
   /** A cloned REAL server row (li.diary) to repurpose — never markup we authored. */
-  row: Element;
+  elRow: Element;
   branch: SmileBranch;
   /** A past visit at this branch → the site's native clinic-details lightbox; null → nearme page. */
   detailsVisitGuid: string | null;
@@ -210,52 +210,52 @@ export interface BranchRowInput {
  * site's native clinic-details lightbox when the user has a visit here (ClinicDetailsByVisit) or the
  * official nearme page otherwise, and make the phone a tel: link.
  */
-export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInput): void {
+export function applyBranchToRow({ elRow, branch, detailsVisitGuid }: BranchRowInput): void {
   const { code, title, street, city, phones } = branch;
-  const { ownerDocument } = row;
-  row.setAttribute(SYNTHETIC_ROW_ATTR, "1");
+  const { ownerDocument } = elRow;
+  elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
   const detailsHref = detailsVisitGuid ? `${CLINIC_DETAILS_BY_VISIT}${detailsVisitGuid}` : null;
   const nearme = `${NEARME_NAV}${code}`;
 
   // Both the clinic-name link and the "מידע נוסף" button are a.clinicDetails. With a past visit here,
   // keep them native (site's delegated handler fetches ClinicDetailsByVisit → lightbox); otherwise turn
   // them into a plain nearme link so the site never tries to Ajax-fetch a cross-origin href.
-  for (const anchor of row.querySelectorAll("a.clinicDetails")) {
-    const isMoreInfoButton = anchor.classList.contains("pull-left");
-    anchor.textContent = isMoreInfoButton ? "מידע נוסף" : title;
-    anchor.setAttribute("title", isMoreInfoButton ? "מידע נוסף" : title);
+  for (const elAnchor of elRow.querySelectorAll("a.clinicDetails")) {
+    const isMoreInfoButton = elAnchor.classList.contains("pull-left");
+    elAnchor.textContent = isMoreInfoButton ? "מידע נוסף" : title;
+    elAnchor.setAttribute("title", isMoreInfoButton ? "מידע נוסף" : title);
 
     if (detailsHref) {
-      anchor.setAttribute("data-action-link", detailsHref);
+      elAnchor.setAttribute("data-action-link", detailsHref);
     } else {
       // No GUID exists for this branch, so the site's own Ajax handler must not fire (it would choke on
       // a cross-origin href). The interceptor's delegated click handler opens the composed lightbox via
       // DETAILS_CODE_ATTR instead; the nearme href stays as the new-tab/middle-click/failure fallback.
-      anchor.classList.remove("clinicDetails");
-      anchor.removeAttribute("data-action-link");
-      anchor.setAttribute("href", nearme);
-      anchor.setAttribute("target", "_blank");
-      anchor.setAttribute("rel", "noopener");
-      anchor.setAttribute(DETAILS_CODE_ATTR, code);
+      elAnchor.classList.remove("clinicDetails");
+      elAnchor.removeAttribute("data-action-link");
+      elAnchor.setAttribute("href", nearme);
+      elAnchor.setAttribute("target", "_blank");
+      elAnchor.setAttribute("rel", "noopener");
+      elAnchor.setAttribute(DETAILS_CODE_ATTR, code);
     }
   }
 
   // Address, and drop lines that only make sense for a real diary (soonest-slot date, server distance).
   const address = street ? `${street}, ${city}` : city;
-  for (const detail of row.querySelectorAll(".clinicDetails")) {
-    const text = detail.textContent?.trim() ?? "";
+  for (const elDetail of elRow.querySelectorAll(".clinicDetails")) {
+    const text = elDetail.textContent?.trim() ?? "";
     if (text.startsWith(ADDRESS_PREFIX)) {
-      detail.textContent = `${ADDRESS_PREFIX} ${address}`;
+      elDetail.textContent = `${ADDRESS_PREFIX} ${address}`;
     } else if (text.startsWith("מועד התור") || text.includes("מרחק")) {
-      detail.remove();
+      elDetail.remove();
     }
   }
 
   // Phones as tel: links, reusing the row's own telephone slot.
-  const telephone = row.querySelector(".clinicTelephone");
-  if (telephone) {
+  const elTelephone = elRow.querySelector(".clinicTelephone");
+  if (elTelephone) {
     appendPhoneLinks({
-      container: telephone,
+      elContainer: elTelephone,
       phones
     });
   }
@@ -264,15 +264,15 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
   // data-action-link (the site's delegated handler only fires on that attribute) and mark it for the
   // interceptor's click-time GUID minting instead. The diary set fluctuates intraday, so a diary may
   // exist by the time the user clicks even though the search omitted this branch.
-  const diaryButton = row.querySelector("#CreateVisitButton, a.diaryButton");
-  if (diaryButton) {
-    diaryButton.removeAttribute("data-action-link");
-    diaryButton.setAttribute(MINT_CODE_ATTR, code);
+  const elDiaryButton = elRow.querySelector("#CreateVisitButton, a.diaryButton");
+  if (elDiaryButton) {
+    elDiaryButton.removeAttribute("data-action-link");
+    elDiaryButton.setAttribute(MINT_CODE_ATTR, code);
   }
 
   // Repoint the map link at this branch, and add the "no online diary" note with the central hotline.
-  row.querySelector("a.mapLocationLink")?.setAttribute("href", nearme);
-  row.querySelector(".pull-right")?.appendChild(
+  elRow.querySelector("a.mapLocationLink")?.setAttribute("href", nearme);
+  elRow.querySelector(".pull-right")?.appendChild(
     buildHotlineNote({
       ownerDocument,
       text: NO_DIARY_ROW_NOTE
@@ -286,17 +286,17 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
  * on the site's native ClinicDetailsByVisit view and on our composed fragment alike: both are the same
  * container (targets.ts SMILE_DETAILS_DIALOG_SELECTOR).
  */
-export function setDialogNote({ dialog, text }: {
-  dialog: Element;
+export function setDialogNote({ elDialog, text }: {
+  elDialog: Element;
   text: string;
 }): void {
-  for (const stale of dialog.querySelectorAll(`[${NOTE_ATTR}]`)) {
+  for (const stale of elDialog.querySelectorAll(`[${NOTE_ATTR}]`)) {
     stale.remove();
   }
 
-  const { ownerDocument } = dialog;
-  const host = dialog.querySelector(".css_NoPaddingCell.clinicDetails") ?? dialog.querySelector("div.content") ?? dialog;
-  host.prepend(
+  const { ownerDocument } = elDialog;
+  const elNoteHost = elDialog.querySelector(".css_NoPaddingCell.clinicDetails") ?? elDialog.querySelector("div.content") ?? elDialog;
+  elNoteHost.prepend(
     buildHotlineNote({
       ownerDocument,
       text
@@ -325,21 +325,21 @@ const LOADER_NOTE_STYLE = {
 };
 
 /** Caption the site's own loader so the sweep's multi-second wait says what it is doing. */
-export function setLoaderNote({ loader, text }: {
-  loader: Element;
+export function setLoaderNote({ elLoader, text }: {
+  elLoader: Element;
   text: string;
 }): void {
-  const existing = loader.querySelector<HTMLElement>(`[${NOTE_ATTR}]`);
-  if (existing) {
-    existing.textContent = text;
+  const elExisting = elLoader.querySelector<HTMLElement>(`[${NOTE_ATTR}]`);
+  if (elExisting) {
+    elExisting.textContent = text;
     return;
   }
 
-  const note = loader.ownerDocument.createElement("div");
-  note.setAttribute(NOTE_ATTR, "1");
-  Object.assign(note.style, LOADER_NOTE_STYLE);
-  note.textContent = text;
-  loader.appendChild(note);
+  const elNote = elLoader.ownerDocument.createElement("div");
+  elNote.setAttribute(NOTE_ATTR, "1");
+  Object.assign(elNote.style, LOADER_NOTE_STYLE);
+  elNote.textContent = text;
+  elLoader.appendChild(elNote);
 }
 
 // ── Composed clinic-details lightbox (branches with no GUID of any kind) ───────
@@ -353,37 +353,37 @@ function formatMinutes(total: number): string {
 }
 
 /** Rewrite a `<span class="title">label</span> value` line's value, keeping the label span. */
-function setLabeledLine({ line, value }: {
-  line: Element;
-  value: string;
+function setLabeledLine({ elLine, elValue }: {
+  elLine: Element;
+  elValue: string;
 }): void {
-  const label = line.querySelector("span.title");
-  if (!label) {
+  const elLabel = elLine.querySelector("span.title");
+  if (!elLabel) {
     return;
   }
 
-  line.textContent = "";
-  line.appendChild(label);
-  line.appendChild(line.ownerDocument.createTextNode(` ${value}`));
+  elLine.textContent = "";
+  elLine.appendChild(elLabel);
+  elLine.appendChild(elLine.ownerDocument.createTextNode(` ${elValue}`));
 }
 
 /** The accessibility list: the directory's labels, or drop the line when the branch has none. */
-function applyAccessibilityLine({ line, labels }: {
-  line: Element;
+function applyAccessibilityLine({ elLine, labels }: {
+  elLine: Element;
   labels: string[];
 }): void {
-  const items = [...line.children].find(child => !child.classList.contains("clinicAccessibilty"));
-  if (labels.length === 0 || !items) {
-    line.remove();
+  const elItems = [...elLine.children].find(child => !child.classList.contains("clinicAccessibilty"));
+  if (labels.length === 0 || !elItems) {
+    elLine.remove();
     return;
   }
 
-  const { ownerDocument } = line;
-  items.textContent = "";
-  for (const label of labels) {
-    const item = ownerDocument.createElement("div");
-    item.textContent = label;
-    items.appendChild(item);
+  const { ownerDocument } = elLine;
+  elItems.textContent = "";
+  for (const elLabel of labels) {
+    const elItem = ownerDocument.createElement("div");
+    elItem.textContent = elLabel;
+    elItems.appendChild(elItem);
   }
 }
 
@@ -391,25 +391,25 @@ function applyAccessibilityLine({ line, labels }: {
 const UNSOURCED_DETAIL_LINE = /פקס:|אוטובוסים:|הערות:/;
 
 /** One `<div>` line of the details cell, rewritten for the branch (or removed). */
-function applyBranchToDetailLine({ line, branch }: {
-  line: Element;
+function applyBranchToDetailLine({ elLine, branch }: {
+  elLine: Element;
   branch: SmileBranch;
 }): void {
   const { street, city, phones, accessibility } = branch;
-  const text = line.textContent ?? "";
+  const text = elLine.textContent ?? "";
   if (text.includes("כתובת:")) {
     setLabeledLine({
-      line,
-      value: street ? `${street}, ${city}` : city
+      elLine,
+      elValue: street ? `${street}, ${city}` : city
     });
     return;
   }
 
   if (text.includes("טלפון:")) {
-    const telephone = line.querySelector(".clinicTelephone");
-    if (telephone) {
+    const elTelephone = elLine.querySelector(".clinicTelephone");
+    if (elTelephone) {
       appendPhoneLinks({
-        container: telephone,
+        elContainer: elTelephone,
         phones
       });
     }
@@ -417,53 +417,53 @@ function applyBranchToDetailLine({ line, branch }: {
     return;
   }
 
-  if (line.querySelector(".clinicAccessibilty")) {
+  if (elLine.querySelector(".clinicAccessibilty")) {
     applyAccessibilityLine({
-      line,
+      elLine,
       labels: accessibility
     });
     return;
   }
 
-  if (UNSOURCED_DETAIL_LINE.test(text) || line.classList.contains("divClinicRemarksList")) {
-    line.remove();
+  if (UNSOURCED_DETAIL_LINE.test(text) || elLine.classList.contains("divClinicRemarksList")) {
+    elLine.remove();
   }
 }
 
 /** Rebuild the reception-hours table from the directory's [day, start, end] triples. */
-function rebuildHoursTable({ table, hours }: {
-  table: Element;
+function rebuildHoursTable({ elTable, hours }: {
+  elTable: Element;
   hours: SmileBranch["hours"];
 }): void {
-  const { ownerDocument } = table;
+  const { ownerDocument } = elTable;
   const byDay = new Map(hours.map(([day, start, end]) => [
     day,
     `מ ${formatMinutes(start)} עד ${formatMinutes(end)}`
   ]));
-  table.textContent = "";
+  elTable.textContent = "";
   for (const [day, letter] of RECEPTION_DAY_LETTERS.entries()) {
-    const separatorRow = ownerDocument.createElement("tr");
-    const separatorCell = ownerDocument.createElement("td");
-    separatorCell.setAttribute("colspan", "2");
-    separatorCell.className = "separator";
-    separatorRow.appendChild(separatorCell);
-    table.appendChild(separatorRow);
+    const elSeparatorRow = ownerDocument.createElement("tr");
+    const elSeparatorCell = ownerDocument.createElement("td");
+    elSeparatorCell.setAttribute("colspan", "2");
+    elSeparatorCell.className = "separator";
+    elSeparatorRow.appendChild(elSeparatorCell);
+    elTable.appendChild(elSeparatorRow);
 
-    const row = ownerDocument.createElement("tr");
-    const header = ownerDocument.createElement("td");
-    header.className = "header";
-    header.textContent = letter;
-    const value = ownerDocument.createElement("td");
-    value.textContent = byDay.get(day) ?? "";
+    const elRow = ownerDocument.createElement("tr");
+    const elHeader = ownerDocument.createElement("td");
+    elHeader.className = "header";
+    elHeader.textContent = letter;
+    const elValue = ownerDocument.createElement("td");
+    elValue.textContent = byDay.get(day) ?? "";
     // The site's empty remark div is load-bearing: its 210px width is what holds the value column
     // open (the CSS gives td.header width:100%, which otherwise crushes the hours to a word a line).
-    const remark = ownerDocument.createElement("div");
-    remark.className = "clinicDetailsReceptionRemark";
-    remark.setAttribute("title", "");
-    value.appendChild(remark);
-    row.appendChild(header);
-    row.appendChild(value);
-    table.appendChild(row);
+    const elRemark = ownerDocument.createElement("div");
+    elRemark.className = "clinicDetailsReceptionRemark";
+    elRemark.setAttribute("title", "");
+    elValue.appendChild(elRemark);
+    elRow.appendChild(elHeader);
+    elRow.appendChild(elValue);
+    elTable.appendChild(elRow);
   }
 }
 
@@ -495,47 +495,47 @@ export function applyBranchToDetailsFragment({ template, branch }: {
   }
 
   const { title, code, hours } = branch;
-  const nameLabel = [...doc.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
-  if (nameLabel?.parentElement) {
+  const elNameLabel = [...doc.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
+  if (elNameLabel?.parentElement) {
     setLabeledLine({
-      line: nameLabel.parentElement,
-      value: title
+      elLine: elNameLabel.parentElement,
+      elValue: title
     });
   }
 
   doc.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${code}`);
 
-  for (const line of doc.querySelector(".css_NoPaddingCell.clinicDetails")?.querySelectorAll(":scope > div") ?? []) {
+  for (const elLine of doc.querySelector(".css_NoPaddingCell.clinicDetails")?.querySelectorAll(":scope > div") ?? []) {
     applyBranchToDetailLine({
-      line,
+      elLine,
       branch
     });
   }
 
-  const hoursTable = doc.querySelector("#receptionHours");
-  if (!hoursTable) {
+  const elHoursTable = doc.querySelector("#receptionHours");
+  if (!elHoursTable) {
     return doc.body.innerHTML;
   }
 
   if (hours.length === 0) {
     doc.querySelector(".receptionHoursHeader")?.remove();
-    hoursTable.remove();
+    elHoursTable.remove();
     return doc.body.innerHTML;
   }
 
   rebuildHoursTable({
-    table: hoursTable,
+    elTable: elHoursTable,
     hours
   });
   return doc.body.innerHTML;
 }
 
 /** Replace an element's text while keeping child elements (the sort links carry an icon <i>). */
-function replaceTextNode({ element, text }: {
-  element: Element;
+function replaceTextNode({ elTarget, text }: {
+  elTarget: Element;
   text: string;
 }): void {
-  for (const node of element.childNodes) {
+  for (const node of elTarget.childNodes) {
     if (node.nodeType === 3 && node.textContent?.trim()) {
       node.textContent = text;
       return;
@@ -544,11 +544,11 @@ function replaceTextNode({ element, text }: {
 }
 
 /** Rewrite the "נמצאו N" count in a results header (the aggregator bumps it as pages stream in). */
-export function setHeaderCount({ header, count }: {
-  header: Element;
+export function setHeaderCount({ elHeader, count }: {
+  elHeader: Element;
   count: number;
 }): void {
-  header.textContent = (header.textContent ?? "").replace(/נמצאו\s+\d+/, `נמצאו ${count}`);
+  elHeader.textContent = (elHeader.textContent ?? "").replace(/נמצאו\s+\d+/, `נמצאו ${count}`);
 }
 
 function readDeclaredTotal(doc: Document): number {
@@ -597,18 +597,18 @@ export function filterSmileEnvelope(
   }
 
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const rows = [...doc.querySelectorAll("li.diary")];
-  const templateRowHtml = rows[0]?.outerHTML ?? "";
+  const elRows = [...doc.querySelectorAll("li.diary")];
+  const templateRowHtml = elRows[0]?.outerHTML ?? "";
   const totalDeclared = readDeclaredTotal(doc);
   let keptRowCount = 0;
-  for (const row of rows) {
+  for (const elRow of elRows) {
     if (cityMatches({
-      rowCity: rowCityName(row),
+      rowCity: rowCityName(elRow),
       searchedCity
     })) {
       keptRowCount += 1;
     } else {
-      row.remove();
+      elRow.remove();
     }
   }
 
@@ -619,20 +619,20 @@ export function filterSmileEnvelope(
   doc.querySelector("a[data-action-link*=\"sortValue=4\"]")?.closest("h3")?.remove();
 
   // The remaining distance sort is hijacked to rank by the user's live location, so label it truthfully.
-  const homeSortLink = doc.querySelector("a[data-action-link*=\"sortValue=3\"]");
-  if (homeSortLink) {
+  const elHomeSortLink = doc.querySelector("a[data-action-link*=\"sortValue=3\"]");
+  if (elHomeSortLink) {
     replaceTextNode({
-      element: homeSortLink,
+      elTarget: elHomeSortLink,
       text: LIVE_DISTANCE_SORT_LABEL
     });
-    homeSortLink.setAttribute("title", LIVE_DISTANCE_SORT_LABEL);
+    elHomeSortLink.setAttribute("title", LIVE_DISTANCE_SORT_LABEL);
   }
 
-  const header = doc.querySelector("h2");
-  if (header?.textContent) {
-    header.textContent = header.textContent.replace(/באזור:.*$/, `בעיר: ${searchedCity.trim()}`);
+  const elHeader = doc.querySelector("h2");
+  if (elHeader?.textContent) {
+    elHeader.textContent = elHeader.textContent.replace(/באזור:.*$/, `בעיר: ${searchedCity.trim()}`);
     setHeaderCount({
-      header,
+      elHeader,
       count: keptRowCount
     });
   }
@@ -650,7 +650,7 @@ export function filterSmileEnvelope(
     isChanged: true,
     json: envelope,
     totalDeclared,
-    pageRowCount: rows.length,
+    pageRowCount: elRows.length,
     keptRowCount,
     templateRowHtml
   };
@@ -687,13 +687,13 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
   }
 
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const rows = [...doc.querySelectorAll("li.diary")];
-  const match = navCode ? rows.find(row => rowNavCode(row) === navCode) : undefined;
+  const elRows = [...doc.querySelectorAll("li.diary")];
+  const match = navCode ? elRows.find(elRow => rowNavCode(elRow) === navCode) : undefined;
   return {
     actionLink: match?.querySelector(SLOTS_LINK_SELECTOR)?.getAttribute("data-action-link") ?? null,
     totalDeclared: readDeclaredTotal(doc),
-    pageRowCount: rows.length,
-    firstRowHtml: rows[0]?.outerHTML ?? ""
+    pageRowCount: elRows.length,
+    firstRowHtml: elRows[0]?.outerHTML ?? ""
   };
 }
 
@@ -702,8 +702,8 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
  * displayed real rows' slots/details links are dead. Given an envelope of the restored (re-run) user
  * search, rewrite matching rows' action links to the fresh GUIDs. Returns the nav codes refreshed.
  */
-export function refreshRowActionLinks({ list, json }: {
-  list: Element;
+export function refreshRowActionLinks({ elList, json }: {
+  elList: Element;
   json: unknown;
 }): string[] {
   const html = getSmileHtml(json);
@@ -711,27 +711,27 @@ export function refreshRowActionLinks({ list, json }: {
     return [];
   }
 
-  const liveByCode = new Map<string, Element>();
-  for (const row of list.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)) {
-    liveByCode.set(rowNavCode(row), row);
+  const liveRowsByNavCode = new Map<string, Element>();
+  for (const elRow of elList.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)) {
+    liveRowsByNavCode.set(rowNavCode(elRow), elRow);
   }
 
   const doc = new DOMParser().parseFromString(html, "text/html");
   const refreshed: string[] = [];
-  for (const freshRow of doc.querySelectorAll("li.diary")) {
-    const liveRow = liveByCode.get(rowNavCode(freshRow));
-    if (!liveRow) {
+  for (const elFreshRow of doc.querySelectorAll("li.diary")) {
+    const elLiveRow = liveRowsByNavCode.get(rowNavCode(elFreshRow));
+    if (!elLiveRow) {
       continue;
     }
 
     for (const selector of [SLOTS_LINK_SELECTOR, DETAILS_LINK_SELECTOR]) {
-      const freshLink = freshRow.querySelector(selector)?.getAttribute("data-action-link");
+      const freshLink = elFreshRow.querySelector(selector)?.getAttribute("data-action-link");
       if (freshLink) {
-        liveRow.querySelector(selector)?.setAttribute("data-action-link", freshLink);
+        elLiveRow.querySelector(selector)?.setAttribute("data-action-link", freshLink);
       }
     }
 
-    refreshed.push(rowNavCode(freshRow));
+    refreshed.push(rowNavCode(elFreshRow));
   }
 
   return refreshed;
@@ -754,12 +754,12 @@ export function extractCityRows({ json, searchedCity }: {
 
   const doc = new DOMParser().parseFromString(html, "text/html");
   return [...doc.querySelectorAll("li.diary")]
-    .filter(row => cityMatches({
-      rowCity: rowCityName(row),
+    .filter(elRow => cityMatches({
+      rowCity: rowCityName(elRow),
       searchedCity
     }))
-    .map(row => ({
-      name: rowClinicName(row),
-      html: row.outerHTML
+    .map(elRow => ({
+      name: rowClinicName(elRow),
+      html: elRow.outerHTML
     }));
 }
