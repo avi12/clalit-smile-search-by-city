@@ -338,9 +338,49 @@ and rewrites it: clinic name / address / phones / map, drop the slot date and th
 the phone a `tel:` link, and point **"מידע נוסף"** at the site's **own** clinic-details lightbox
 (`z.showDialog('#clinicDetailsLightbox', …)` via `ClinicDoctor/ClinicDetailsByVisit/{visitGuid}`) when
 the user has a past visit at that branch — matched by clinic title against `/Zimunet/` past visits —
-otherwise the official `nearme.clalit.co.il/nav/{code}` page. City matching is **exact against the
-site's canonical `SelectedCityName`** (the value its autocomplete commits for the search box); there is
-no fuzzy normalization — the site is the single source of truth for a city's name.
+otherwise a **composed fragment in the same lightbox** (§10b), with the official
+`nearme.clalit.co.il/nav/{code}` page as the modifier-click / failure fallback. City matching is
+**exact against the site's canonical `SelectedCityName`** (the value its autocomplete commits for the
+search box); there is no fuzzy normalization — the site is the single source of truth for a city's
+name.
+
+### 10b. The clinic-details lightbox for a branch with NO GUID (captured 2026-08-14)
+
+Every server entrance to the lightbox fragment is GUID- or session-gated; the lightbox itself is not.
+
+- **`ClinicDoctor/ClinicDetailsByDiary/{diaryGuid}`** — works only with a GUID of the CURRENT search
+  session. A stale GUID (from a superseded search) returns `200` with a non-fragment envelope, not an
+  error — check for the fragment's `.css_Table` before trusting it.
+- **`ClinicDoctor/ClinicDetailsByVisit/{visitGuid}`** — only for the user's own past visits.
+- **`ClinicDoctor/ClinicDetailsByParams`** — binds **no** request parameters at all. Re-verified with
+  the REAL internal clinic code passed as `?clinicCode=` / `?code=` / `?id=` / a path segment: every
+  variant returns the identical fragment for the **server-session clinic**, which is set by rendering
+  `AvailableVisit/Smile/{diaryGuid}` (the slots page) and **survives subsequent searches**. The site's
+  own caller (handler `ct` in `bundles/z`) sends it bare and relies on that session state.
+- **Tamuz's internal clinic code IS the nearme code.** The slots page renders
+  `<a id="availableVisitsClinicDetails" data-clinic-code="865012" …>` for איילון — the same `865xxx`
+  code as `nearme.clalit.co.il/nav/{code}` and our committed directory. (The handler ignores the
+  attribute; it exists only in markup.)
+- **The specialization list is closed: 91 בדיקת רופא · 97 סתימה · 92 שיננית.** A branch absent from
+  all three has no GUID mintable by any search (TA snapshot 14.08: 92 → איילון only, 91 → ירמיהו only,
+  97 → none), so no server entrance can name it.
+- **But `z.showDialog("#clinicDetailsLightbox", fragmentHtml)` accepts any fragment** — it creates the
+  lightbox container if absent, shows it, and the header's `a.close` removes it. Verified live by
+  injecting an edited fragment.
+- **The fragment's data exists publicly.** `nearme.clalit.co.il/c.json` columns `time`
+  (`[dayIndex 0=Sunday, startMinutes, endMinutes]`) and `accessibility` (ids resolved through the
+  top-level `acc` map) are exactly the hours table and "גישה לנכים" list the fragment renders.
+
+**Shipped mechanism** (uniform "מידע נוסף" for every branch): a no-GUID branch's click fetches
+`ClinicDetailsByDiary` for a REAL current-search row (the freshest render's first row, tracked by the
+interceptor), recomposes that fragment for the branch via `applyBranchToDetailsFragment`
+(name / map / address / phones / hours / accessibility from the committed directory; fax, buses, notes
+and per-clinic remarks dropped — we cannot source them), and opens it with the page's own
+`z.showDialog`. Modifier-clicks and any failure fall back to the nearme page in a new tab.
+
+Method: logged-in CDP session — slots-page HTML inspection, `bundles/z` handler read, ByParams
+param-matrix probes, a specialization sweep via the site's own serialized form, and live
+`z.showDialog` injection.
 
 ---
 
@@ -360,3 +400,6 @@ no fuzzy normalization — the site is the single source of truth for a city's n
   sole online surface, provider re-book is general-medicine only, and no clinic-code booking endpoint
   exists (verified against the API and Clalit's own booking guides). Synthetic rows say so and link
   `tel:`.
+- **"מידע נוסף" is uniform anyway:** every branch opens the site's own clinic-details lightbox — a
+  native GUID endpoint when one exists, otherwise a fragment recomposed from the committed directory
+  and shown via the page's own `z.showDialog` (§10b).
