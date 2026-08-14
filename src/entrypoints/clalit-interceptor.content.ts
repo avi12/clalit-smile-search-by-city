@@ -20,10 +20,13 @@ import { installDevTakeover } from "../lib/dev-takeover";
 import { haversineKm, type LatLng } from "../lib/geo";
 import { type GuaranteeStatus, PageMsg, type SearchConfig } from "../lib/messaging";
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
-import { searchConfigSchema } from "../lib/schemas";
+import { searchConfigSchema, smileEnvelopeSchema } from "../lib/schemas";
 import {
+  applyBranchToDetailsFragment,
   applyBranchToRow,
   cityMatches,
+  DETAILS_CODE_ATTR,
+  detailsLinkFromRowHtml,
   extractCityRows,
   filterSmileEnvelope,
   rowClinicName,
@@ -47,6 +50,17 @@ import {
 } from "../lib/targets";
 import { applyGuarantee, type TransformResult } from "../lib/transform";
 import { defineContentScript } from "#imports";
+
+/** The Zimunet site bundle's own UI namespace — the MAIN world sees the page's globals. */
+interface ZimunetPageUi {
+  showDialog?: (selector: string, html: string) => void;
+}
+
+declare global {
+  interface Window {
+    z?: ZimunetPageUi;
+  }
+}
 
 export default defineContentScript({
   matches: [...CONTENT_MATCHES],
@@ -105,6 +119,7 @@ export default defineContentScript({
     let activeSearchCity = "";
     let renderCounter = 0;
     let aggregationRun = 0;
+    let latestTemplateRowHtml = "";
     // The sort the server session currently applies. "home" (מרחק מהבית שלך) is hijacked: rows are
     // re-ranked by distance from the user's LIVE location (navigator.geolocation), falling back to the
     // server's home-distance order when the position is denied/unavailable.
@@ -148,6 +163,12 @@ export default defineContentScript({
       });
       if (!outcome.changed) {
         return untouched;
+      }
+
+      // A real row of the CURRENT search — its ClinicDetailsByDiary link feeds the composed lightbox
+      // (GUIDs die with the search session, so keep replacing this with the freshest render's row).
+      if (outcome.templateRowHtml) {
+        latestTemplateRowHtml = outcome.templateRowHtml;
       }
 
       reportStatus({
@@ -355,6 +376,94 @@ export default defineContentScript({
 
       return added;
     }
+
+    // ── Composed clinic-details lightbox (no-GUID branches) ────────────────────
+    /** Call the page's own z.showDialog with a fragment — the exact call the site's handlers make. */
+    function pageShowDialog(html: string): boolean {
+      const pageUi = window.z;
+      if (typeof pageUi?.showDialog !== "function") {
+        return false;
+      }
+
+      try {
+        pageUi.showDialog("#clinicDetailsLightbox", html);
+      } catch {
+        return false;
+      }
+
+      return true;
+    }
+
+    function openDetailsFallback(href: string) {
+      if (href) {
+        window.open(href, "_blank", "noopener");
+      }
+    }
+
+    /**
+     * "מידע נוסף" for a branch with no GUID of any kind: fetch a REAL current-search row's details
+     * fragment (ClinicDetailsByDiary — the only endpoints that serve the lightbox are GUID- or
+     * session-bound, see docs/reverse-engineering.md §10b), recompose it for this branch from the
+     * committed directory, and open it in the site's own lightbox. Any failure falls back to the
+     * anchor's nearme href in a new tab.
+     */
+    async function openBranchDetails({ code, fallbackHref }: {
+      code: string;
+      fallbackHref: string;
+    }) {
+      const branch = SMILE_BRANCHES.find(candidate => candidate.code === code);
+      const templateLink = detailsLinkFromRowHtml(latestTemplateRowHtml);
+      if (!branch || !templateLink) {
+        openDetailsFallback(fallbackHref);
+        return;
+      }
+
+      let fragment: string | null = null;
+      try {
+        const response = await nativeFetch.call(window, templateLink, {
+          headers: {
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          credentials: "same-origin"
+        });
+        const envelope: unknown = await response.json();
+        const parsed = smileEnvelopeSchema.safeParse(envelope);
+        fragment = parsed.success ? applyBranchToDetailsFragment({
+          template: parsed.data.data,
+          branch
+        }) : null;
+      } catch {
+        fragment = null;
+      }
+
+      if (superseded || !fragment || !pageShowDialog(fragment)) {
+        openDetailsFallback(fallbackHref);
+      }
+    }
+
+    document.addEventListener("click", event => {
+      const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+      if (superseded || !config.enabled || event.defaultPrevented || modified) {
+        return;
+      }
+
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+
+      const anchor = event.target.closest(`a[${DETAILS_CODE_ATTR}]`);
+      if (!anchor) {
+        return;
+      }
+
+      const code = anchor.getAttribute(DETAILS_CODE_ATTR) ?? "";
+      const fallbackHref = anchor.getAttribute("href") ?? "";
+      event.preventDefault();
+      openBranchDetails({
+        code,
+        fallbackHref
+      }).catch(() => openDetailsFallback(fallbackHref));
+    });
 
     // Past-visit clinic-details links (title → ClinicDetailsByVisit GUID), so a synthetic branch can open
     // the site's OWN clinic-details lightbox for a clinic the user has visited. Fetched once per page.

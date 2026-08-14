@@ -95,6 +95,9 @@ export function setRowDistanceLabel({ row, km }: {
 /** Marks rows the extension added from the branch directory (no bookable diary in Tamuz). */
 export const SYNTHETIC_ROW_ATTR = "data-clalit-city-synthetic";
 
+/** Marks "מידע נוסף" anchors that open the composed clinic-details lightbox (value = branch code). */
+export const DETAILS_CODE_ATTR = "data-clalit-city-details-code";
+
 const CLINIC_DETAILS_BY_VISIT = "/Zimunet/ClinicDoctor/ClinicDetailsByVisit/";
 const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
 const NO_DIARY_NOTE = "אין יומן מקוון לשירות זה — ניתן להתקשר למרפאה או למוקד";
@@ -153,11 +156,15 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
     if (detailsHref) {
       anchor.setAttribute("data-action-link", detailsHref);
     } else {
+      // No GUID exists for this branch, so the site's own Ajax handler must not fire (it would choke on
+      // a cross-origin href). The interceptor's delegated click handler opens the composed lightbox via
+      // DETAILS_CODE_ATTR instead; the nearme href stays as the new-tab/middle-click/failure fallback.
       anchor.classList.remove("clinicDetails");
       anchor.removeAttribute("data-action-link");
       anchor.setAttribute("href", nearme);
       anchor.setAttribute("target", "_blank");
       anchor.setAttribute("rel", "noopener");
+      anchor.setAttribute(DETAILS_CODE_ATTR, branch.code);
     }
   }
 
@@ -212,6 +219,139 @@ export function applyBranchToRow({ row, branch, detailsVisitGuid }: BranchRowInp
     note.appendChild(hotline);
     rightColumn.appendChild(note);
   }
+}
+
+// ── Composed clinic-details lightbox (branches with no GUID of any kind) ───────
+
+const RECEPTION_DAY_LETTERS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
+
+function formatMinutes(total: number): string {
+  const hours = String(Math.floor(total / 60)).padStart(2, "0");
+  const minutes = String(total % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+/** Rewrite a `<span class="title">label</span> value` line's value, keeping the label span. */
+function setLabeledLine({ line, value }: {
+  line: Element;
+  value: string;
+}): void {
+  const label = line.querySelector("span.title");
+  if (!label) {
+    return;
+  }
+
+  line.textContent = "";
+  line.appendChild(label);
+  line.appendChild(line.ownerDocument.createTextNode(` ${value}`));
+}
+
+/** The ClinicDetailsByDiary action link of a real server row's HTML — the details-template source. */
+export function detailsLinkFromRowHtml(html: string): string | null {
+  if (!html) {
+    return null;
+  }
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.querySelector("a[data-action-link*=\"ClinicDetailsByDiary\"]")?.getAttribute("data-action-link") ?? null;
+}
+
+/**
+ * Compose the clinic-details lightbox fragment for a branch with no GUID: take a REAL clinic's
+ * fragment (fetched via ClinicDetailsByDiary on a current-search row) as the template — the site's own
+ * markup — and rewrite name / map / address / phones from the directory, rebuild the hours table and
+ * accessibility list from the same public dataset the site uses, and drop the lines we cannot source
+ * honestly (fax, buses, notes, per-clinic remarks). Returns null when the template isn't a details
+ * fragment (e.g. a stale-GUID empty envelope).
+ */
+export function applyBranchToDetailsFragment({ template, branch }: {
+  template: string;
+  branch: SmileBranch;
+}): string | null {
+  const doc = new DOMParser().parseFromString(template, "text/html");
+  if (!doc.querySelector(".css_Table")) {
+    return null;
+  }
+
+  const nameLabel = [...doc.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
+  if (nameLabel?.parentElement) {
+    setLabeledLine({
+      line: nameLabel.parentElement,
+      value: branch.title
+    });
+  }
+
+  doc.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${branch.code}`);
+
+  const details = doc.querySelector(".css_NoPaddingCell.clinicDetails");
+  if (details) {
+    const address = branch.street ? `${branch.street}, ${branch.city}` : branch.city;
+    for (const line of details.querySelectorAll(":scope > div")) {
+      const text = line.textContent ?? "";
+      if (text.includes("כתובת:")) {
+        setLabeledLine({
+          line,
+          value: address
+        });
+      } else if (text.includes("טלפון:")) {
+        const telephone = line.querySelector(".clinicTelephone");
+        if (telephone) {
+          telephone.textContent = branch.phones.map(formatPhone).filter(Boolean).join(" ");
+        }
+      } else if (line.querySelector(".clinicAccessibilty")) {
+        const items = [...line.children].find(child => !child.classList.contains("clinicAccessibilty"));
+        if (branch.accessibility.length === 0 || !items) {
+          line.remove();
+        } else {
+          items.textContent = "";
+          for (const label of branch.accessibility) {
+            const item = doc.createElement("div");
+            item.textContent = label;
+            items.appendChild(item);
+          }
+        }
+      } else if (
+        text.includes("פקס:") || text.includes("אוטובוסים:") || text.includes("הערות:") ||
+        line.classList.contains("divClinicRemarksList")
+      ) {
+        line.remove();
+      }
+    }
+  }
+
+  const hoursTable = doc.querySelector("#receptionHours");
+  if (hoursTable) {
+    if (branch.hours.length === 0) {
+      doc.querySelector(".receptionHoursHeader")?.remove();
+      hoursTable.remove();
+    } else {
+      const byDay = new Map(branch.hours.map(([day, start, end]) => [
+        day,
+        `מ ${formatMinutes(start)} עד ${formatMinutes(end)}`
+      ]));
+      hoursTable.textContent = "";
+      RECEPTION_DAY_LETTERS.forEach((letter, day) => {
+        const separatorRow = doc.createElement("tr");
+        const separatorCell = doc.createElement("td");
+        separatorCell.setAttribute("colspan", "2");
+        separatorCell.className = "separator";
+        separatorRow.appendChild(separatorCell);
+        hoursTable.appendChild(separatorRow);
+
+        const row = doc.createElement("tr");
+        const header = doc.createElement("td");
+        header.className = "header";
+        header.textContent = letter;
+        const value = doc.createElement("td");
+        value.textContent = byDay.get(day) ?? "";
+        row.appendChild(header);
+        row.appendChild(value);
+        hoursTable.appendChild(row);
+      });
+    }
+  }
+
+  return doc.body.innerHTML;
 }
 
 /** Replace an element's text while keeping child elements (the sort links carry an icon <i>). */
