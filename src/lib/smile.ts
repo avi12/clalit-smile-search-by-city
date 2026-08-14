@@ -121,6 +121,12 @@ export const MINT_CODE_ATTR = "data-clalit-city-mint-code";
 
 const CLINIC_DETAILS_BY_VISIT = "/Zimunet/ClinicDoctor/ClinicDetailsByVisit/";
 const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
+
+/** Clalit's own page for a clinic - the row's map link, and the last-resort target of "מידע נוסף". */
+export function nearmeHref(code: string): string {
+  return `${NEARME_NAV}${code}`;
+}
+
 const CENTRAL_BOOKING_PHONE = "*2700";
 
 /** Marks every note the extension adds (row, lightbox, loader) so a second one replaces it, never stacks. */
@@ -140,8 +146,14 @@ export const MINT_NAVIGATE_NOTE = "נמצא יומן - פותחים את התו�
 /** On the loader when the sweep missed but the branch has a past visit to open its own page with. */
 export const VISIT_APPOINTMENTS_NOTE = "פותחים את דף התורים של המרפאה";
 
-/** On the loader when nothing keys a page for this branch: back to the service's appointments page. */
-export const NO_DIARY_REDIRECT_NOTE = "אין יומן מקוון לסניף - פותחים את דף זימון התורים";
+/** On the loader when nothing keys a page for this branch: its details, with the reason and the watch. */
+export const NO_DIARY_DETAILS_NOTE = "אין יומן מקוון לסניף - פותחים את פרטי המרפאה";
+
+/** On a row the availability probe found bookable under ANOTHER service - the button still works. */
+export const OTHER_SERVICE_ROW_NOTE = "יש יומן מקוון לסניף בשירות אחר - לחצו \"לכל התורים\"";
+
+/** On a row the probe found nowhere: no service lists this branch right now, so nothing opens. */
+export const NO_SERVICE_ROW_NOTE = `אין כרגע יומן מקוון לסניף בשום שירות של כללית סמייל - ${CALL_INSTEAD}`;
 
 /** On the loader during the sweep - the wait is one fresh search per service, so say which one. */
 export function sweepStepNote({ step, total }: {
@@ -198,27 +210,77 @@ export function setWatchControl({ elHost, code, label, elButtonTemplate }: {
   elHost.appendChild(elControl);
 }
 
+/** Retext a row's note in place, keeping the *2700 hotline link the note was built with. */
+export function setRowNote({ elRow, text }: {
+  elRow: Element;
+  text: string;
+}): void {
+  const elNote = elRow.querySelector(`[${NOTE_ATTR}]`);
+  if (!elNote) {
+    return;
+  }
+
+  const elHotline = elNote.querySelector("a");
+  elNote.textContent = `${text} `;
+
+  if (elHotline) {
+    elNote.appendChild(elHotline);
+  }
+}
+
 /** Repoint a watched row at the state it is in: the note text plus the control's label. */
 export function setRowWatchState({ elRow, note, label }: {
   elRow: Element;
   note: string;
   label: string;
 }): void {
-  const elNote = elRow.querySelector(`[${NOTE_ATTR}]`);
-  const elHotline = elNote?.querySelector("a");
-  if (elNote) {
-    elNote.textContent = `${note} `;
-
-    if (elHotline) {
-      elNote.appendChild(elHotline);
-    }
-  }
+  setRowNote({
+    elRow,
+    text: note
+  });
 
   const elControl = elRow.querySelector(`[${WATCH_CODE_ATTR}]`);
   if (elControl) {
     elControl.textContent = label;
     elControl.setAttribute("title", label);
   }
+}
+
+/**
+ * The site paints every row button in its own teal; a branch nothing can open right now gets a red one
+ * instead, so the list says "not bookable" before the click rather than after it. Inline styles, because
+ * the MAIN world must not add stylesheets to a page it does not own - and the site has no red variant.
+ */
+const UNAVAILABLE_BUTTON_STYLE = {
+  backgroundColor: "#b3261e",
+  borderColor: "#b3261e",
+  color: "#ffffff"
+};
+
+/** What a red button promises when hovered - the same sentence the row's note carries. */
+export const UNAVAILABLE_BUTTON_TITLE = "אין כרגע תור מקוון לסניף זה";
+
+/** Tint (or clear) a synthetic row's "לכל התורים" button by whether anything can be opened for it. */
+export function setRowBookable({ elRow, isBookable, title }: {
+  elRow: Element;
+  isBookable: boolean;
+  /** The button's hover text while it is red - back to the site's own when it is bookable again. */
+  title: string;
+}): void {
+  const elButton = elRow.querySelector<HTMLElement>(`[${MINT_CODE_ATTR}]`);
+  if (!elButton) {
+    return;
+  }
+
+  for (const [property, value] of Object.entries(UNAVAILABLE_BUTTON_STYLE)) {
+    elButton.style.setProperty(toCssProperty(property), isBookable ? "" : value);
+  }
+
+  elButton.setAttribute("title", isBookable ? elButton.textContent?.trim() ?? title : title);
+}
+
+function toCssProperty(camelCase: string): string {
+  return camelCase.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
 }
 
 /**
@@ -305,7 +367,7 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid }: BranchRowI
   const { ownerDocument } = elRow;
   elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
   const detailsHref = detailsVisitGuid ? `${CLINIC_DETAILS_BY_VISIT}${detailsVisitGuid}` : null;
-  const nearme = `${NEARME_NAV}${code}`;
+  const nearme = nearmeHref(code);
 
   // Both the clinic-name link and the "מידע נוסף" button are a.clinicDetails. With a past visit here,
   // keep them native (site's delegated handler fetches ClinicDetailsByVisit → lightbox); otherwise turn
@@ -785,6 +847,29 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
     pageRowCount: elRows.length,
     firstRowHtml: elRows[0]?.outerHTML ?? ""
   };
+}
+
+/** Which of these branches one results envelope lists - the batch question the single scan cannot answer. */
+export function navCodesInEnvelope({ json, navCodes }: {
+  json: unknown;
+  navCodes: Iterable<string>;
+}): Set<string> {
+  const wanted = new Set(navCodes);
+  const found = new Set<string>();
+  const html = getSmileHtml(json);
+  if (!html || wanted.size === 0) {
+    return found;
+  }
+
+  const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+  for (const elRow of parsedDocument.querySelectorAll("li.diary")) {
+    const code = rowNavCode(elRow);
+    if (wanted.has(code)) {
+      found.add(code);
+    }
+  }
+
+  return found;
 }
 
 /**

@@ -14,6 +14,7 @@
 
 import {
   envelopeStatus,
+  navCodesInEnvelope,
   refreshRowActionLinks,
   rowNavCode,
   scanEnvelopeForNavCode,
@@ -26,6 +27,8 @@ import {
   SMILE_CITY_FIELD,
   SMILE_PAGING_PATH,
   SMILE_SEARCH_PATH,
+  SMILE_SORT_PATH,
+  SMILE_SORT_VALUES,
   SMILE_SPECIALIZATION_CODES,
   SMILE_SPECIALIZATION_FIELD
 } from "./targets";
@@ -153,6 +156,47 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   }
 
   /**
+   * Which of these branches a service lists RIGHT NOW - one fresh search, re-sorted by distance from the
+   * searched city so the city's own branches sit first, then its first two pages. Both callers that ask
+   * this (the click-time watch and the availability probe) want the same cheap answer, and both must
+   * restore the user's search afterwards: the search this runs is what the session now holds.
+   */
+  async function listedNavCodes({ specialization, navCodes }: {
+    specialization: string;
+    navCodes: Iterable<string>;
+  }): Promise<Set<string>> {
+    const wanted = new Set(navCodes);
+    const first = await search(specialization);
+    if (wanted.size === 0 || trackEnvelopeStatus({
+      json: first,
+      specialization
+    }) !== SMILE_ENVELOPE_STATUS.success) {
+      return new Set();
+    }
+
+    const sorted = await fetchSessionJson({
+      url: `${SMILE_SORT_PATH}?sortValue=${SMILE_SORT_VALUES.cityDistance}&sortDirection=1`
+    });
+    const found = navCodesInEnvelope({
+      json: sorted,
+      navCodes: wanted
+    });
+    if (found.size === wanted.size) {
+      return found;
+    }
+
+    // The city's own branches sit first, but a dense city can push them past page 1 - check one more.
+    for (const code of navCodesInEnvelope({
+      json: await fetchSessionJson({ url: pagingUrl(2) }),
+      navCodes: wanted
+    })) {
+      found.add(code);
+    }
+
+    return found;
+  }
+
+  /**
    * After a foreign search the session's last result set is not the user's and every displayed GUID is
    * dead. Re-run the user's own search, then rewrite the visible rows' slots/details links to the fresh
    * GUIDs, page by page until every real row is healed.
@@ -207,6 +251,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     isSpecializationEmpty,
     pagesOf,
     pagingUrl,
+    listedNavCodes,
     restoreUserSearch
   };
 }

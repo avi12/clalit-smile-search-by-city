@@ -11,11 +11,9 @@ import {
   NO_DIARY_SWEEP_NOTE,
   NOTE_ATTR,
   rowNavCode,
-  scanEnvelopeForNavCode,
   SESSION_LOST_NOTE,
   setRowWatchState,
   setWatchControl,
-  SMILE_ENVELOPE_STATUS,
   WATCH_ACTIVE_NOTE,
   WATCH_CODE_ATTR,
   WATCH_HIT_NOTE,
@@ -23,7 +21,6 @@ import {
   WATCH_STOP_LABEL
 } from "./smile";
 import type { SmileSession } from "./smile-session";
-import { SMILE_SORT_PATH, SMILE_SORT_VALUES } from "./targets";
 
 const WATCH_INTERVAL_MS = 15 * 60_000;
 const WATCH_MAX_TICKS = 16;
@@ -84,37 +81,6 @@ export function createBranchWatch({ session, isMintInFlight, onDiaryFound }: {
     }
   }
 
-  /** Is this branch listed under `specialization` right now? Costs one search plus the first sorted page. */
-  async function isBranchListed({ specialization, navCode }: {
-    specialization: string;
-    navCode: string;
-  }): Promise<boolean> {
-    const first = await session.search(specialization);
-    if (session.trackEnvelopeStatus({
-      json: first,
-      specialization
-    }) !== SMILE_ENVELOPE_STATUS.success) {
-      return false;
-    }
-
-    const sorted = await session.fetchSessionJson({
-      url: `${SMILE_SORT_PATH}?sortValue=${SMILE_SORT_VALUES.cityDistance}&sortDirection=1`
-    });
-    if (scanEnvelopeForNavCode({
-      json: sorted,
-      navCode
-    }).actionLink) {
-      return true;
-    }
-
-    // The city's own branches sit first, but a dense city can push them past page 1 - check one more.
-    const second = await session.fetchSessionJson({ url: session.pagingUrl(2) });
-    return scanEnvelopeForNavCode({
-      json: second,
-      navCode
-    }).actionLink !== null;
-  }
-
   async function runTick(navCode: string) {
     const watch = watches.get(navCode);
     if (!watch || !session.isActive() || !session.city()) {
@@ -125,10 +91,10 @@ export function createBranchWatch({ session, isMintInFlight, onDiaryFound }: {
     const specializations = session.bookableSpecializations();
     if (!isMintInFlight() && specializations.length > 0) {
       const specialization = specializations[watch.ticks % specializations.length];
-      const isListed = await isBranchListed({
+      const isListed = await session.listedNavCodes({
         specialization,
-        navCode
-      }).catch(() => false);
+        navCodes: [navCode]
+      }).then(listed => listed.has(navCode)).catch(() => false);
       await session.restoreUserSearch().catch(() => {});
 
       if (session.state.isSessionLost) {
