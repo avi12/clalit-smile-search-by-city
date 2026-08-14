@@ -27,24 +27,35 @@ import {
   cityMatches,
   DETAILS_CODE_ATTR,
   detailsLinkFromRowHtml,
+  envelopeStatus,
   extractCityRows,
   filterSmileEnvelope,
   MINT_CODE_ATTR,
   MINT_NAVIGATE_NOTE,
   NO_DIARY_ROW_NOTE,
   NO_DIARY_SWEEP_NOTE,
+  NOTE_ATTR,
   refreshRowActionLinks,
   rowClinicName,
   rowNavCode,
   scanEnvelopeForNavCode,
+  SESSION_LOST_NOTE,
   setDialogNote,
   setHeaderCount,
   setLoaderNote,
   setRowDistanceLabel,
+  setRowWatchState,
+  setWatchControl,
+  SMILE_ENVELOPE_STATUS,
   SMILE_MARKER_ATTR,
   type SmileFilterOutcome,
   sweepStepNote,
-  SYNTHETIC_ROW_ATTR
+  SYNTHETIC_ROW_ATTR,
+  WATCH_ACTIVE_NOTE,
+  WATCH_CODE_ATTR,
+  WATCH_HIT_NOTE,
+  WATCH_START_LABEL,
+  WATCH_STOP_LABEL
 } from "../lib/smile";
 import {
   CONTENT_MATCHES,
@@ -61,6 +72,7 @@ import {
   SMILE_SEARCH_BUTTON_SELECTOR,
   SMILE_SEARCH_PATH,
   SMILE_SORT_PATH,
+  SMILE_SORT_VALUES,
   SMILE_SPECIALIZATION_CODES,
   SMILE_SPECIALIZATION_FIELD,
   SMILE_SPECIALIZATION_SELECT_SELECTOR
@@ -549,6 +561,39 @@ export default defineContentScript({
     /** Runaway guard for the page scans (an all-country result set is ~10 pages today). */
     const MAX_MINT_PAGES = 30;
 
+    // Clalit's scheduler pushes back on volume and on repeated failures: a search that answers
+    // `errorType: 3` has nothing to give (97 סתימה is empty nationwide for days at a time), and once it
+    // answers `errorType: 2` the whole session is gone until the page is reloaded. Both are remembered
+    // so the extension never asks the same losing question twice (docs §12a).
+    const emptySpecializations = new Set<string>();
+    let isSessionLost = false;
+
+    /** Read a search envelope's status, remembering an empty service and a lost session. */
+    function trackEnvelopeStatus({ json, specialization }: {
+      json: unknown;
+      specialization?: string;
+    }): number | null {
+      const status = envelopeStatus(json);
+      if (status === SMILE_ENVELOPE_STATUS.authorization) {
+        isSessionLost = true;
+        for (const watch of watchedNavCodes.values()) {
+          clearTimeout(watch.timer);
+        }
+
+        watchedNavCodes.clear();
+      }
+
+      if (status === SMILE_ENVELOPE_STATUS.application && specialization) {
+        emptySpecializations.add(specialization);
+      }
+
+      return status;
+    }
+
+    function bookableSpecializations(): string[] {
+      return SMILE_SPECIALIZATION_CODES.filter(code => !emptySpecializations.has(code));
+    }
+
     function pagesOf({ totalDeclared, pageRowCount }: {
       totalDeclared: number;
       pageRowCount: number;
@@ -565,6 +610,13 @@ export default defineContentScript({
         url: SMILE_SEARCH_PATH,
         body: searchBody(specialization)
       });
+      if (trackEnvelopeStatus({
+        json: first,
+        specialization
+      }) !== SMILE_ENVELOPE_STATUS.success) {
+        return null;
+      }
+
       let scan = scanEnvelopeForNavCode({
         json: first,
         navCode
@@ -622,6 +674,10 @@ export default defineContentScript({
       } catch { /* site chrome only */ }
     }
 
+    // A branch whose diary opened while it was being watched: the specialization that listed it, so the
+    // next click sweeps that one FIRST and reaches the slots page in one search instead of up to three.
+    const knownSpecializationByNavCode = new Map<string, string>();
+
     /** Sweep the closed specialization list, the user's searched service first. */
     async function mintDiaryLink({ navCode, onStep }: {
       navCode: string;
@@ -630,10 +686,13 @@ export default defineContentScript({
         total: number;
       }) => void;
     }): Promise<string | null> {
-      const otherCodes = SMILE_SPECIALIZATION_CODES.filter(code => code !== activeSearchSpecialization);
-      const specializations = [activeSearchSpecialization, ...otherCodes];
+      const preferred = [knownSpecializationByNavCode.get(navCode), activeSearchSpecialization].filter(
+        (code): code is string => code !== undefined && !emptySpecializations.has(code)
+      );
+      const otherCodes = bookableSpecializations().filter(code => !preferred.includes(code));
+      const specializations = [...new Set([...preferred, ...otherCodes])];
       for (const [i, specialization] of specializations.entries()) {
-        if (isSuperseded || !config.isEnabled) {
+        if (isSuperseded || !config.isEnabled || isSessionLost) {
           return null;
         }
 
@@ -665,6 +724,10 @@ export default defineContentScript({
         url: SMILE_SEARCH_PATH,
         body: searchBody(activeSearchSpecialization)
       });
+      if (trackEnvelopeStatus({ json: first }) !== SMILE_ENVELOPE_STATUS.success) {
+        return;
+      }
+
       const scan = scanEnvelopeForNavCode({ json: first });
       if (scan.firstRowHtml) {
         latestTemplateRowHtml = scan.firstRowHtml;
@@ -694,6 +757,182 @@ export default defineContentScript({
         })) {
           pending.delete(code);
         }
+      }
+    }
+
+    // ── Watching a branch until its diary opens ────────────────────────────────
+    // A branch with no diary in any service cannot be booked — but the diary set moves during the day
+    // (docs §6c), so the only thing left is to keep looking. A watch ticks one specialization at a time
+    // and rides the city-distance sort: the searched city's own branches float to the first page, so a
+    // check costs one search plus one page instead of the whole result set. Every tick ends by restoring
+    // the user's own search, so the visible rows keep working GUIDs between checks.
+
+    const WATCH_INTERVAL_MS = 15 * 60_000;
+    const WATCH_MAX_TICKS = 16;
+    const watchedNavCodes = new Map<string, {
+      timer: ReturnType<typeof setTimeout>;
+      ticks: number;
+    }>();
+
+    function isWatching(navCode: string): boolean {
+      return watchedNavCodes.has(navCode);
+    }
+
+    function stopWatching(navCode: string) {
+      const watch = watchedNavCodes.get(navCode);
+      if (watch) {
+        clearTimeout(watch.timer);
+        watchedNavCodes.delete(navCode);
+      }
+    }
+
+    function watchedRow(navCode: string): Element | null {
+      return [...document.querySelectorAll("li.diary")].find(elRow => rowNavCode(elRow) === navCode) ?? null;
+    }
+
+    /** Is this branch listed under `specialization` right now? Costs one search plus the first sorted page. */
+    async function findBranchInCitySort({ specialization, navCode }: {
+      specialization: string;
+      navCode: string;
+    }): Promise<boolean> {
+      await fetchSessionJson({
+        url: SMILE_SEARCH_PATH,
+        body: searchBody(specialization)
+      });
+      const sorted = await fetchSessionJson({
+        url: `${SMILE_SORT_PATH}?sortValue=${SMILE_SORT_VALUES.cityDistance}&sortDirection=1`
+      });
+      const scan = scanEnvelopeForNavCode({
+        json: sorted,
+        navCode
+      });
+      if (scan.actionLink) {
+        return true;
+      }
+
+      // The city's own branches sit first, but a dense city can push them past page 1 — check one more.
+      const second = await fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=2` });
+      return scanEnvelopeForNavCode({
+        json: second,
+        navCode
+      }).actionLink !== null;
+    }
+
+    async function runWatchTick(navCode: string) {
+      const watch = watchedNavCodes.get(navCode);
+      if (!watch || isSuperseded || !config.isEnabled || isSessionLost || !smileCity()) {
+        stopWatching(navCode);
+        return;
+      }
+
+      const specializations = bookableSpecializations();
+      if (!isMintInFlight && specializations.length > 0) {
+        const specialization = specializations[watch.ticks % specializations.length];
+        const isListed = await findBranchInCitySort({
+          specialization,
+          navCode
+        }).catch(() => false);
+        await restoreUserSearchSession().catch(() => {});
+
+        if (isSessionLost) {
+          const elLostRow = watchedRow(navCode);
+          if (elLostRow) {
+            setRowWatchState({
+              elRow: elLostRow,
+              note: SESSION_LOST_NOTE,
+              label: WATCH_START_LABEL
+            });
+          }
+
+          stopWatching(navCode);
+          return;
+        }
+
+        if (isListed) {
+          knownSpecializationByNavCode.set(navCode, specialization);
+          stopWatching(navCode);
+          const elRow = watchedRow(navCode);
+          if (elRow) {
+            setRowWatchState({
+              elRow,
+              note: WATCH_HIT_NOTE,
+              label: WATCH_START_LABEL
+            });
+          }
+
+          return;
+        }
+      }
+
+      watch.ticks += 1;
+
+      if (watch.ticks >= WATCH_MAX_TICKS) {
+        stopWatching(navCode);
+        return;
+      }
+
+      watch.timer = setTimeout(() => {
+        runWatchTick(navCode).catch(() => {});
+      }, WATCH_INTERVAL_MS);
+    }
+
+    function startWatching(navCode: string) {
+      stopWatching(navCode);
+      watchedNavCodes.set(navCode, {
+        timer: setTimeout(() => {
+          runWatchTick(navCode).catch(() => {});
+        }, WATCH_INTERVAL_MS),
+        ticks: 0
+      });
+    }
+
+    /** The watch control's click: arm or cancel, and say which state the row is now in. */
+    function toggleWatch(navCode: string) {
+      const isNowWatching = !isWatching(navCode);
+      if (isNowWatching) {
+        startWatching(navCode);
+      } else {
+        stopWatching(navCode);
+      }
+
+      const elRow = watchedRow(navCode);
+      if (elRow) {
+        setRowWatchState({
+          elRow,
+          note: isNowWatching ? WATCH_ACTIVE_NOTE : NO_DIARY_SWEEP_NOTE,
+          label: isNowWatching ? WATCH_STOP_LABEL : WATCH_START_LABEL
+        });
+      }
+    }
+
+    /** Offer the watch on a branch the sweep just missed — on the row, and inside the fallback dialog. */
+    function offerWatch({ elRow, elDialog }: {
+      elRow: Element | null;
+      elDialog: Element | null;
+    }) {
+      const navCode = elRow ? rowNavCode(elRow) : "";
+      if (!navCode) {
+        return;
+      }
+
+      const label = isWatching(navCode) ? WATCH_STOP_LABEL : WATCH_START_LABEL;
+      const elActions = elRow?.querySelector(".pull-left");
+      if (elActions) {
+        setWatchControl({
+          elHost: elActions,
+          code: navCode,
+          label,
+          elButtonTemplate: elActions.querySelector("a")
+        });
+      }
+
+      const elNote = elDialog?.querySelector(`[${NOTE_ATTR}]`);
+      if (elNote) {
+        setWatchControl({
+          elHost: elNote,
+          code: navCode,
+          label
+        });
       }
     }
 
@@ -733,6 +972,10 @@ export default defineContentScript({
           elRow,
           note: NO_DIARY_SWEEP_NOTE
         }).catch(() => {});
+        offerWatch({
+          elRow,
+          elDialog: document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR)
+        });
       } finally {
         isMintInFlight = false;
       }
@@ -746,6 +989,14 @@ export default defineContentScript({
 
       const { target } = e;
       if (!(target instanceof Element)) {
+        return;
+      }
+
+      const elWatchControl = target.closest(`[${WATCH_CODE_ATTR}]`);
+      if (elWatchControl) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleWatch(elWatchControl.getAttribute(WATCH_CODE_ATTR) ?? "");
         return;
       }
 
@@ -1168,8 +1419,11 @@ export default defineContentScript({
       // city" sort (4) to the site's own "distance from your home" sort (3). The link is also removed
       // from our filtered fragments; this covers renders that predate the guarantee.
       if (!isSuperseded && config.isEnabled && smileCity() && targetUrl.includes(SMILE_SORT_PATH)) {
-        targetUrl = targetUrl.replace("sortValue=4", "sortValue=3");
-        activeSort = targetUrl.includes("sortValue=3") ? "home" : "soonest";
+        targetUrl = targetUrl.replace(
+          `sortValue=${SMILE_SORT_VALUES.cityDistance}`,
+          `sortValue=${SMILE_SORT_VALUES.homeDistance}`
+        );
+        activeSort = targetUrl.includes(`sortValue=${SMILE_SORT_VALUES.homeDistance}`) ? "home" : "soonest";
         isSortDescending = targetUrl.includes("sortDirection=2");
       }
 

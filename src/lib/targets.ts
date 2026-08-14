@@ -130,6 +130,17 @@ export function isSmileRestoreLocation({ pathname, search }: {
 export const SMILE_SPECIALIZATION_SELECT_SELECTOR = "select#SelectedSpecializationCode";
 export const SMILE_SEARCH_BUTTON_SELECTOR = "input.searchButton";
 
+/**
+ * The values the rendered sort links carry (`SortSmileDiaries?sortValue=X&sortDirection=Y`). The city
+ * sort is what the watcher rides: it floats the searched city's own branches to the first page, so
+ * "is this branch listed?" costs one search plus one page instead of the whole result set.
+ */
+export const SMILE_SORT_VALUES = {
+  cityDistance: "4",
+  soonest: "2",
+  homeDistance: "3"
+} as const;
+
 /** The clinic-details lightbox — the site's own ClinicDetailsByVisit view and our composed one share it. */
 export const SMILE_DETAILS_DIALOG_SELECTOR = "#clinicDetailsLightbox";
 

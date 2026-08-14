@@ -56,6 +56,15 @@ export const devTakeoverMessageSchema = z.object({
 
 // ── Smile network envelope ──────────────────────────────────────────────────────
 
+/**
+ * The envelope's own status: 0 Success, 1 Information, 2 Authorization (the scheduler session is gone),
+ * 3 Application (this search has nothing to return). Read separately from the fragment schema because a
+ * failed envelope carries no `data` at all.
+ */
+export const smileEnvelopeStatusSchema = z.object({
+  errorType: z.number()
+});
+
 /** The /Zimunet/SmileClinic/* response: a server-rendered HTML fragment in `data`. */
 export const smileEnvelopeSchema = z.object({
   data: z.string(),

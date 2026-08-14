@@ -10,7 +10,21 @@
  */
 
 import type { SmileBranch } from "./clinic-directory";
-import { smileEnvelopeSchema } from "./schemas";
+import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "./schemas";
+
+/** The envelope's `errorType` values, from the site's own `z.ErrorType` (docs 12a). */
+export const SMILE_ENVELOPE_STATUS = {
+  success: 0,
+  information: 1,
+  authorization: 2,
+  application: 3
+} as const;
+
+/** The status of a /Zimunet/SmileClinic/* envelope, or null when it carries none. */
+export function envelopeStatus(json: unknown): number | null {
+  const parsed = smileEnvelopeStatusSchema.safeParse(json);
+  return parsed.success ? parsed.data.errorType : null;
+}
 
 /** The results fragment out of a /Zimunet/SmileClinic/* envelope, or null if this isn't one. */
 export function getSmileHtml(json: unknown): string | null {
@@ -129,6 +143,76 @@ export function sweepStepNote({ step, total }: {
   total: number;
 }): string {
   return `בודקים אם יש יומן מקוון לסניף — שירות ${step} מתוך ${total}`;
+}
+
+// ── Watching a branch until its diary opens ────────────────────────────────────
+
+/** Marks the "watch this branch" control (value = branch code) the interceptor's click handler owns. */
+export const WATCH_CODE_ATTR = "data-clalit-city-watch-code";
+
+/** Offered after a sweep found nothing: the branch's diary can open later the same day. */
+export const WATCH_START_LABEL = "עדכנו אותי כשייפתח תור";
+export const WATCH_STOP_LABEL = "הפסיקו לבדוק";
+export const WATCH_ACTIVE_NOTE = "בודקים ברקע כל כמה דקות ונעדכן כאן ברגע שייפתח תור";
+export const WATCH_HIT_NOTE = "נפתח תור לסניף! לחצו על \"לכל התורים\"";
+
+/** The scheduler dropped our session (errorType 2) - only a reload gets it back. */
+export const SESSION_LOST_NOTE = "פג תוקף החיבור לזימון התורים — רעננו את העמוד ונסו שוב";
+
+/**
+ * The watch control, cloned from the row's own "מידע נוסף" button so it carries the site's exact button
+ * classes. Kept next to it inside the row's action column; in the lightbox it sits under the note.
+ */
+export function setWatchControl({ elHost, code, label, elButtonTemplate }: {
+  elHost: Element;
+  code: string;
+  label: string;
+  elButtonTemplate?: Element | null;
+}): void {
+  const { ownerDocument } = elHost;
+  const elExisting = elHost.querySelector(`[${WATCH_CODE_ATTR}]`);
+  if (elExisting) {
+    elExisting.textContent = label;
+    elExisting.setAttribute("title", label);
+    return;
+  }
+
+  const elWatch = elButtonTemplate?.cloneNode(false);
+  const elControl = elWatch instanceof Element ? elWatch : ownerDocument.createElement("a");
+  for (const attribute of elControl.getAttributeNames()) {
+    if (attribute !== "class") {
+      elControl.removeAttribute(attribute);
+    }
+  }
+
+  elControl.setAttribute(WATCH_CODE_ATTR, code);
+  elControl.setAttribute("role", "button");
+  elControl.setAttribute("title", label);
+  elControl.textContent = label;
+  elHost.appendChild(elControl);
+}
+
+/** Repoint a watched row at the state it is in: the note text plus the control's label. */
+export function setRowWatchState({ elRow, note, label }: {
+  elRow: Element;
+  note: string;
+  label: string;
+}): void {
+  const elNote = elRow.querySelector(`[${NOTE_ATTR}]`);
+  const elHotline = elNote?.querySelector("a");
+  if (elNote) {
+    elNote.textContent = `${note} `;
+
+    if (elHotline) {
+      elNote.appendChild(elHotline);
+    }
+  }
+
+  const elControl = elRow.querySelector(`[${WATCH_CODE_ATTR}]`);
+  if (elControl) {
+    elControl.textContent = label;
+    elControl.setAttribute("title", label);
+  }
 }
 
 /**
