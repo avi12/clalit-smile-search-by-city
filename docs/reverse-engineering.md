@@ -295,11 +295,13 @@ so nothing inside the iframe's own DOM changes during a sweep. Verified 2026-08-
 `elementFromPoint` over a row button mid-sweep: it returns the loader div, i.e. the overlay covers the
 iframe and a real mouse click on another row is blocked while the sweep runs (a scripted `.click()`
 bypasses it and is then dropped by the interceptor's `mintInFlight` guard, silently).
-Sweep miss → re-run the user's search to restore the session, rewrite the visible real rows' slots +
+Sweep miss -> re-run the user's search to restore the session, rewrite the visible real rows' slots +
 details `data-action-link`s to the fresh GUIDs (every search churns ALL GUIDs, so the displayed ones
-just died), and open the row's own "מידע נוסף" (phones / details) **with the reason inside that
-lightbox** - the row's own note is behind the dialog while it is open. Real rows are never intercepted -
-the native happy path is untouched.
+just died), then **always land in the booking flow** (Avi's call, 14.08): the branch's OWN appointments
+page when a past visit keys one (§12e), otherwise the service's appointments page
+(`SmileClinic/Index/ClalitSmile`, which keeps the typed city). The button never ends on a modal now; the
+clinic's details - with the reason, the phones and the "עדכנו אותי כשייפתח תור" watch - live behind the
+row's own "מידע נוסף". Real rows are never intercepted - the native happy path is untouched.
 
 **Saying what the wait is** (added 2026-08-14; the sweep costs 3.0-5.6 s measured). Two site internals
 make it possible to speak through the site's own chrome instead of drawing our own:
