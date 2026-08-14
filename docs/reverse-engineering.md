@@ -211,7 +211,11 @@ Inside `data`:
   `data-action-link` to the slot page (`/Zimunet/AvailableVisit/Smile/<diaryGuid>`).
 - Three **sort** links (`a.sort` → `/Zimunet/SmileClinic/SortSmileDiaries?sortValue=X&sortDirection=Y`):
   `sortValue=4` = distance from the **searched city**, `2` = soonest appointment, `3` = distance from
-  **your home**.
+  **your home**. `sortDirection` in a rendered link is the direction the **next** click will request,
+  not the one on screen (observed live 2026-08-14, 92 result set): a fresh search renders `1`; the click
+  that produced a descending list left the link at `0`; clicking that `0` produced an ascending list and
+  re-rendered the link as `2`. So the toggle alternates `0` ⇄ `2` with `2` = descending — which is what
+  the interceptor's `sortDescending` reads off the outgoing URL.
 - A **`nav#pager`** — paging is server-session state via `/Zimunet/SmileClinic/Paging?pageNumber=N`.
 
 **Session-bound result set.** Sort and paging operate on the server session's *last* search, and each
@@ -285,6 +289,12 @@ phase and `stopPropagation` so the site's handler never sees it.
 Click → sweep NEW all-country searches, the user's submitted specialization first, then the remaining
 codes (`SMILE_SPECIALIZATION_CODES`), scanning each search's pages for the branch by nav code — first
 hit navigates the iframe to the fresh slots link (the site's own loader shown via `z.showLoader`).
+`z.showLoader` is `function(){$.isFunction(parent.StandbyScreenShow)&&parent.StandbyScreenShow()}` — the
+loader lives in the **TOP** frame (`div.loader.lottie` inside `.siteLoader`), not in the booking iframe,
+so nothing inside the iframe's own DOM changes during a sweep. Verified 2026-08-14 with a top-level
+`elementFromPoint` over a row button mid-sweep: it returns the loader div, i.e. the overlay covers the
+iframe and a real mouse click on another row is blocked while the sweep runs (a scripted `.click()`
+bypasses it and is then dropped by the interceptor's `mintInFlight` guard, silently).
 Sweep miss → re-run the user's search to restore the session, rewrite the visible real rows' slots +
 details `data-action-link`s to the fresh GUIDs (every search churns ALL GUIDs, so the displayed ones
 just died), and open the row's own "מידע נוסף" (phones / details). Real rows are never intercepted —
@@ -378,6 +388,13 @@ flowchart TD
      → great-circle distance ([`geo.ts`](../src/lib/geo.ts)) against committed clinic coordinates, and
      the distance label is relabelled **"מרחק ממיקומך"**. A denied/unavailable position falls back to
      the server order — no failure, just no re-rank.
+   - Verified live 2026-08-14 (both halves): with the origin's location permission **denied** — the
+     state the dev profile inherits from the real Chrome — the sort still returned a correctly
+     guaranteed list in the server's home-distance order, keeping the server's own "מרחק מהבית שלך"
+     label, silently. With the permission granted (`Browser.grantPermissions` over CDP, held open — the
+     override dies with the client session) and a position emulated at רמת אביב, all five Tel Aviv rows
+     re-ranked from the committed coordinates, synthetic rows included: 0.01 → 2.77 → 3.13 → 5.42 →
+     5.76 km, each relabelled "מרחק ממיקומך", with the direction toggle mirroring the site's own.
 
 3. **All external input is validated** ([`schemas.ts`](../src/lib/schemas.ts), zod): the window-channel
    config/status, the forgeable frame-relay + dev-takeover `postMessage`s, and the Smile envelope are
@@ -465,6 +482,29 @@ flowchart TD
 - **Nationwide coverage is complete.** All-country שיננית returns 71/71 clinics (declared = collected,
   full pagination); a Tel Aviv branch would rank at distance ≈ 0 and diaries reach 2027, so absence is
   not a distance- or horizon-hidden diary — the diary genuinely does not exist.
+- **The button is a GUID carrier, nothing more** (handler read live 2026-08-14 out of jQuery 1.12.4's
+  event store): bound on `div#SmileClinicList`, delegated to `a.diaryButton` —
+  `function p(n){n.preventDefault();t=$(this);if(!t.hasClass("disabled")){i=t.data("action-link");window.location=i}}`.
+  No clinic code, no date, no lookup: with no row there is no GUID and nothing the button could carry.
+- **~A quarter of Smile branches never publish an online diary at all** (measured 2026-08-14, guarantee
+  OFF). Both live services swept page by page and matched against the committed directory by nav code:
+  **97 of 128** branches appeared in 92 ∪ 91, **31 never did** (24%), spread over 25+ cities (ירושלים 4,
+  באר שבע 4, תל אביב יפו 3 — מגדל המאה / רמת אביב / אוניברסיטה). Every collected nav code resolved to a
+  directory branch (0 strangers), so nothing is lost to identity mismatch. Nothing in the public record
+  separates the two groups: `status` is 0 for all 128, `altclinic` null for all, and the dataset's only
+  service id (1511) is carried by 79% of the listed vs 68% of the never-listed. The single visible
+  signal is an **empty `time` (opening hours) record — 29% of the never-listed vs 1% of the listed**,
+  which is what a non-standard entry like the university clinic looks like. Whether a branch publishes
+  is Tamuz-internal scheduling state, invisible from outside; absence is stable across days for these
+  branches, unlike a real diary's intraday churn.
+- **There is no second dental entrance in Tamuz** (checked 2026-08-14, guarantee toggled OFF).
+  `GET /Zimunet/` lists every service the portal books — family/paediatrics (`AvailableVisit/Family`),
+  consulting specialists (`Diary`), blood tests, nurses, pharmacy, complementary medicine, aesthetics,
+  **כללית סמייל** (`SmileClinic/Index/ClalitSmile`), and מכון מור (external). Dental appears only as
+  Smile, and `GET /Zimunet/Diary`'s own `SelectedSpecializationCode` list holds **60** professions with
+  no dental entry (no שיניים / שיננית / סמייל). Same-day raw sweep, every page collected with declared
+  totals matching: 92 → 70/70, 91 → 88/88, 97 → 0 — no row for מגדל המאה / רמת אביב / אוניברסיטה by
+  name or by nav code (865014 / 865073 / 865193).
 - **Web research agrees.** Clalit's own booking guides list website / app / "תור ישר" (all the same
   Tamuz backend) and, for anything else, **phone: `*2700` or `1-800-66-66-50`** (Sun–Thu 08:00–20:00,
   Fri 08:00–13:00). No guide describes an online way to book a branch without availability — the
@@ -479,7 +519,9 @@ time (§6c) and, when no specialization lists the branch, falls back to the deta
 **The diary set fluctuates — even intraday (observed 2026-08-14).** Which branches have a bookable
 diary is live server state, not a fixed roster: ירמיהו had no שיננית diary on 13.08, appeared as a
 real bookable row at 11:51 on 14.08 (soonest slot 14.10.2026), and by ~12:10 the same day was gone
-from the search again (slot presumably taken), flipping back to a synthetic row. Two consequences:
+from the search again (slot presumably taken), flipping back to a synthetic row. The nationwide count
+moves with it: the all-country שיננית set declared **71** clinics at 13:25 on 14.08 and **70** at 14:05
+the same day. Two consequences:
 don't treat a branch's tier as stable when testing (row counts like "4 synthetic" are a snapshot),
 and the guarantee needs no per-branch maintenance — a branch crosses between real and synthetic
 automatically with the server's diary state, in both directions.
