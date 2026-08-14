@@ -15,7 +15,7 @@
  * dev build it logs interesting requests to the page console (Discovery).
  */
 
-import { DENTAL_CLINIC_COORDS, SMILE_BRANCHES } from "../lib/clinic-directory";
+import { DENTAL_CLINIC_COORDS, SMILE_BRANCHES, type SmileBranch } from "../lib/clinic-directory";
 import { installDevTakeover } from "../lib/dev-takeover";
 import { haversineKm, type LatLng } from "../lib/geo";
 import { type GuaranteeStatus, PageMsg, type SearchConfig } from "../lib/messaging";
@@ -479,24 +479,39 @@ export default defineContentScript({
      * committed directory, and open it in the site's own lightbox. Any failure falls back to the
      * anchor's nearme href in a new tab.
      */
+    /** The branch's lightbox fragment, composed from a real row of the CURRENT search session. */
+    async function composeDetailsFragment(branch: SmileBranch): Promise<string | null> {
+      const templateLink = detailsLinkFromRowHtml(latestTemplateRowHtml);
+      if (!templateLink) {
+        return null;
+      }
+
+      const envelope = await fetchSessionJson({ url: templateLink }).catch(() => null);
+      const parsed = smileEnvelopeSchema.safeParse(envelope);
+      return parsed.success ? applyBranchToDetailsFragment({
+        template: parsed.data.data,
+        branch
+      }) : null;
+    }
+
     async function openBranchDetails({ code, fallbackHref, note }: {
       code: string;
       fallbackHref: string;
       note: string;
     }) {
       const branch = SMILE_BRANCHES.find(candidate => candidate.code === code);
-      const templateLink = detailsLinkFromRowHtml(latestTemplateRowHtml);
-      if (!branch || !templateLink) {
+      if (!branch) {
         openDetailsFallback(fallbackHref);
         return;
       }
 
-      const envelope = await fetchSessionJson({ url: templateLink }).catch(() => null);
-      const parsed = smileEnvelopeSchema.safeParse(envelope);
-      const fragment = parsed.success ? applyBranchToDetailsFragment({
-        template: parsed.data.data,
-        branch
-      }) : null;
+      // Every search re-mints the session's GUIDs - ours, the watcher's, or the user's own - so a dead
+      // template link means "stale", not "impossible": re-run the user's search once and compose again,
+      // otherwise the row would open the nearme page in a new tab instead of the lightbox.
+      const fragment = await composeDetailsFragment(branch) ?? await (async () => {
+        await restoreUserSearchSession().catch(() => {});
+        return composeDetailsFragment(branch);
+      })();
       if (isSuperseded || !fragment || !pageShowDialog({
         html: fragment,
         note

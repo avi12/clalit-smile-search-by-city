@@ -587,6 +587,12 @@ Every server entrance to the lightbox fragment is GUID- or session-gated; the li
 - **`ClinicDoctor/ClinicDetailsByDiary/{diaryGuid}`** - works only with a GUID of the CURRENT search
   session. A stale GUID (from a superseded search) returns `200` with a non-fragment envelope, not an
   error - check for the fragment's `.css_Table` before trusting it.
+  **Consequence for the composed lightbox** (fixed 2026-08-14): the template GUID dies on EVERY new
+  search - the minting sweep, a watcher tick, another tab, or the user re-running the same query - so a
+  "מידע נוסף" click would silently fall back to opening the nearme page in a new tab. The interceptor now
+  treats a dead template as stale rather than impossible: it re-runs the user's search once (which also
+  heals the visible rows) and composes again, and only then falls back. Measured live: dialog in 1.6 s
+  after the GUIDs were deliberately killed by a foreign search.
 - **`ClinicDoctor/ClinicDetailsByVisit/{visitGuid}`** - only for the user's own past visits.
 - **`ClinicDoctor/ClinicDetailsByParams`** - binds **no** request parameters at all. Re-verified with
   the REAL internal clinic code passed as `?clinicCode=` / `?code=` / `?id=` / a path segment: every
