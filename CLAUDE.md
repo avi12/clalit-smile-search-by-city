@@ -16,10 +16,16 @@ Two content scripts, both `allFrames` (the booking UI is an iframe):
 - `src/entrypoints/clalit-interceptor.content.ts` - MAIN world: patches fetch/XHR, rewrites the outgoing search (area → all-country, `sortValue=4` → `3`), filters responses to the city, aggregates the remaining server pages, appends no-diary branches, re-ranks by live location, mints a synthetic row's diary GUID at click time (specialization-sweep of fresh searches → navigate; on miss restore the user's search session + heal the rendered links), re-drives the search on the server-rendered "back" restore document (`isRestoreSearch=True`, which bypasses the patches - docs §6d), and opens the site's clinic-details lightbox for no-GUID branches (fragment recomposed from the committed directory, shown via the page's own `z.showDialog`)
 - `src/entrypoints/clalit-bridge.content.ts` - ISOLATED world: reads the city from the site's search box, pushes config to MAIN over the window channel, renders the status badge (top frame only; child frames relay state up via `postMessage`)
 
-Key lib modules:
+Key lib modules - the interceptor owns only the patches and the wiring, each behaviour lives in its own module:
 - `targets.ts` - SSOT for hosts, matches/`host_permissions`, search-box selectors, guarantee mode, Smile endpoint paths, endpoint rules. Imported by both runtime and `wxt.config.ts`
 - `smile.ts` - the HTML-fragment guarantee (pure string→string); `transform.ts` - the generic JSON guarantee (heuristic/rule-based)
-- `schemas.ts` - zod schemas for every external input (call `schema.safeParse()` at the boundary); `messaging.ts`/`messaging-page.ts` - the window channel contracts
+- `smile-session.ts` - the ONE shared Smile server session: what the last search was, which services still answer, and every `/Zimunet/SmileClinic` call, made with the page's credentials and its UNPATCHED fetch. The modules below read and write this object instead of keeping their own copy
+- `smile-aggregation.ts` - city completeness after the first render: fetch the remaining server pages, dedup by clinic name, append the branches Tamuz omits from the committed directory, then re-rank
+- `live-distance.ts` - the live-location re-rank when the home-distance sort is active (stable; unknown-coordinate rows keep server order at the end)
+- `smile-row-actions.ts` - a synthetic row's two buttons: "לכל התורים" mints a diary GUID at click time and always lands in a booking flow, "מידע נוסף" composes the site's own lightbox from a real row of the current search
+- `smile-watch.ts` - watching a no-diary branch until its diary opens (15-min ticks, one service per tick, restores the user's search each time). Session-only, dies with the document
+- `site-chrome.ts` - the PAGE's own chrome reused instead of ours: `window.z` loader/lightbox plus the DOM waits. MAIN-world only, every call cosmetic
+- `schemas.ts` - zod schemas for every external input (call `schema.safeParse()` at the boundary); `messaging.ts`/`messaging-page.ts` - the window channel contracts; `text.ts` (`normalizeCity`) + `html.ts` (`escapeHtml`) - the shared string helpers
 - `geo.ts` (haversine) + `clinic-directory.ts` - GENERATED from Clalit's public `nearme.clalit.co.il/c.json` by `pnpm clinics:fetch`; never hand-edit (ESLint ignores it). `clinics.ts` is a different code space (marketing-site 9xxx codes), reference only
 - `dev-takeover.ts` - dev-only generation handoff; `status-badge.svelte.ts` + `StatusBadge.svelte` - pure UI
 
