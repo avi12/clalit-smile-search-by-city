@@ -15,44 +15,29 @@
  * dev build it logs interesting requests to the page console (Discovery).
  */
 
-import { DENTAL_CLINIC_COORDS, SMILE_BRANCHES, type SmileBranch } from "../lib/clinic-directory";
+import { SMILE_BRANCHES, type SmileBranch } from "../lib/clinic-directory";
 import { installDevTakeover } from "../lib/dev-takeover";
-import { haversineKm, type LatLng } from "../lib/geo";
 import { type GuaranteeStatus, PageMsg } from "../lib/messaging";
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { searchConfigSchema, smileEnvelopeSchema } from "../lib/schemas";
-import {
-  captionLoader,
-  openInNewTab,
-  setSiteLoader,
-  showDetailsDialog,
-  waitForElement
-} from "../lib/site-chrome";
+import { captionLoader, openInNewTab, setSiteLoader, showDetailsDialog } from "../lib/site-chrome";
 import {
   applyBranchToDetailsFragment,
-  applyBranchToRow,
-  cityMatches,
   DETAILS_CODE_ATTR,
   detailsLinkFromRowHtml,
-  extractCityRows,
   filterSmileEnvelope,
   MINT_CODE_ATTR,
   MINT_NAVIGATE_NOTE,
   NO_DIARY_REDIRECT_NOTE,
   NO_DIARY_ROW_NOTE,
-  rowClinicName,
-  rowNavCode,
   scanEnvelopeForNavCode,
-  setHeaderCount,
-  setRowDistanceLabel,
   SMILE_ENVELOPE_STATUS,
   SMILE_MARKER_ATTR,
-  type SmileFilterOutcome,
   sweepStepNote,
-  SYNTHETIC_ROW_ATTR,
   VISIT_APPOINTMENTS_NOTE,
   WATCH_CODE_ATTR
 } from "../lib/smile";
+import { createSmileAggregation, type MarkedSmileOutcome } from "../lib/smile-aggregation";
 import { createSmileSession } from "../lib/smile-session";
 import { createBranchWatch } from "../lib/smile-watch";
 import {
@@ -93,6 +78,11 @@ export default defineContentScript({
     // A branch whose diary opened while it was being watched: remember the service that listed it, so
     // the next click sweeps that one FIRST and reaches the slots page in one search instead of three.
     const knownSpecializationByNavCode = new Map<string, string>();
+    const aggregation = createSmileAggregation({
+      session,
+      nativeFetch,
+      reportStatus
+    });
     const branchWatch = createBranchWatch({
       session,
       isMintInFlight: () => isMintInFlight,
@@ -139,13 +129,11 @@ export default defineContentScript({
     }
 
     let renderCounter = 0;
-    let aggregationRun = 0;
 
     function isSmileAggregationTrigger(url: string): boolean {
       return url.includes(SMILE_SEARCH_PATH) || url.includes(SMILE_SORT_PATH);
     }
 
-    type MarkedSmileOutcome = SmileFilterOutcome & { marker: string };
     type UrlTransformResult = TransformResult & { smile?: MarkedSmileOutcome };
     type UrlTransformInput = {
       json: unknown;
@@ -205,168 +193,6 @@ export default defineContentScript({
         url,
         method
       });
-    }
-
-    /** The site renders our filtered fragment asynchronously; wait for OUR marker to hit the DOM. */
-    function waitForMarkedList(marker: string): Promise<Element | null> {
-      return waitForElement({ selector: `#am_diaries[${SMILE_MARKER_ATTR}="${marker}"] ul` });
-    }
-
-    /**
-     * City completeness: the first response is one server page of the (rewritten, all-country) result
-     * set - fetch the remaining pages with the PAGE's own session and append the city's rows to the
-     * live list, order preserved, deduped by clinic name (diary GUIDs change per search). Then, if the
-     * distance sort is active, re-rank the finished list by the user's live location.
-     */
-    async function finalizeSmileResults(
-      { marker, pageRowCount, totalDeclared, keptRowCount, templateRowHtml }: MarkedSmileOutcome
-    ) {
-      const run = ++aggregationRun;
-      const city = session.city();
-      if (!city || !pageRowCount) {
-        return;
-      }
-
-      const elList = await waitForMarkedList(marker);
-      if (!elList) {
-        return;
-      }
-
-      const totalPages = Math.ceil(totalDeclared / pageRowCount);
-      const seenNames = new Set([...elList.querySelectorAll("li.diary")].map(rowClinicName));
-      let kept = keptRowCount;
-      for (let page = 2; page <= totalPages; page++) {
-        if (session.state.isSuperseded || run !== aggregationRun || !session.state.isEnabled) {
-          return;
-        }
-
-        const envelope = await session.fetchSessionJson({ url: `${SMILE_PAGING_PATH}?pageNumber=${page}` }).catch(() => null);
-        if (!envelope || session.state.isSuperseded || run !== aggregationRun) {
-          return;
-        }
-
-        for (const { name, html } of extractCityRows({
-          json: envelope,
-          searchedCity: city
-        })) {
-          if (!seenNames.has(name)) {
-            seenNames.add(name);
-            elList.insertAdjacentHTML("beforeend", html);
-            kept += 1;
-          }
-        }
-
-        const elHeader = elList.closest("#am_diaries")?.querySelector("h2");
-        if (elHeader) {
-          setHeaderCount({
-            elHeader,
-            count: kept
-          });
-        }
-
-        reportStatus({
-          city,
-          resultsCount: totalDeclared,
-          inCityCount: kept
-        });
-      }
-
-      if (session.state.isSuperseded || run !== aggregationRun) {
-        return;
-      }
-
-      // City completeness beyond Tamuz: branches with no bookable diary still belong in the list.
-      const detailsByTitle = await getPastVisitDetails();
-      if (session.state.isSuperseded || run !== aggregationRun) {
-        return;
-      }
-
-      const added = appendMissingBranches({
-        elList,
-        city,
-        templateRowHtml,
-        detailsByTitle
-      });
-      if (added) {
-        kept += added;
-        const elHeader = elList.closest("#am_diaries")?.querySelector("h2");
-        if (elHeader) {
-          setHeaderCount({
-            elHeader,
-            count: kept
-          });
-        }
-
-        reportStatus({
-          city,
-          resultsCount: totalDeclared,
-          inCityCount: kept
-        });
-      }
-
-      if (session.state.activeSort === "home") {
-        await reorderByLiveLocation({
-          elList,
-          isDescending: session.state.isSortDescending
-        });
-      }
-    }
-
-    /** Parse a real row's outerHTML into a live-document element to clone (site markup, not ours). */
-    function parseRowTemplate(html: string): Element | null {
-      if (!html) {
-        return null;
-      }
-
-      const elTemplate = document.createElement("template");
-      elTemplate.innerHTML = html;
-      return elTemplate.content.firstElementChild;
-    }
-
-    interface AppendBranchesInput {
-      elList: Element;
-      city: string;
-      templateRowHtml: string;
-      detailsByTitle: Map<string, string>;
-    }
-
-    /**
-     * Append the searched city's Smile branches the search omits. Each row is a CLONE of a real server
-     * row (never markup we authored - see applyBranchToRow), repurposed for the branch; "מידע נוסף"
-     * opens the site's native clinic-details lightbox when the user has a visit there.
-     */
-    function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle }: AppendBranchesInput): number {
-      const seenCodes = new Set([...elList.querySelectorAll("li.diary")].map(rowNavCode));
-      const elTemplate =
-        elList.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
-      if (!elTemplate) {
-        return 0;
-      }
-
-      let added = 0;
-      for (const branch of SMILE_BRANCHES) {
-        if (seenCodes.has(branch.code) || !cityMatches({
-          rowCity: branch.city,
-          searchedCity: city
-        })) {
-          continue;
-        }
-
-        const elRowClone = elTemplate.cloneNode(true);
-        if (!(elRowClone instanceof Element)) {
-          continue;
-        }
-
-        applyBranchToRow({
-          elRow: elRowClone,
-          branch,
-          detailsVisitGuid: detailsByTitle.get(branch.title) ?? null
-        });
-        elList.appendChild(elRowClone);
-        added += 1;
-      }
-
-      return added;
     }
 
     // ── Composed clinic-details lightbox (no-GUID branches) ────────────────────
@@ -514,7 +340,7 @@ export default defineContentScript({
         return null;
       }
 
-      const detailsByTitle = await getPastVisitDetails({ isRefreshed: true }).catch(() => null);
+      const detailsByTitle = await aggregation.visitGuidsByClinicTitle({ isRefreshed: true }).catch(() => null);
       return detailsByTitle?.get(branch.title) ?? null;
     }
 
@@ -688,123 +514,6 @@ export default defineContentScript({
       recoverRestoredSearch().catch(() => {});
     }
 
-    // Past-visit clinic-details links (title → ClinicDetailsByVisit GUID), so a synthetic branch can open
-    // the site's OWN clinic-details lightbox for a clinic the user has visited. Fetched once per page.
-    let pastVisitDetails: Map<string, string> | null = null;
-    async function getPastVisitDetails({ isRefreshed = false } = {}): Promise<Map<string, string>> {
-      if (pastVisitDetails && !isRefreshed) {
-        return pastVisitDetails;
-      }
-
-      // No history / not reachable leaves the map empty - synthetic rows fall back to the nearme page.
-      const html = await nativeFetch.call(window, "/Zimunet/", {
-        headers: {
-          "X-Requested-With": "XMLHttpRequest"
-        },
-        credentials: "same-origin"
-      }).then(response => response.text()).catch(() => "");
-
-      const map = new Map<string, string>();
-      const parsedDocument = new DOMParser().parseFromString(html, "text/html");
-      for (const elAnchor of parsedDocument.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
-        const guid = elAnchor.getAttribute("data-action-link")?.split("/").pop();
-        const title = elAnchor.textContent?.trim();
-        if (guid && title && !map.has(title)) {
-          map.set(title, guid);
-        }
-      }
-
-      pastVisitDetails = map;
-      return map;
-    }
-
-    // ── Live-location distance sort (the "hijack") ─────────────────────────────
-    let cachedPosition: {
-      coords: LatLng;
-      fetchedAt: number;
-    } | null = null;
-    const POSITION_MAX_AGE_MS = 120_000;
-
-    function currentPosition(): Promise<LatLng | null> {
-      if (cachedPosition && Date.now() - cachedPosition.fetchedAt < POSITION_MAX_AGE_MS) {
-        return Promise.resolve(cachedPosition.coords);
-      }
-
-      return new Promise(resolve => {
-        if (!("geolocation" in navigator)) {
-          resolve(null);
-          return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-          ({ coords: { latitude, longitude } }) => {
-            cachedPosition = {
-              coords: [latitude, longitude],
-              fetchedAt: Date.now()
-            };
-            resolve(cachedPosition.coords);
-          },
-          () => resolve(null),
-          {
-            enableHighAccuracy: false,
-            timeout: 8000,
-            maximumAge: POSITION_MAX_AGE_MS
-          }
-        );
-      });
-    }
-
-    /**
-     * Stable re-rank of the finished list by great-circle distance from the user's live position
-     * (clinic coordinates come from the committed nearme dataset - no runtime network). Rows without
-     * known coordinates keep their server order at the end; a denied position leaves the list as-is.
-     */
-    async function reorderByLiveLocation({ elList, isDescending }: {
-      elList: Element;
-      isDescending: boolean;
-    }) {
-      const position = await currentPosition();
-      if (!position || session.state.isSuperseded) {
-        return;
-      }
-
-      const ranked = [...elList.querySelectorAll("li.diary")].map((elRow, i) => {
-        const coords = DENTAL_CLINIC_COORDS[rowNavCode(elRow)];
-        return {
-          elRow,
-          iRow: i,
-          km: coords ? haversineKm({
-            from: position,
-            to: coords
-          }) : Number.POSITIVE_INFINITY
-        };
-      });
-      ranked.sort((first, second) => {
-        const isFirstKnown = Number.isFinite(first.km);
-        const isSecondKnown = Number.isFinite(second.km);
-        if (isFirstKnown !== isSecondKnown) {
-          return isFirstKnown ? -1 : 1;
-        }
-
-        let delta = 0;
-        if (isFirstKnown) {
-          delta = isDescending ? second.km - first.km : first.km - second.km;
-        }
-
-        return delta || first.iRow - second.iRow;
-      });
-      for (const { elRow, km } of ranked) {
-        elList.appendChild(elRow);
-
-        if (Number.isFinite(km)) {
-          setRowDistanceLabel({
-            elRow,
-            km
-          });
-        }
-      }
-    }
-
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
     function transformJson({ json, url, method }: UrlTransformInput): TransformResult {
       const city = session.state.configCity;
@@ -890,7 +599,7 @@ export default defineContentScript({
       }
 
       if (outcome.smile && isSmileAggregationTrigger(url)) {
-        finalizeSmileResults(outcome.smile).catch(() => {});
+        aggregation.finalize(outcome.smile).catch(() => {});
       }
 
       // Rebuild from the original headers but drop content-encoding/length: the body is now plain
@@ -1097,7 +806,7 @@ export default defineContentScript({
             state
           });
           if (computed?.smile) {
-            finalizeSmileResults(computed.smile).catch(() => {});
+            aggregation.finalize(computed.smile).catch(() => {});
           }
         });
       }
