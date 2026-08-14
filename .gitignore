@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# WXT
+.wxt/
+.output/
+build/
+stats.html
+
+# Dev server artifacts
+user-profiles/
+.dev-logs/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Claude Code (local-only settings)
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

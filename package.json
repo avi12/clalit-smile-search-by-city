@@ -1,0 +1,43 @@
+{
+  "name": "clalit-smile-search-by-city",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "Chrome extension (WXT) that guarantees a city's appointments show up when searching Clalit Smile / Clalit dental scheduling, respecting the site's own distance-vs-time sort.",
+  "author": "Avi <avi6106@gmail.com>",
+  "imports": {
+    "#imports": "./.wxt/types/imports-module.d.ts"
+  },
+  "scripts": {
+    "ext:dev": "tsx scripts/dev.ts",
+    "ext:build": "wxt build",
+    "ext:zip": "wxt zip",
+    "clinics:fetch": "tsx scripts/fetch-clinic-coords.ts",
+    "lint": "oxlint --type-aware --fix -c .oxlintrc.fix.json && eslint --fix && oxlint --type-aware",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "@webext-core/messaging": "^3.0.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/chrome": "^0.2.2",
+    "@types/node": "^26.1.0",
+    "chokidar": "^5.0.0",
+    "eslint": "^10.6.0",
+    "eslint-plugin-import-newlines": "^2.0.0",
+    "eslint-plugin-perfectionist": "^5.9.1",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.7.0",
+    "oxlint": "^1.72.0",
+    "oxlint-tsgolint": "^0.24.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.62.1",
+    "web-ext-run": "^0.2.4",
+    "wxt": "^0.20.27"
+  },
+  "packageManager": "pnpm@11.1.2"
+}
