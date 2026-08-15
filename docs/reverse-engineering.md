@@ -981,6 +981,14 @@ What the page is made of, and what had to change on it:
   answers an empty month - `{ data: "<div class=\"clear-fix noAvailableQueuesNotFound\">…", errorType: 1, message: null }` -
   and the site renders its own empty state on every path: load, day click, month select, year select,
   and the next/prev arrows.
+- **Borrow the link from the LIVE list, not from memory.** The remembered template row can be a row of
+  the click's own sweep, and those GUIDs die the moment `restoreUserSearch` re-runs the user's search. A
+  dead borrowed GUID does not error - Tamuz renders something with no clinic on it, so the retitle finds
+  nothing and the emptying still runs: **a blank appointments page tied to no clinic** (reported live).
+  The link now comes off a real row in the rendered list, which the restore has just healed.
+- **Nothing is emptied unless the page is really a slots page.** `apply()` bails when
+  `#availableVisitClinicTitle` / `#availableVisitsClinicDetails` are absent, so whatever the borrowed URL
+  did render is left exactly as the site rendered it.
 - **The loader comes down on arrival** (the click leaves it up while the iframe navigates, the site's own
   pattern), otherwise the borrowed page renders under a 70%-white overlay.
 

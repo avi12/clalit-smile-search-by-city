@@ -825,7 +825,10 @@ export function filterSmileEnvelope(
 
 // ── Click-time GUID minting (synthetic rows' "לכל התורים") ─────────────────────
 
-const SLOTS_LINK_SELECTOR = "a[data-action-link*=\"/AvailableVisit/Smile/\"]";
+/** Where a diary GUID becomes a page: the slots page every real row's "לכל התורים" points at. */
+export const SMILE_SLOTS_PATH = "/AvailableVisit/Smile/";
+
+const SLOTS_LINK_SELECTOR = `a[data-action-link*="${SMILE_SLOTS_PATH}"]`;
 const DETAILS_LINK_SELECTOR = "a[data-action-link*=\"ClinicDetailsByDiary\"]";
 
 export interface SmileEnvelopeScan {

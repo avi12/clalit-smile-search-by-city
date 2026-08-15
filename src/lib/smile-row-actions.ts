@@ -35,7 +35,9 @@ import {
   setRowNote,
   slotsLinkFromRowHtml,
   SMILE_ENVELOPE_STATUS,
+  SMILE_SLOTS_PATH,
   sweepStepNote,
+  SYNTHETIC_ROW_ATTR,
   UNAVAILABLE_BUTTON_TITLE,
   VISIT_APPOINTMENTS_NOTE
 } from "./smile";
@@ -194,6 +196,18 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
   }
 
   /**
+   * A slots link off the LIVE list, which restoreUserSearch has just healed - the one page we know for
+   * certain still opens. The remembered template row is the fallback: it can be a row of the sweep's own
+   * search, and those GUIDs died the moment the user's search was restored (a dead one renders a page
+   * with no clinic on it at all, which is what a borrowed page must never become).
+   */
+  function liveSlotsLink() {
+    return [...document.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}]) a[data-action-link]`)]
+      .map(elLink => elLink.getAttribute("data-action-link") ?? "")
+      .find(link => link.includes(SMILE_SLOTS_PATH)) ?? null;
+  }
+
+  /**
    * The sweep just proved there is nothing to open. Repaint the row so it stays said, and answer the
    * click itself in the site's own message box - a click that changes nothing on screen reads as a
    * broken button, which is exactly what it looked like before this.
@@ -258,7 +272,7 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
       // Nothing Tamuz mints belongs to this branch, so the row borrows the site's own appointments page:
       // a REAL diary's slots page carries the branch's code in its hash, and smile-clinic-page.ts
       // retitles it and answers its availability calls with the site's own empty month (docs §12i).
-      const borrowedPage = slotsLinkFromRowHtml(session.state.latestTemplateRowHtml);
+      const borrowedPage = liveSlotsLink() ?? slotsLinkFromRowHtml(session.state.latestTemplateRowHtml);
       if (borrowedPage) {
         captionLoader(BRANCH_PAGE_NOTE);
         window.location.assign(`${borrowedPage}${TAILORED_BRANCH_HASH}${code}`);

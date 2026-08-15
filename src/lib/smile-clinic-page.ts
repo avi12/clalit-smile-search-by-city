@@ -182,8 +182,19 @@ export function createTailoredClinicPage(code: string) {
     );
   }
 
+  /**
+   * Only a real slots page can become a branch's. A dead borrowed GUID renders something else entirely -
+   * and emptying THAT leaves exactly what was reported: a blank appointments page tied to no clinic. So
+   * when the page has no clinic line to rewrite, nothing here touches it.
+   */
+  function isSlotsPage() {
+    return document.querySelector(CLINIC_TITLE_SELECTOR) !== null &&
+      document.querySelector(CLINIC_LINK_SELECTOR) !== null;
+  }
+
   function apply() {
-    if (!branch) {
+    if (!branch || !isSlotsPage()) {
+      setSiteLoader(false);
       return;
     }
 
