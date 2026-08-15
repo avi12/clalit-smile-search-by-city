@@ -252,6 +252,9 @@ export function setRowWatchState({ elRow, note, label }: {
  * the MAIN world must not add stylesheets to a page it does not own - and the site has no red variant.
  */
 const UNAVAILABLE_BUTTON_STYLE = {
+  // The site paints .diaryButton with a background IMAGE (css/images/wideButton.png), so a colour alone
+  // renders underneath it and nothing changes on screen - the image has to go first.
+  backgroundImage: "none",
   backgroundColor: "#b3261e",
   borderColor: "#b3261e",
   color: "#ffffff"
