@@ -55,7 +55,12 @@ export enum PageMsg {
   /** TOP frame → child frames: the session toggle, so every frame agrees on it. */
   Toggle = "toggle",
   /** child frame → TOP frame on init: "I just started - broadcast the toggle". */
-  Hello = "hello"
+  Hello = "hello",
+  /**
+   * The document is parsed. Sent by the `document_end` script in the same MAIN world, because the
+   * interceptor starts at `document_start` and cannot read a DOM that does not exist yet.
+   */
+  DomReady = "dom-ready"
 }
 
 export type PageProtocol = {
@@ -65,6 +70,7 @@ export type PageProtocol = {
   [PageMsg.FrameState]: (state: FrameState) => void;
   [PageMsg.Toggle]: (isEnabled: boolean) => void;
   [PageMsg.Hello]: () => void;
+  [PageMsg.DomReady]: () => void;
 };
 
 export enum RuntimeMsg {

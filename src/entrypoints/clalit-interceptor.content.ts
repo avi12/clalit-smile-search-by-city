@@ -250,15 +250,16 @@ export default defineContentScript({
     // session) - the session's real specialization comes from the results header, matched against the
     // select's own option labels.
 
-    function domReady() {
-      if (document.readyState !== "loading") {
-        return Promise.resolve();
-      }
-
-      return new Promise<void>(resolve => {
-        ctx.addEventListener(document, "DOMContentLoaded", () => resolve(), { once: true });
-      });
-    }
+    /**
+     * The document is parsed - announced by the `document_end` script of the same extension, running in
+     * this same MAIN world (`clalit-dom-ready.content.ts`). This file starts at `document_start` and has
+     * to, so it cannot read the DOM when it starts; asking the browser to say when is the alternative to
+     * working it out from `readyState`, and it holds for a dev re-injection too, where the event this
+     * used to wait for has already been and gone.
+     */
+    const domReady = new Promise<void>(resolve => {
+      onPageMessage(PageMsg.DomReady, () => resolve());
+    });
 
     function restoredSessionSpecialization() {
       const headerText = document.querySelector("#am_diaries h2")?.textContent ?? "";
@@ -342,7 +343,7 @@ export default defineContentScript({
     }
 
     async function recoverRestoredSearch() {
-      await domReady();
+      await domReady;
       const specialization = restoredSessionSpecialization();
       if (specialization) {
         await redriveWhenReady(specialization);
@@ -360,7 +361,7 @@ export default defineContentScript({
     const tailoredClinicPage = createTailoredClinicPage(tailoredBranchCode(window.location.hash));
 
     async function tailorClinicPage() {
-      await domReady();
+      await domReady;
       tailoredClinicPage.apply();
       tailoredClinicPage.watchDatepicker();
     }
