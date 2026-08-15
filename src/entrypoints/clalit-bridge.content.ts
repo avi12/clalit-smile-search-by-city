@@ -2,15 +2,23 @@
  * ISOLATED bridge. It reads the city out of the site's search box and pushes it (plus a session on/off)
  * to the MAIN interceptor over the window channel. Runs in ALL frames - the Tamuz booking UI lives in
  * an iframe - and each frame feeds its own MAIN interceptor. The status badge renders only in the top
- * frame: child frames relay their {city, status} up the SAME window channel (its `sendMessage` takes the
- * window to post into) and receive the toggle back that way.
- * No storage - the searched city is the only "setting". Its one privileged errand is the user's
- * position: the MAIN world asks, and the background answers from the extension's offscreen document.
+ * frame: the frame holding the search box broadcasts its {city, status} on the tab's frame channel and
+ * receives the toggle back the same way.
+ * No storage - the searched city is the only "setting". Its privileged errands are both the
+ * background's: the user's position, which the MAIN world asks for, and this tab's id, which is what
+ * scopes the frame channel to one tab.
  */
 
 import { mountStatusBadge } from "../badge/status-badge.svelte";
-import { type GuaranteeStatus, PageMsg, RuntimeMsg, type SearchConfig } from "../lib/messaging";
-import { onPageMessage, postPageMessage, sendPageMessage } from "../lib/messaging-page";
+import {
+  FrameMsg,
+  type GuaranteeStatus,
+  PageMsg,
+  RuntimeMsg,
+  type SearchConfig
+} from "../lib/messaging";
+import { openFrameChannel } from "../lib/messaging-frames";
+import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { sendRuntimeMessage } from "../lib/messaging-runtime";
 import { frameStateSchema, guaranteeStatusSchema } from "../lib/schemas";
 import { CONTENT_MATCHES, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "../lib/targets";
@@ -19,43 +27,43 @@ import { defineContentScript } from "#imports";
 export default defineContentScript({
   matches: [...CONTENT_MATCHES],
   allFrames: true,
-  main(ctx) {
+  async main(ctx) {
     const isTopFrame = window.self === window.top;
     let isEnabled = true; // session-only; resets to on each load (a guarantee tool defaults to guarding)
     let city = "";
     let lastStatus: GuaranteeStatus | null = null;
-    // Top frame only: the latest state relayed up from a child frame (where the real search box lives).
+    let frames: ReturnType<typeof openFrameChannel> | null = null;
+    // Top frame only: the latest state broadcast by the frame where the real search box lives.
     let frameCity = "";
     let frameStatus: GuaranteeStatus | null = null;
 
     /**
-     * What this frame's badge would show, handed up to the frame that actually renders one. The city
-     * here is display text; the city the guarantee acts on comes from this frame's own search box and
-     * from the submitted request body. `postPageMessage` is the cross-frame send - see the channel.
+     * What this frame's badge would show, handed to the frame that actually renders one. The city here
+     * is display text; the city the guarantee acts on comes from this frame's own search box and from
+     * the submitted request body.
      *
      * Only the frame holding the search box speaks. The search box is two frames down - the booking
      * iframe loads a page that frames the scheduler itself - and the page keeps a session-refresh frame
      * of its own beside them, so THREE frames here match and run a bridge while only the innermost has
-     * a city. The top frame keeps ONE relayed state, so letting them all relay means whichever spoke
+     * a city. The top frame keeps ONE broadcast state, so letting them all speak means whichever spoke
      * last decides what the badge says: the searched city, or an empty one reading "type a city".
      */
-    function relayStateToTop() {
-      const topFrame = window.top;
+    function broadcastState() {
       const isSearchBoxFrame = Boolean(findSearchInput());
-      if (isTopFrame || !topFrame || !isSearchBoxFrame) {
+      if (isTopFrame || !isSearchBoxFrame) {
         return;
       }
 
-      postPageMessage(PageMsg.FrameState, {
+      frames?.post(FrameMsg.State, {
         city,
         status: lastStatus
-      }, topFrame);
+      });
     }
 
     const badge = isTopFrame
       ? mountStatusBadge(ctx, () => {
         setEnabled(!isEnabled);
-        broadcastToggle(window.self);
+        broadcastToggle();
       })
       : null;
 
@@ -65,15 +73,9 @@ export default defineContentScript({
       refreshBadge();
     }
 
-    /** Top → every descendant frame (indexed access + length are cross-origin-safe). */
-    function broadcastToggle(parentFrame: Window) {
-      for (let i = 0; i < parentFrame.length; i++) {
-        const childFrame: Window = parentFrame[i];
-        postPageMessage(PageMsg.Toggle, isEnabled, childFrame);
-        try {
-          broadcastToggle(childFrame);
-        } catch { /* inaccessible frame subtree */ }
-      }
+    /** Top → every other frame of the tab, in one message and with no frame tree to walk. */
+    function broadcastToggle() {
+      frames?.post(FrameMsg.Toggle, isEnabled);
     }
 
     function refreshBadge() {
@@ -100,7 +102,7 @@ export default defineContentScript({
 
       lastStatus = parsed.data;
       refreshBadge();
-      relayStateToTop();
+      broadcastState();
     });
 
     /**
@@ -110,34 +112,79 @@ export default defineContentScript({
     onPageMessage(PageMsg.Position, () =>
       sendRuntimeMessage(RuntimeMsg.Position, undefined).catch(() => null));
 
-    // ── Frame ⇄ top relay, on the same channel as everything else ──────────────
-    onPageMessage(PageMsg.FrameState, ({ data }) => {
-      const parsed = frameStateSchema.safeParse(data);
-      if (!isTopFrame || !parsed.success) {
+    // ── The tab's frame channel ────────────────────────────────────────────────
+
+    /**
+     * Opened once the background says which tab this is, because the channel's name has to carry the
+     * tab - see messaging-frames.ts. Without an answer there is no relay at all, which is the same
+     * thing that happens today whenever the extension context is gone: each frame still guarantees its
+     * own search, and only the badge's caption goes without.
+     */
+    async function openFrames() {
+      const tabId = await sendRuntimeMessage(RuntimeMsg.TabId, undefined).catch(() => null);
+      if (tabId === null) {
         return;
       }
 
-      frameCity = parsed.data.city;
-      frameStatus = parsed.data.status;
-      refreshBadge();
-    });
+      // That await outlives a dev generation being stood down, and a channel opened after this script's
+      // own `onInvalidated` already ran would answer forever for a script that is gone.
+      if (!ctx.isValid) {
+        return;
+      }
 
-    // A child that just started asks for the toggle; the answer goes to every frame, because a reply
-    // cannot travel back to the one that asked.
-    onPageMessage(PageMsg.Hello, () => {
+      const channel = openFrameChannel(tabId);
+      frames = channel;
+      ctx.onInvalidated(() => channel.close());
+
+      channel.on(FrameMsg.State, data => {
+        const parsed = frameStateSchema.safeParse(data);
+        if (!isTopFrame || !parsed.success) {
+          return;
+        }
+
+        frameCity = parsed.data.city;
+        frameStatus = parsed.data.status;
+        refreshBadge();
+      });
+
+      // A frame that just joined asks for the toggle; the answer goes to the whole tab, because a
+      // broadcast has no one to answer.
+      channel.on(FrameMsg.Hello, () => {
+        if (isTopFrame) {
+          broadcastToggle();
+        }
+      });
+
+      channel.on(FrameMsg.Toggle, data => {
+        if (isTopFrame || typeof data !== "boolean") {
+          return;
+        }
+
+        setEnabled(data);
+        broadcastState();
+      });
+
+      announceToOtherFrames();
+    }
+
+    /**
+     * The frames come up in whatever order the page loads them - at `document_idle` the booking iframe's
+     * bridge can be running before the top frame's - so whichever joins the channel first announces
+     * itself and the other answers, and the relay ends up complete from either side.
+     *
+     * From the top the announcement IS the toggle: a frame that already scanned answers it with its
+     * state, which is the city this badge prints. From any other frame it is "hello", which the top
+     * answers with that same toggle.
+     */
+    function announceToOtherFrames() {
       if (isTopFrame) {
-        broadcastToggle(window.self);
-      }
-    });
-
-    onPageMessage(PageMsg.Toggle, ({ data }) => {
-      if (isTopFrame || typeof data !== "boolean") {
+        broadcastToggle();
         return;
       }
 
-      setEnabled(data);
-      relayStateToTop();
-    });
+      frames?.post(FrameMsg.Hello, undefined);
+      broadcastState();
+    }
 
     // ── Read the searched city out of the site's search box ────────────────────
     function isSearchInput(elInput: HTMLInputElement) {
@@ -164,7 +211,7 @@ export default defineContentScript({
       city = trimmedCity;
       pushConfig();
       refreshBadge();
-      relayStateToTop();
+      broadcastState();
     }
 
     for (const eventType of ["input", "change"] as const) {
@@ -188,31 +235,9 @@ export default defineContentScript({
 
       pushConfig();
       refreshBadge();
-      announceToOtherFrames();
-    }
-
-    /**
-     * The frames come up in whatever order the page loads them - at `document_idle` the booking iframe's
-     * bridge can be running before the top frame's - so whichever starts first announces itself and the
-     * other answers, and the relay ends up complete from either side.
-     *
-     * From the top the announcement IS the toggle: a child that already scanned answers it with its
-     * state, which is the city this badge prints. From a child it is "hello", which the top answers with
-     * that same toggle.
-     */
-    function announceToOtherFrames() {
-      if (isTopFrame) {
-        broadcastToggle(window.self);
-        return;
-      }
-
-      const topFrame = window.top;
-      if (topFrame) {
-        postPageMessage(PageMsg.Hello, undefined, topFrame);
-        relayStateToTop();
-      }
     }
 
     initialScan();
+    await openFrames();
   }
 });

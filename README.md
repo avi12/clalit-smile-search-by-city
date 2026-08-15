@@ -42,11 +42,13 @@ EXTENSION's own offscreen document, so it never depends on what the site was gra
   the city ([`smile.ts`](src/smile/smile.ts)), fetches the remaining server pages, and applies the
   live-distance re-rank ([`geo.ts`](src/lib/geo.ts)).
 - **ISOLATED bridge** ([`clalit-bridge.content.ts`](src/entrypoints/clalit-bridge.content.ts)) reads
-  the city from the page's search box, renders the status badge in the top frame, and relays state
-  between frames.
-- The two talk over a **window channel** (`@webext-core/messaging/page`), and **every external
-  input** - channel payloads, frame-relay messages, the network envelope - is validated with **zod**
-  at the boundary ([`schemas.ts`](src/lib/schemas.ts)); malformed input is ignored, never thrown on.
+  the city from the page's search box, renders the status badge in the top frame, and shares state
+  with the tab's other frames.
+- The two talk over a **window channel** (`@webext-core/messaging/page`); the bridges of a tab talk to
+  each other over a **BroadcastChannel** named for that tab
+  ([`messaging-frames.ts`](src/lib/messaging-frames.ts)). **Every external input** - channel payloads,
+  frame broadcasts, the network envelope - is validated with **zod** at the boundary
+  ([`schemas.ts`](src/lib/schemas.ts)); malformed input is ignored, never thrown on.
 
 Each entrypoint's private modules live with it; `lib/` holds only what genuinely crosses one, and the
 dependency runs one way - nothing in `lib/` imports from `smile/` or `badge/`.
@@ -55,12 +57,12 @@ dependency runs one way - nothing in `lib/` imports from `smile/` or `badge/`.
 src/
   entrypoints/
     clalit-interceptor.content.ts  # MAIN world: patch fetch/XHR, rewrite/filter/aggregate, live-distance rank
-    clalit-bridge.content.ts       # ISOLATED: read the search box, feed MAIN, badge + frame relay
+    clalit-bridge.content.ts       # ISOLATED: read the search box, feed MAIN, badge + the tab's frame channel
     clalit-dom-ready.content.ts    # MAIN, document_end: tells the interceptor the DOM is parsed
     background.ts / offscreen/     # one job: read the position under the EXTENSION's own permission
   lib/                     # shared by more than one entrypoint - and nothing else
     targets.ts             # SSOT: hosts, search-box selectors, Smile endpoint paths
-    messaging.ts / messaging-page.ts / messaging-runtime.ts   # both channels' contracts
+    messaging.ts / messaging-page.ts / messaging-runtime.ts / messaging-frames.ts   # all three channels' contracts
     schemas.ts             # zod validation for everything crossing a trust boundary
     geo.ts                 # great-circle distance + the LatLng the channels carry
   smile/                   # the guarantee - private to the interceptor

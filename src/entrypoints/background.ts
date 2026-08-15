@@ -1,5 +1,6 @@
 /**
- * The extension's only privileged context, and it exists for ONE thing: the user's position.
+ * The extension's only privileged context. It answers what only an extension API can answer, which is
+ * two things: the user's position, and which tab a bridge is running in.
  *
  * A content script's navigator.geolocation is the PAGE's - gated by whatever the site was granted, and
  * silently empty when the user once refused Clalit. The extension has its own geolocation permission,
@@ -72,4 +73,11 @@ export default defineBackground(() => {
   }
 
   onRuntimeMessage(RuntimeMsg.Position, () => positionForAskers());
+
+  /**
+   * The frame channel is a BroadcastChannel, which is scoped to the ORIGIN - so its name has to carry
+   * the tab, or a second open Clalit tab would share it. A frame cannot see which tab it is in; the
+   * message's sender can, and every frame of one tab gets the same answer.
+   */
+  onRuntimeMessage(RuntimeMsg.TabId, ({ sender }) => sender.tab?.id ?? null);
 });

@@ -1,8 +1,8 @@
 /**
  * Zod schemas for every value that crosses a trust boundary into the extension: the window-channel
- * config/status payloads (bridge ⇄ MAIN), the frame-relay window messages (which any page script could
- * forge), and the Smile JSON envelope from the network. Parsing at the edge means the rest of the code
- * works with already-validated shapes.
+ * config/status payloads (bridge ⇄ MAIN), the frame-channel broadcasts (which any same-origin script
+ * could forge), and the Smile JSON envelope from the network. Parsing at the edge means the rest of the
+ * code works with already-validated shapes.
  *
  * Dependency-light (zod only) so the MAIN-world interceptor can import it.
  */
@@ -31,7 +31,16 @@ export const positionAnswerSchema = z.tuple([
   z.number().min(-180).max(180)
 ]).nullable();
 
-// ── Frame ⇄ top relay (window messages, so any page script could forge one) ─────
+// ── Frame ⇄ frame channel (a BroadcastChannel any same-origin script can post on) ─
+
+/**
+ * The relay envelope, and all the channel itself knows: an unrecognised `type` simply finds no handler,
+ * and the payload is parsed by whichever handler owns that type.
+ */
+export const frameMessageSchema = z.object({
+  type: z.string(),
+  data: z.unknown()
+});
 
 export const frameStateSchema = z.object({
   city: z.string(),
