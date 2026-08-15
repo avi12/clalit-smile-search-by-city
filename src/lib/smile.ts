@@ -287,8 +287,11 @@ function appendPhoneLinks({ elContainer, phones }: {
     elLink.setAttribute("href", `tel:${formatted.dial}`);
     // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
     elLink.setAttribute("dir", "ltr");
-    elLink.textContent = `${formatted.display} `;
+    elLink.textContent = formatted.display;
     elContainer.appendChild(elLink);
+    // The space that separates two numbers sits OUTSIDE the anchor: inside it, the underline runs
+    // straight through the gap and two numbers read as one long link (Avi, 2026-08-15).
+    elContainer.appendChild(ownerDocument.createTextNode(" "));
   }
 }
 
