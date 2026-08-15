@@ -251,10 +251,20 @@ export function formatPhone(raw: string) {
   };
 }
 
-/** Render directory phones as tel: links into a telephone slot (the row and the lightbox share this). */
-function appendPhoneLinks({ elContainer, phones }: {
+/**
+ * Render directory phones as tel: links into a telephone slot (the row, the lightbox and the message
+ * box share this).
+ *
+ * A number in a ROW is text, not an offer: the server prints its own as plain `<span>`s in the row's
+ * colour, so a blue underlined link there is the one thing on an appended row that shouts "added". The
+ * link stays - for these branches the phone IS the booking route - it just stops announcing itself,
+ * taking the row's own colour by inheritance rather than a colour of ours. Where the number IS the
+ * offer (the site's message box: "call the clinic or *2700"), it is styled as the link it is.
+ */
+function appendPhoneLinks({ elContainer, phones, isCallToAction = false }: {
   elContainer: Element;
   phones: string[];
+  isCallToAction?: boolean;
 }) {
   const { ownerDocument } = elContainer;
   elContainer.textContent = "";
@@ -265,8 +275,13 @@ function appendPhoneLinks({ elContainer, phones }: {
     }
 
     const elLink = ownerDocument.createElement("a");
-    // The site's own inline-link class (anchors already inherit its color; this adds the underline).
-    elLink.className = "underline";
+    if (isCallToAction) {
+      // The site's own inline-link class (anchors already inherit its color; this adds the underline).
+      elLink.className = "underline";
+    } else {
+      elLink.style.color = "inherit";
+    }
+
     elLink.setAttribute("href", `tel:${formatted.dial}`);
     // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
     elLink.setAttribute("dir", "ltr");
@@ -314,7 +329,8 @@ export function buildUnavailableMessageHtml(branch: SmileBranch) {
   const elNumbers = document.createElement("span");
   appendPhoneLinks({
     elContainer: elNumbers,
-    phones: branch.phones
+    phones: branch.phones,
+    isCallToAction: true
   });
   elPhones.appendChild(elNumbers);
   // A leading NBSP: the tel: link's own trailing space collapses at the element boundary, so without it
