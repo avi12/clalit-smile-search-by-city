@@ -254,7 +254,7 @@ export default [
     ".wxt/",
     ".dev-logs/",
     "user-profiles/",
-    "src/lib/clinic-directory.ts"
+    "src/smile/clinic-directory.ts"
   ]),
   {
     files: ["**/*.{ts,js,mjs}"],

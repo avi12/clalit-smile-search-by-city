@@ -7,8 +7,8 @@
  * sort" means. Pure and dependency-light so the MAIN-world interceptor can import it.
  */
 
-import type { GuaranteeMode } from "./messaging";
-import type { EndpointRule } from "./targets";
+import type { GuaranteeMode } from "../lib/messaging";
+import type { EndpointRule } from "../lib/targets";
 import { normalizeCity } from "./text";
 
 interface TransformInput {

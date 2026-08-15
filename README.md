@@ -31,14 +31,15 @@ configure, nothing stored.
 
 ## How it works
 
-Pure MV3 content scripts - **no background, no storage, no permissions beyond host access to the two
-Clalit sites**:
+MV3 content scripts do all the work, with **no storage and nothing persisted**. The only permissions
+are `geolocation` + `offscreen`, and they serve one feature between them: the position is read in the
+EXTENSION's own offscreen document, so it never depends on what the site was granted.
 
 - **MAIN-world interceptor** ([`clalit-interceptor.content.ts`](src/entrypoints/clalit-interceptor.content.ts))
   patches `fetch`/`XMLHttpRequest` at `document_start` in **all frames** (the booking UI is an
   iframe). The Smile search responses are **server-rendered HTML fragments inside a JSON envelope**;
   the interceptor rewrites the outgoing search from "area" to "all country", filters each fragment to
-  the city ([`smile.ts`](src/lib/smile.ts)), fetches the remaining server pages, and applies the
+  the city ([`smile.ts`](src/smile/smile.ts)), fetches the remaining server pages, and applies the
   live-distance re-rank ([`geo.ts`](src/lib/geo.ts)).
 - **ISOLATED bridge** ([`clalit-bridge.content.ts`](src/entrypoints/clalit-bridge.content.ts)) reads
   the city from the page's search box, renders the status badge in the top frame, and relays state
@@ -47,20 +48,28 @@ Clalit sites**:
   input** - channel payloads, frame-relay messages, the network envelope - is validated with **zod**
   at the boundary ([`schemas.ts`](src/lib/schemas.ts)); malformed input is ignored, never thrown on.
 
+Each entrypoint's private modules live with it; `lib/` holds only what genuinely crosses one, and the
+dependency runs one way - nothing in `lib/` imports from `smile/` or `badge/`.
+
 ```
 src/
   entrypoints/
     clalit-interceptor.content.ts  # MAIN world: patch fetch/XHR, rewrite/filter/aggregate, live-distance rank
     clalit-bridge.content.ts       # ISOLATED: read the search box, feed MAIN, badge + frame relay
-  lib/
+    clalit-dom-ready.content.ts    # MAIN, document_end: tells the interceptor the DOM is parsed
+    background.ts / offscreen/     # one job: read the position under the EXTENSION's own permission
+  lib/                     # shared by more than one entrypoint - and nothing else
     targets.ts             # SSOT: hosts, search-box selectors, Smile endpoint paths
-    smile.ts               # the city guarantee over the HTML-fragment envelope (order-preserving)
-    geo.ts                 # great-circle distance (live-location ranking)
-    clinic-directory.ts    # GENERATED: Smile branches + dental-clinic coords (from nearme c.json)
+    messaging.ts / messaging-page.ts / messaging-runtime.ts   # both channels' contracts
     schemas.ts             # zod validation for everything crossing a trust boundary
-    status-badge.svelte.ts # the in-page badge (shadow-DOM UI)
-    messaging.ts / messaging-page.ts   # window channel (MAIN ⇄ bridge)
-    transform.ts / text.ts             # generic JSON fallback + shared pure utils
+    geo.ts                 # great-circle distance + the LatLng the channels carry
+  smile/                   # the guarantee - private to the interceptor
+    smile.ts               # the city guarantee over the HTML-fragment envelope (order-preserving)
+    smile-session.ts / smile-aggregation.ts / smile-availability.ts / smile-row-actions.ts
+    live-distance.ts / clinic-directory.ts   # GENERATED coords (from nearme c.json) + the ranking
+    site-chrome.ts / phone-links.ts / transform.ts / text.ts
+  badge/                   # the in-page badge (shadow-DOM UI) - private to the bridge
+    status-badge.svelte.ts / StatusBadge.svelte
 scripts/                   # dev launcher (cloned-profile Chrome) + clinic-directory generator
 docs/reverse-engineering.md
 ```
@@ -71,7 +80,7 @@ Coordinates and the full branch list come from Clalit's **public** clinic direct
 `nearme.clalit.co.il/c.json` - the same dataset behind each result row's "הצגת מפה" map link:
 
 ```bash
-pnpm clinics:fetch   # regenerates src/lib/clinic-directory.ts
+pnpm clinics:fetch   # regenerates src/smile/clinic-directory.ts
 ```
 
 The generated file is committed, so the data is **baked into the build**: no runtime network calls,

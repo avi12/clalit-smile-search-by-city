@@ -8,7 +8,7 @@
  * works in the dev loop's re-injected MAIN-world generations too.
  */
 
-import type { GuaranteeStatus } from "./messaging";
+import type { GuaranteeStatus } from "../lib/messaging";
 import StatusBadge from "./StatusBadge.svelte";
 import { type ContentScriptContext, createShadowRootUi } from "#imports";
 import { mount, unmount } from "svelte";

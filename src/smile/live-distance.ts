@@ -7,8 +7,8 @@
  * denied or unavailable position leaves the list exactly as the server sorted it.
  */
 
+import { haversineKm, type LatLng, POSITION_MAX_AGE_MS } from "../lib/geo";
 import { clinicCoords } from "./clinic-coord-fixes";
-import { haversineKm, type LatLng, POSITION_MAX_AGE_MS } from "./geo";
 import { requestPosition } from "./page-position";
 import { rowNavCode, setRowDistanceLabel } from "./smile";
 

@@ -13,6 +13,14 @@
  */
 
 import {
+  SMILE_AREA_FIELD,
+  SMILE_CITY_FIELD,
+  SMILE_PAGING_PATH,
+  SMILE_SEARCH_PATH,
+  SMILE_SPECIALIZATION_CODES,
+  SMILE_SPECIALIZATION_FIELD
+} from "../lib/targets";
+import {
   envelopeStatus,
   type ListedBranchRow,
   listedRowsInEnvelope,
@@ -23,14 +31,6 @@ import {
   SMILE_MARKER_ATTR,
   SYNTHETIC_ROW_ATTR
 } from "./smile";
-import {
-  SMILE_AREA_FIELD,
-  SMILE_CITY_FIELD,
-  SMILE_PAGING_PATH,
-  SMILE_SEARCH_PATH,
-  SMILE_SPECIALIZATION_CODES,
-  SMILE_SPECIALIZATION_FIELD
-} from "./targets";
 
 /** Which order the server session currently applies to the result set. */
 type SmileSort = "cityDistance" | "soonest" | "home";

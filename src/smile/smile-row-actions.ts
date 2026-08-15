@@ -13,8 +13,8 @@
  * row of the current search; a stale template just means "re-run the user's search and compose again".
  */
 
+import { smileEnvelopeSchema } from "../lib/schemas";
 import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
-import { smileEnvelopeSchema } from "./schemas";
 import {
   captionLoader,
   openInNewTab,

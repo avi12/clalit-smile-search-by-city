@@ -5,8 +5,8 @@
  * site's business, never the caller's.
  */
 
+import { SITE_LOADER_SELECTOR, SMILE_DETAILS_DIALOG_SELECTOR } from "../lib/targets";
 import { setDialogNote, setLoaderNote } from "./smile";
-import { SITE_LOADER_SELECTOR, SMILE_DETAILS_DIALOG_SELECTOR } from "./targets";
 
 /** The Zimunet site bundle's own UI namespace - the MAIN world sees the page's globals. */
 interface ZimunetPageUi {

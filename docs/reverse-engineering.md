@@ -91,15 +91,15 @@ Each finding has exactly one home in the code; nothing is re-derived elsewhere.
 | Finding | Where it lives |
 |---|---|
 | Hosts, matches, search-box selectors, Smile endpoint paths | `src/lib/targets.ts` (also feeds `wxt.config.ts`) |
-| The response is a JSON envelope wrapping server-rendered `li.diary` HTML (§6) | `src/lib/smile.ts` (string → string), `src/lib/transform.ts` for the generic case |
-| Sort/`Paging`/GUIDs are server-session state (§6b) | `src/lib/smile-session.ts` - the one shared session |
-| "Area" is a subset, and Tamuz omits diary-less branches (§6a) | `src/lib/smile-aggregation.ts` + `SMILE_BRANCHES` |
-| A GUID is minted inside the row markup at search time (§6c) | `src/lib/smile-row-actions.ts` (click-time mint) |
+| The response is a JSON envelope wrapping server-rendered `li.diary` HTML (§6) | `src/smile/smile.ts` (string → string), `src/smile/transform.ts` for the generic case |
+| Sort/`Paging`/GUIDs are server-session state (§6b) | `src/smile/smile-session.ts` - the one shared session |
+| "Area" is a subset, and Tamuz omits diary-less branches (§6a) | `src/smile/smile-aggregation.ts` + `SMILE_BRANCHES` |
+| A GUID is minted inside the row markup at search time (§6c) | `src/smile/smile-row-actions.ts` (click-time mint) |
 | A slots page belongs to a (clinic, **service**) pair (§12k) | `smile-availability.ts`, `smile-row-actions.ts` |
-| A no-GUID branch can still show its own page (§12i) | `src/lib/smile-clinic-page.ts` |
+| A no-GUID branch can still show its own page (§12i) | `src/smile/smile-clinic-page.ts` |
 | The "back" restore document bypasses the patches (§6d) | the interceptor's restore re-drive |
 | Clinic coordinates, and the few Clalit gets wrong (§8, §14) | `clinic-directory.ts` (generated) + `clinic-coord-fixes.ts` |
-| `window.z` loader/lightbox are reusable (§12) | `src/lib/site-chrome.ts` |
+| `window.z` loader/lightbox are reusable (§12) | `src/smile/site-chrome.ts` |
 
 ### 2e. Probing our own plumbing, in the live page (2026-08-15)
 
@@ -608,7 +608,7 @@ The extension patches `fetch`/`XMLHttpRequest` in the page's **MAIN world** at `
 the badge; both talk over a window channel (`@webext-core/messaging/page`). See
 [`clalit-interceptor.content.ts`](../src/entrypoints/clalit-interceptor.content.ts),
 [`clalit-bridge.content.ts`](../src/entrypoints/clalit-bridge.content.ts),
-[`smile.ts`](../src/lib/smile.ts).
+[`smile.ts`](../src/smile/smile.ts).
 
 ```mermaid
 flowchart TD
@@ -659,7 +659,7 @@ flowchart TD
 Clalit's **public** clinic directory at `https://nearme.clalit.co.il/c.json` (the dataset behind every
 row's "הצגת מפה" `/nav/<code>` link) packs ~6,900 clinics as positional rows with a column map `m`.
 [`scripts/fetch-clinic-coords.ts`](../scripts/fetch-clinic-coords.ts) decodes it and generates
-[`src/lib/clinic-directory.ts`](../src/lib/clinic-directory.ts):
+[`src/smile/clinic-directory.ts`](../src/smile/clinic-directory.ts):
 
 - `SMILE_BRANCHES` - every Clalit Smile branch (title/city/street/phones/lat/lng), the source for
   listing a city's branches Tamuz has no diary for.
@@ -782,7 +782,7 @@ automatically with the server's diary state, in both directions.
 ### 10a. Synthetic branch rows (how completeness is rendered)
 
 For each searched-city branch the search omits (`SMILE_BRANCHES`, from the nearme directory), the
-interceptor **clones a real server row** (never hand-authored markup - [`applyBranchToRow`](../src/lib/smile.ts))
+interceptor **clones a real server row** (never hand-authored markup - [`applyBranchToRow`](../src/smile/smile.ts))
 and rewrites it: clinic name / address / phones / map, drop the slot date, re-arm the booking button
 for click-time GUID minting (§6c), make the phone a `tel:` link, and point **"מידע נוסף"** at the
 site's **own** clinic-details lightbox

@@ -8,11 +8,11 @@
  * position: the MAIN world asks, and the background answers from the extension's offscreen document.
  */
 
+import { mountStatusBadge } from "../badge/status-badge.svelte";
 import { type GuaranteeStatus, PageMsg, RuntimeMsg, type SearchConfig } from "../lib/messaging";
 import { onPageMessage, postPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { sendRuntimeMessage } from "../lib/messaging-runtime";
 import { frameStateSchema, guaranteeStatusSchema } from "../lib/schemas";
-import { mountStatusBadge } from "../lib/status-badge.svelte";
 import { CONTENT_MATCHES, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "../lib/targets";
 import { defineContentScript } from "#imports";
 

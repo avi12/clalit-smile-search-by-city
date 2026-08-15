@@ -9,9 +9,9 @@
  * the live document.
  */
 
+import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "../lib/schemas";
 import type { SmileBranch } from "./clinic-directory";
 import { renderPhoneLinks } from "./phone-links";
-import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "./schemas";
 
 /** The envelope's `errorType` values, from the site's own `z.ErrorType` (docs 12a). */
 export const SMILE_ENVELOPE_STATUS = {
