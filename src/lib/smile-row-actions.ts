@@ -92,7 +92,7 @@ export function createRowActions({ session, slotsLinkFor, verdictFor }: {
     })();
     onComposed?.();
 
-    if (session.state.isSuperseded || !fragment || !showDetailsDialog({
+    if (!fragment || !showDetailsDialog({
       html: fragment,
       note
     })) {
@@ -216,7 +216,7 @@ export function createRowActions({ session, slotsLinkFor, verdictFor }: {
     try {
       captionLoader(MINT_CHECK_NOTE);
       const link = await mintDiaryLink(code);
-      if (link && !session.state.isSuperseded) {
+      if (link) {
         // Loader stays up while the iframe navigates away, exactly like the site's own button.
         captionLoader(MINT_NAVIGATE_NOTE);
         window.location.assign(link);
@@ -224,10 +224,6 @@ export function createRowActions({ session, slotsLinkFor, verdictFor }: {
       }
 
       await session.restoreUserSearch().catch(() => {});
-
-      if (session.state.isSuperseded) {
-        return;
-      }
 
       // No page of the SEARCHED service exists for this branch, and a page of another service is not
       // what the row promised - a past visit's own appointments page carries that visit's profession

@@ -15,9 +15,8 @@
  * dev build it logs interesting requests to the page console (Discovery).
  */
 
-import { installDevTakeover } from "../lib/dev-takeover";
 import { type GuaranteeStatus, PageMsg } from "../lib/messaging";
-import { onPageMessage, removeAllPageListeners, sendPageMessage } from "../lib/messaging-page";
+import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { searchConfigSchema } from "../lib/schemas";
 import { openInNewTab } from "../lib/site-chrome";
 import {
@@ -56,7 +55,7 @@ import {
   SMILE_SPECIALIZATION_SELECT_SELECTOR
 } from "../lib/targets";
 import { applyGuarantee, type TransformResult } from "../lib/transform";
-import { defineContentScript } from "#imports";
+import { ContentScriptContext, defineContentScript } from "#imports";
 
 export default defineContentScript({
   matches: [...CONTENT_MATCHES],
@@ -64,6 +63,13 @@ export default defineContentScript({
   allFrames: true,
   world: "MAIN",
   main() {
+    /**
+     * WXT hands a MAIN-world script no context of its own (its `isValid` reads `browser.runtime`, which
+     * does not exist out here), but the part that matters does not need one: the constructor announces
+     * this script and aborts the older context of the same name. That is the whole generation handoff a
+     * dev re-injection needs, done by the framework - so nothing below is registered any other way.
+     */
+    const ctx = new ContentScriptContext("clalit-interceptor");
     // The page's UNPATCHED fetch, captured before the patches below - the session's own calls must not
     // flow through our transforms.
     const nativeFetch = window.fetch;
@@ -88,16 +94,6 @@ export default defineContentScript({
       slotsLinkFor: navCode => availability.slotsLinkFor(navCode),
       verdictFor: navCode => availability.verdictFor(navCode)
     });
-    if (import.meta.env.DEV) {
-      installDevTakeover({
-        script: "interceptor",
-        onSuperseded() {
-          session.state.isSuperseded = true;
-          removeAllPageListeners();
-        }
-      });
-    }
-
     onPageMessage(PageMsg.Config, ({ data }) => {
       const parsed = searchConfigSchema.safeParse(data);
       if (parsed.success) {
@@ -122,7 +118,7 @@ export default defineContentScript({
         json: unknown;
       }
     ) {
-      if (import.meta.env.DEV && !session.state.isSuperseded && isInterestingUrl(url)) {
+      if (import.meta.env.DEV && isInterestingUrl(url)) {
         console.log(`[clalit-city] ${method} ${url} → ${status}`, json);
       }
     }
@@ -150,7 +146,7 @@ export default defineContentScript({
       const city = session.city();
       // "מרפאות מכל הארץ" asks for the whole country; filtering that to one city would answer a
       // question the user did not ask, so every response of such a search is passed through as it came.
-      if (session.state.isSuperseded || !session.state.isEnabled || !city || !session.state.isCitySearch) {
+      if (!session.state.isEnabled || !city || !session.state.isCitySearch) {
         return untouched;
       }
 
@@ -196,9 +192,9 @@ export default defineContentScript({
       });
     }
 
-    document.addEventListener("click", e => {
+    ctx.addEventListener(document, "click", (e: MouseEvent) => {
       const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
-      if (session.state.isSuperseded || !session.state.isEnabled || e.defaultPrevented || isModified) {
+      if (!session.state.isEnabled || e.defaultPrevented || isModified) {
         return;
       }
 
@@ -231,7 +227,7 @@ export default defineContentScript({
         fallbackHref,
         note: NO_DIARY_ROW_NOTE
       }).catch(() => openInNewTab(fallbackHref));
-    }, true);
+    }, { capture: true });
 
     // ── Restore-document recovery (the "back" hole, docs §6d) ─────────────────
     // "Back" from a slots page is a DOCUMENT load (SmileClinic?isRestoreSearch=True): the server
@@ -248,7 +244,7 @@ export default defineContentScript({
       }
 
       return new Promise<void>(resolve => {
-        document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
+        ctx.addEventListener(document, "DOMContentLoaded", () => resolve(), { once: true });
       });
     }
 
@@ -285,7 +281,7 @@ export default defineContentScript({
     /** A search has run in this document: ours landing (the marked render), the user's own
      * (activeSearchCity is set at send time), or a prior generation's before a dev re-inject. */
     function isRestoreSettled() {
-      return session.state.isSuperseded || !session.state.isEnabled ||
+      return !session.state.isEnabled ||
         Boolean(session.state.activeSearchCity) || Boolean(document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`));
     }
 
@@ -322,7 +318,7 @@ export default defineContentScript({
           }
         }
 
-        window.addEventListener("load", attempt);
+        ctx.addEventListener(window, "load", attempt);
         observer.observe(document, {
           childList: true,
           subtree: true
@@ -413,8 +409,10 @@ export default defineContentScript({
 
     window.fetch = async function patchedFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit) {
       const response = await nativeFetch.call(this, input, init);
+      // Stood down (a newer generation started - see the ctx handoff below): the page may still hold
+      // this function, so it answers as the native one would.
       const url = requestUrl(input);
-      if (session.state.isSuperseded || !/json/i.test(response.headers.get("content-type") ?? "")) {
+      if (ctx.signal.aborted || !/json/i.test(response.headers.get("content-type") ?? "")) {
         return response;
       }
 
@@ -552,6 +550,10 @@ export default defineContentScript({
     }
 
     XHR.open = function patchedOpen(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+      if (ctx.signal.aborted) {
+        return nativeOpen.call(this, method, url, ...rest);
+      }
+
       let targetUrl = String(url);
       // A "distance" sort must reference the user's location: rewrite the "distance from the searched
       // city" sort (4) to the site's own "distance from your home" sort (3). The link is also removed
@@ -619,7 +621,11 @@ export default defineContentScript({
     }
 
     XHR.send = function patchedSend(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-      const state = session.state.isSuperseded ? undefined : xhrStates.get(this);
+      if (ctx.signal.aborted) {
+        return nativeSend.call(this, body);
+      }
+
+      const state = xhrStates.get(this);
       if (state) {
         defineResponseGetters({
           xhr: this,
@@ -628,7 +634,7 @@ export default defineContentScript({
       }
 
       let outgoing = body;
-      if (state && !session.state.isSuperseded && session.state.isEnabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
+      if (state && session.state.isEnabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
         // The submitted city and specialization are the authoritative ones for this server session.
         const submitted = new URLSearchParams(outgoing);
         const submittedCity = submitted.get(SMILE_CITY_FIELD)?.trim();
@@ -673,5 +679,19 @@ export default defineContentScript({
 
       return nativeSend.call(this, outgoing);
     };
+
+    /**
+     * Standing down is WXT's own handshake, not an invention of ours: every content script that starts
+     * announces itself (`wxt:content-script-started`) and aborts the older ctx of the same name, which
+     * is exactly what a dev re-injection produces. Everything above is hung on that ctx - the listeners
+     * through `ctx.addEventListener`, the badge through `createShadowRootUi` - so the only thing left to
+     * undo by hand is the pair of page globals this script patches. They go back as they were, and the
+     * newer copy then patches a clean base instead of wrapping a stale wrapper.
+     */
+    ctx.onInvalidated(() => {
+      window.fetch = nativeFetch;
+      XHR.open = nativeOpen;
+      XHR.send = nativeSend;
+    });
   }
 });

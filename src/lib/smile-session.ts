@@ -41,7 +41,6 @@ const MAX_SCAN_PAGES = 30;
 interface SmileSessionState {
   isEnabled: boolean;
   configCity: string;
-  isSuperseded: boolean;
   isSessionLost: boolean;
   activeSearchCity: string;
   activeSearchSpecialization: string;
@@ -57,8 +56,6 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     /** Pushed by the bridge: the city in the site's search box and the session-only on/off toggle. */
     isEnabled: true,
     configCity: "",
-    /** A newer dev generation took over; every patch and loop here stands down. */
-    isSuperseded: false,
     /** The scheduler dropped us (errorType 2) - only a page reload gets a session back. */
     isSessionLost: false,
     /** What the SUBMITTED search asked for, which is what sort and paging operate on. */
@@ -82,9 +79,9 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     return (state.activeSearchCity || state.configCity).trim();
   }
 
-  /** Nothing may run when a newer generation owns the page, the toggle is off, or the session is gone. */
+  /** Nothing may run when the toggle is off or the scheduler dropped the session. */
   function isActive() {
-    return !state.isSuperseded && state.isEnabled && !state.isSessionLost;
+    return state.isEnabled && !state.isSessionLost;
   }
 
   /** GET/POST a /Zimunet/ endpoint with the PAGE's own session, bypassing our own patches. */
