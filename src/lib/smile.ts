@@ -293,11 +293,13 @@ function appendPhoneLinks({ elContainer, phones, isCallToAction = false }: {
       elLink.className = SITE_UNDERLINE_CLASS;
     } else {
       elLink.style.color = "inherit";
-      // Same class, put on and taken off again: the row stays the server's until the pointer (or the
-      // keyboard) is on the number, which is when the underline is the answer rather than noise.
+      // Put on and taken off again: the row stays the server's until the pointer (or the keyboard) is on
+      // the number, which is when the underline is the answer rather than noise. Inline rather than the
+      // site's own class, because `a, a:visited, a:hover { text-decoration: none }` is live in this
+      // document and the class loses to it - only an inline rule reliably wins.
       for (const [enter, leave] of [["mouseenter", "mouseleave"], ["focus", "blur"]] as const) {
-        elLink.addEventListener(enter, () => elLink.classList.add(SITE_UNDERLINE_CLASS));
-        elLink.addEventListener(leave, () => elLink.classList.remove(SITE_UNDERLINE_CLASS));
+        elLink.addEventListener(enter, () => elLink.style.setProperty("text-decoration", "underline"));
+        elLink.addEventListener(leave, () => elLink.style.removeProperty("text-decoration"));
       }
     }
 
