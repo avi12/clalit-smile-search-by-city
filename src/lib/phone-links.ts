@@ -33,7 +33,7 @@ export interface FormattedPhone {
  */
 export function formatPhone(raw: string) {
   const hintStart = raw.indexOf("(");
-  const digits = (hintStart === -1 ? raw : raw.slice(0, hintStart)).replace(/\D/g, "");
+  const digits = (hintStart === -1 ? raw : raw.slice(0, hintStart)).replaceAll(/\D/g, "");
   if (!digits) {
     return null;
   }

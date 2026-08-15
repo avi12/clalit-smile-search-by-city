@@ -236,7 +236,7 @@ export function setRowBookable({ elRow, isBookable, title }: {
 }
 
 function toCssProperty(camelCase: string) {
-  return camelCase.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+  return camelCase.replaceAll(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
 }
 
 /** The "no online diary" note, in the site's own row/details text style, ending in the *2700 hotline. */
