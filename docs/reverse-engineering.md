@@ -511,10 +511,14 @@ DOCUMENT-navigates the Zimunet iframe there. What the server renders into that d
   `SearchSmileClinicsDiaries`. The site binds a jQuery `submit` handler on the form itself that calls
   `preventDefault()` and issues the XHR (confirmed by reading `$._data(form, "events")`, jQuery 1.12.4).
   So before that handler is bound, a click would NATIVE-submit the form as a document POST.
+  **Re-confirmed 2026-08-15** on a live restore document: `$._data(form, "events")` → `{submit: 1}`,
+  `$._data(button, "events")` → `null`, and the button carries no `onclick` attribute. The search is the
+  form's submit event and nothing else, so the re-drive asks for it with `form.requestSubmit(button)` -
+  NOT `form.submit()`, which skips every handler and would leave the native POST as all that happened.
 
 **Shipped fix** (interceptor, `isSmileRestoreLocation` in `targets.ts`): on a restore document, read the
 session's specialization from the `#am_diaries` header by matching the select's own option labels, then
-**re-drive the site's own search form** (set the select, click the search button). The resulting XHR is
+**re-drive the site's own search form** (set the select, submit the form). The resulting XHR is
 an ordinary search that flows through the whole existing pipeline - area→all-country rewrite, city
 filter, page aggregation, synthetic branch rows, live-location re-rank - so the restored page ends up
 identical to a fresh guaranteed search, with working GUIDs. Guards, each one earned from a live failure

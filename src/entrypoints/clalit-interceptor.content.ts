@@ -274,7 +274,8 @@ export default defineContentScript({
 
     function redriveSearch(specialization: string) {
       const elSearchButton = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
-      if (!elSearchButton) {
+      const elForm = elSearchButton?.closest("form");
+      if (!elSearchButton || !elForm) {
         return;
       }
 
@@ -284,11 +285,17 @@ export default defineContentScript({
         elSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
-      // Belt: until the site's own handler is bound, the submit button's default action would NATIVE-
-      // submit the form (a document POST). The real search flow is always XHR, so preventing the
-      // default keeps a too-early click harmless - the retry loop just tries again.
-      elSearchButton.closest("form")?.addEventListener("submit", e => e.preventDefault(), { once: true });
-      elSearchButton.click();
+      // Belt, and the only thing standing between a too-early submit and a document POST: the site's
+      // own handler is what calls preventDefault, so until it is bound the form's action would navigate
+      // this frame to a raw search response. Ours runs after the site's - registered later, and
+      // preventDefault does not stop other listeners - so when the site IS bound this is a no-op on top
+      // of what it already did.
+      elForm.addEventListener("submit", e => e.preventDefault(), { once: true });
+      // The search the site listens for IS the form's submit event - it binds one handler on the form
+      // and nothing at all on the button (docs §6d), so this asks for the search rather than miming the
+      // gesture that would produce it. `requestSubmit` and not `submit()`: the latter skips handlers
+      // entirely and would leave the native POST as the only thing that happened.
+      elForm.requestSubmit(elSearchButton);
     }
 
     /** A search has run in this document: ours landing (the marked render), the user's own
