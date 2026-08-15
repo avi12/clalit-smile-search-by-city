@@ -3,9 +3,10 @@
  * it can mint (docs §12a): a diary GUID lives inside the session's LAST search, a visit GUID inside the
  * visits list, and a clinic code opens nothing at all.
  *
- * "לכל התורים" therefore mints at click time - new searches until one lists the branch, then straight to
- * its slots page - and when nothing lists it, falls through to the branch's own appointments page (a
- * past visit keys one) or the service's appointments page. It never ends on a dead end.
+ * "לכל התורים" opens a page belonging to THAT clinic and nothing else: it mints at click time - new
+ * searches until one lists the branch, then straight to its slots page - and falls back to the branch's
+ * own appointments page when a past visit there keys one. When neither handle exists no such page exists
+ * either (docs §12f), so the click leaves the list where it is and repaints the row to say so.
  *
  * "מידע נוסף" composes the site's own lightbox for a branch the server will not describe, from a REAL
  * row of the current search; a stale template just means "re-run the user's search and compose again".
@@ -18,26 +19,24 @@ import {
   applyBranchToDetailsFragment,
   detailsLinkFromRowHtml,
   MINT_NAVIGATE_NOTE,
-  nearmeHref,
-  NO_DIARY_DETAILS_NOTE,
   NO_DIARY_SWEEP_NOTE,
+  rowNavCode,
   scanEnvelopeForNavCode,
+  setRowBookable,
+  setRowNote,
   SMILE_ENVELOPE_STATUS,
   sweepStepNote,
+  UNAVAILABLE_BUTTON_TITLE,
   VISIT_APPOINTMENTS_NOTE
 } from "./smile";
 import type { SmileSession } from "./smile-session";
-import { SMILE_DETAILS_DIALOG_SELECTOR, VISIT_APPOINTMENTS_PATH } from "./targets";
+import { VISIT_APPOINTMENTS_PATH } from "./targets";
 
-export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecializationByNavCode, offerWatch }: {
+export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecializationByNavCode }: {
   session: SmileSession;
   visitGuidsByClinicTitle: (options?: { isRefreshed?: boolean }) => Promise<Map<string, string>>;
-  /** Filled by the watcher: the service that listed a branch, so the next sweep tries it first. */
+  /** Filled by the availability probe: the service that listed a branch, so the sweep tries it first. */
   knownSpecializationByNavCode: Map<string, string>;
-  offerWatch: (offer: {
-    navCode: string;
-    elDialog?: Element | null;
-  }) => void;
 }) {
   let isMintInFlight = false;
 
@@ -88,13 +87,7 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
       note
     })) {
       openInNewTab(fallbackHref);
-      return;
     }
-
-    offerWatch({
-      navCode: branch.code,
-      elDialog: document.querySelector(SMILE_DETAILS_DIALOG_SELECTOR)
-    });
   }
 
   /** One NEW all-country search for a service, scanned page by page for the branch's link. */
@@ -180,7 +173,25 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
     return detailsByTitle?.get(branch.title) ?? null;
   }
 
-  /** A synthetic row's "לכל התורים": mint and navigate, or land on the best appointments page there is. */
+  /** The sweep just proved there is nothing to open - repaint the row so it says so from now on. */
+  function markUnbookable(code: string) {
+    const elRow = [...document.querySelectorAll("li.diary")].find(elCandidate => rowNavCode(elCandidate) === code);
+    if (!elRow) {
+      return;
+    }
+
+    setRowBookable({
+      elRow,
+      isBookable: false,
+      title: UNAVAILABLE_BUTTON_TITLE
+    });
+    setRowNote({
+      elRow,
+      text: NO_DIARY_SWEEP_NOTE
+    });
+  }
+
+  /** A synthetic row's "לכל התורים": the clinic's own appointments page, or nothing at all. */
   async function openDiaries(code: string) {
     if (isMintInFlight || !session.city()) {
       return;
@@ -206,20 +217,14 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
         return;
       }
 
-      // The branch's own appointments page when a past visit keys one. When nothing does, there is no
-      // appointments page in Tamuz to send the user to (docs §12f) - the service's page is its SEARCH
-      // FORM, which would only throw the user back to the start of their own search - so the row opens
-      // the branch's details instead, with the reason, the phones and the watch. The red button the
-      // availability probe painted on this row said so before the click (docs §12h).
+      // The branch's OWN appointments page when a past visit keys one - the button only ever opens a
+      // page belonging to the clinic on the row. When no handle exists there is no such page in Tamuz
+      // (docs §12f), so the click leaves the list exactly where it is and the row says why: no dialog,
+      // and never the service's search form.
       const visitGuid = await pastVisitGuidFor(code);
       if (!visitGuid) {
-        captionLoader(NO_DIARY_DETAILS_NOTE);
-        await openDetails({
-          code,
-          fallbackHref: nearmeHref(code),
-          note: NO_DIARY_SWEEP_NOTE,
-          onComposed: () => setSiteLoader(false)
-        }).catch(() => setSiteLoader(false));
+        markUnbookable(code);
+        setSiteLoader(false);
         return;
       }
 

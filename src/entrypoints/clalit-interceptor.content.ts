@@ -25,14 +25,12 @@ import {
   filterSmileEnvelope,
   MINT_CODE_ATTR,
   NO_DIARY_ROW_NOTE,
-  SMILE_MARKER_ATTR,
-  WATCH_CODE_ATTR
+  SMILE_MARKER_ATTR
 } from "../lib/smile";
 import { createSmileAggregation, type MarkedSmileOutcome } from "../lib/smile-aggregation";
 import { createAvailabilityProbe } from "../lib/smile-availability";
 import { createRowActions } from "../lib/smile-row-actions";
 import { createSmileSession } from "../lib/smile-session";
-import { createBranchWatch } from "../lib/smile-watch";
 import {
   CONTENT_MATCHES,
   GUARANTEE_MODE,
@@ -64,8 +62,8 @@ export default defineContentScript({
     // One shared view of the server session: what was searched, which services answer, whether we are
     // still the active generation. Everything else in this file reads and writes it.
     const session = createSmileSession(nativeFetch);
-    // A branch whose diary opened while it was being watched: remember the service that listed it, so
-    // the next click sweeps that one FIRST and reaches the slots page in one search instead of three.
+    // A branch the availability probe found listed: remember the service that listed it, so the next
+    // click sweeps that one FIRST and reaches the slots page in one search instead of three.
     const knownSpecializationByNavCode = new Map<string, string>();
     const availability = createAvailabilityProbe({
       session,
@@ -83,15 +81,7 @@ export default defineContentScript({
     const rowActions = createRowActions({
       session,
       visitGuidsByClinicTitle: options => aggregation.visitGuidsByClinicTitle(options),
-      knownSpecializationByNavCode,
-      offerWatch: offer => branchWatch.offer(offer)
-    });
-    const branchWatch = createBranchWatch({
-      session,
-      isMintInFlight: () => rowActions.isMintInFlight(),
-      onDiaryFound({ navCode, specialization }) {
-        knownSpecializationByNavCode.set(navCode, specialization);
-      }
+      knownSpecializationByNavCode
     });
     if (import.meta.env.DEV) {
       installDevTakeover({
@@ -206,14 +196,6 @@ export default defineContentScript({
 
       const { target } = e;
       if (!(target instanceof Element)) {
-        return;
-      }
-
-      const elWatchControl = target.closest(`[${WATCH_CODE_ATTR}]`);
-      if (elWatchControl) {
-        e.preventDefault();
-        e.stopPropagation();
-        branchWatch.toggle(elWatchControl.getAttribute(WATCH_CODE_ATTR) ?? "");
         return;
       }
 

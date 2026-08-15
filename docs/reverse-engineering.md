@@ -301,8 +301,7 @@ just died), then **always land in the booking flow** (Avi's call, 14.08): the br
 page when a past visit keys one (§12e), otherwise the service's own page
 (`SmileClinic/Index/ClalitSmile` - its SEARCH FORM, not an appointments page: it keeps the typed city but
 drops the service and shows no results, §12f). The button never ends on a modal now; the
-clinic's details - with the reason, the phones and the "עדכנו אותי כשייפתח תור" watch - live behind the
-row's own "מידע נוסף". Real rows are never intercepted - the native happy path is untouched.
+clinic's details - with the reason and the phones - live behind the row's own "מידע נוסף". Real rows are never intercepted - the native happy path is untouched.
 
 **Saying what the wait is** (added 2026-08-14; the sweep costs 3.0-5.6 s measured). Two site internals
 make it possible to speak through the site's own chrome instead of drawing our own:
@@ -323,7 +322,7 @@ make it possible to speak through the site's own chrome instead of drawing our o
   `#clinicDetailsLightbox`, one insertion point covers both lightboxes - and the prepend is synchronous,
   so a composed dialog can be annotated immediately while the native one is polled for.
 
-### 6e. Watching a branch until its diary opens (shipped 2026-08-14, evening)
+### 6e. Watching a branch until its diary opens (shipped 2026-08-14, REMOVED 2026-08-15)
 
 The sweep answers "is there a slot right now?"; the watch answers "tell me when there is one". Offered on
 the row and inside the fallback dialog after a miss, session-only, and deliberately cheap:
@@ -341,6 +340,14 @@ the row and inside the fallback dialog after a miss, session-only, and deliberat
 
 Verified live: armed on איילון while the list was the 91 (בדיקת רופא) search; the first tick found it
 under 92 after 13 s, the row flipped, and its button then reached the booking page with 2 open slots.
+
+**Removed on Avi's call (2026-08-15): "no need for update me button".** With no control to arm it the
+whole module was unreachable, so `smile-watch.ts`, the `WATCH_*` row constants and the interceptor's
+watch branch went with the button. What the watch existed for is now answered at render time instead: the
+availability probe (§12h) asks the same city-sorted question for every appended branch at once and paints
+the ones nothing lists, so the list says "not bookable" without anyone arming anything. The mechanism
+itself survives as `session.listedNavCodes`, which the probe calls - this section documents how it works
+and why it is cheap.
 
 ### 6d. The restore document - "back" from a slots page (captured 2026-08-14, afternoon)
 
@@ -825,7 +832,7 @@ Three facts make it useful:
   handle at click time - `/Zimunet/Visits` returns the same list if the home page is inconvenient.
 
 **Shipped** (`0056ee0`): after a failed sweep the row navigates here when the user has a past visit at
-that branch, and only falls back to the composed lightbox + watch when there is no visit to key on. So
+that branch (and since 2026-08-15 does nothing at all when there is no visit to key on either). So
 רמת אביב - a branch with no diary in any service - now opens its own appointments page, with Clalit's own
 "temporarily not bookable online" message, instead of a modal.
 
@@ -925,9 +932,12 @@ list now asks the question once, right after it is complete:
      "מידע נוסף" - the rounding is pixels. The PNG's alpha corner is a quarter circle of **radius 5**
      (full opacity first reached at (5,0) and (0,5)), so the red button repaints that same geometry:
      `border-radius: 5px` plus a top-to-bottom red gradient in place of the sprite's blue one.
-- **The click, now.** Diary found by the sweep → the branch's slots page. No diary but a past visit at
-  THAT clinic → `AvailableVisit/Index/{visitGuid}` (§12e). Neither → the branch's details lightbox with
-  the reason, its phones and the watch - never the service's search form again (§12f).
+- **The click contract (Avi, 2026-08-15): the button opens a page belonging to the clinic on the row, or
+  nothing.** Diary found by the click-time sweep → that branch's slots page. No diary but a past visit at
+  THAT clinic → its own `AvailableVisit/Index/{visitGuid}` (§12e). Neither → no such page exists (§12f),
+  so the click does not navigate at all: the list stays where it is and the row repaints itself red with
+  "בדקנו עכשיו את כל שירותי כללית סמייל…". No service search form (§12f), no lightbox standing in for a
+  page, no watch offer (§6e) - the details lightbox is what "מידע נוסף" is for.
 
 **Service hours, observed 2026-08-15 00:20:** every Smile search answered `errorType: 3` for every city
 and every service, while `Diary/GetCities` answered `errorType: 0` on the same session - the session was

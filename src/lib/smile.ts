@@ -137,7 +137,7 @@ const CALL_INSTEAD = "ניתן להתקשר למרפאה או למוקד";
 /** On a synthetic row: this search's service has no online diary for the branch. */
 export const NO_DIARY_ROW_NOTE = `אין יומן מקוון לשירות זה - ${CALL_INSTEAD}`;
 
-/** In the fallback lightbox: the click-time sweep just checked every service and found none (docs §6c). */
+/** After a click-time sweep found no service listing the branch - on the row and in its lightbox. */
 export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו את כל שירותי כללית סמייל ואין יומן מקוון לסניף זה - ${CALL_INSTEAD}`;
 
 /** On the loader once the sweep hits: the iframe is about to navigate to the branch's slots page. */
@@ -145,9 +145,6 @@ export const MINT_NAVIGATE_NOTE = "נמצא יומן - פותחים את התו�
 
 /** On the loader when the sweep missed but the branch has a past visit to open its own page with. */
 export const VISIT_APPOINTMENTS_NOTE = "פותחים את דף התורים של המרפאה";
-
-/** On the loader when nothing keys a page for this branch: its details, with the reason and the watch. */
-export const NO_DIARY_DETAILS_NOTE = "אין יומן מקוון לסניף - פותחים את פרטי המרפאה";
 
 /** On a row the availability probe found bookable under ANOTHER service - the button still works. */
 export const OTHER_SERVICE_ROW_NOTE = "יש יומן מקוון לסניף בשירות אחר - לחצו \"לכל התורים\"";
@@ -161,53 +158,6 @@ export function sweepStepNote({ step, total }: {
   total: number;
 }): string {
   return `בודקים אם יש יומן מקוון לסניף - שירות ${step} מתוך ${total}`;
-}
-
-// ── Watching a branch until its diary opens ────────────────────────────────────
-
-/** Marks the "watch this branch" control (value = branch code) the interceptor's click handler owns. */
-export const WATCH_CODE_ATTR = "data-clalit-city-watch-code";
-
-/** Offered after a sweep found nothing: the branch's diary can open later the same day. */
-export const WATCH_START_LABEL = "עדכנו אותי כשייפתח תור";
-export const WATCH_STOP_LABEL = "הפסיקו לבדוק";
-export const WATCH_ACTIVE_NOTE = "בודקים ברקע כל כמה דקות ונעדכן כאן ברגע שייפתח תור";
-export const WATCH_HIT_NOTE = "נפתח תור לסניף! לחצו על \"לכל התורים\"";
-
-/** The scheduler dropped our session (errorType 2) - only a reload gets it back. */
-export const SESSION_LOST_NOTE = "פג תוקף החיבור לזימון התורים - רעננו את העמוד ונסו שוב";
-
-/**
- * The watch control, cloned from the row's own "מידע נוסף" button so it carries the site's exact button
- * classes. Kept next to it inside the row's action column; in the lightbox it sits under the note.
- */
-export function setWatchControl({ elHost, code, label, elButtonTemplate }: {
-  elHost: Element;
-  code: string;
-  label: string;
-  elButtonTemplate?: Element | null;
-}): void {
-  const { ownerDocument } = elHost;
-  const elExisting = elHost.querySelector(`[${WATCH_CODE_ATTR}]`);
-  if (elExisting) {
-    elExisting.textContent = label;
-    elExisting.setAttribute("title", label);
-    return;
-  }
-
-  const elWatch = elButtonTemplate?.cloneNode(false);
-  const elControl = elWatch instanceof Element ? elWatch : ownerDocument.createElement("a");
-  for (const attribute of elControl.getAttributeNames()) {
-    if (attribute !== "class") {
-      elControl.removeAttribute(attribute);
-    }
-  }
-
-  elControl.setAttribute(WATCH_CODE_ATTR, code);
-  elControl.setAttribute("role", "button");
-  elControl.setAttribute("title", label);
-  elControl.textContent = label;
-  elHost.appendChild(elControl);
 }
 
 /** Retext a row's note in place, keeping the *2700 hotline link the note was built with. */
@@ -225,24 +175,6 @@ export function setRowNote({ elRow, text }: {
 
   if (elHotline) {
     elNote.appendChild(elHotline);
-  }
-}
-
-/** Repoint a watched row at the state it is in: the note text plus the control's label. */
-export function setRowWatchState({ elRow, note, label }: {
-  elRow: Element;
-  note: string;
-  label: string;
-}): void {
-  setRowNote({
-    elRow,
-    text: note
-  });
-
-  const elControl = elRow.querySelector(`[${WATCH_CODE_ATTR}]`);
-  if (elControl) {
-    elControl.textContent = label;
-    elControl.setAttribute("title", label);
   }
 }
 
