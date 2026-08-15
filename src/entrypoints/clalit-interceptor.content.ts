@@ -68,15 +68,9 @@ export default defineContentScript({
     // One shared view of the server session: what was searched, which services answer, whether we are
     // still the active generation. Everything else in this file reads and writes it.
     const session = createSmileSession(nativeFetch);
-    // A branch the availability probe found listed: remember the service that listed it, so the next
-    // click sweeps that one FIRST and reaches the slots page in one search instead of three.
-    const knownSpecializationByNavCode = new Map<string, string>();
     const availability = createAvailabilityProbe({
       session,
-      isMintInFlight: () => rowActions.isMintInFlight(),
-      onDiaryFound({ navCode, specialization }) {
-        knownSpecializationByNavCode.set(navCode, specialization);
-      }
+      isMintInFlight: () => rowActions.isMintInFlight()
     });
     const aggregation = createSmileAggregation({
       session,
@@ -86,11 +80,7 @@ export default defineContentScript({
       bookabilityOf: navCode => availability.verdictFor(navCode),
       soonestFor: navCode => availability.soonestFor(navCode)
     });
-    const rowActions = createRowActions({
-      session,
-      visitGuidsByClinicTitle: options => aggregation.visitGuidsByClinicTitle(options),
-      knownSpecializationByNavCode
-    });
+    const rowActions = createRowActions({ session });
     if (import.meta.env.DEV) {
       installDevTakeover({
         script: "interceptor",

@@ -1,16 +1,17 @@
 /**
- * Which of the appended branches can actually be booked right now, decided BEFORE the user clicks.
+ * Whether an appended branch can be booked FOR THE SERVICE THE USER SEARCHED, decided before they click.
  *
- * A synthetic row means "the searched service has no diary here" - it does not mean the branch is
- * unbookable: the same clinic often has a diary under another Smile service, which is exactly what the
- * click-time sweep goes looking for. Only asking the other services can tell the two apart, so this runs
- * that question once per rendered list, cheaply: one search per remaining service, re-sorted by distance
- * from the searched city so the city's own branches sit on the first pages (docs §6c).
+ * The row exists because that service's search did not list the branch - but the diary set moves during
+ * the day (docs §6c), so the question is worth asking once more with a fresh search: a diary opened
+ * minutes ago is exactly the case the user's own search cannot know about. Nothing else counts. A diary
+ * under ANOTHER Smile service is not this row's business: its slots page books a different appointment
+ * than the one the user came here for, and offering it reads as a hygienist search answering with a
+ * dentist's calendar.
  *
- * Every search here is a FOREIGN search - it replaces what the session holds and kills the displayed
- * rows' GUIDs - so the probe restores the user's own search before it marks anything, exactly like a
- * watch tick. Verdicts are cached for a few minutes because a sort re-renders the list (and re-runs the
- * aggregation) without changing which branches have diaries.
+ * The search this runs is a FOREIGN search - it replaces what the session holds and kills the displayed
+ * rows' GUIDs - so the probe restores the user's own search before it marks anything. Verdicts are
+ * cached for a few minutes because a sort re-renders the list (and re-runs the aggregation) without
+ * changing which branches have diaries.
  */
 
 import type { SmileSession } from "./smile-session";
@@ -18,25 +19,17 @@ import type { SmileSession } from "./smile-session";
 /** The diary set moves during the day (docs §6c), so a verdict is a snapshot with a short life. */
 const VERDICT_TTL_MS = 5 * 60_000;
 
-export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound, now = Date.now }: {
+export function createAvailabilityProbe({ session, isMintInFlight, now = Date.now }: {
   session: SmileSession;
-  /** A click-time sweep is already talking to the server; probing now would only fight it. */
+  /** A click-time check is already talking to the server; probing now would only fight it. */
   isMintInFlight: () => boolean;
-  /** Which service listed a branch, so a later click mints in one search instead of three. */
-  onDiaryFound: (found: {
-    navCode: string;
-    specialization: string;
-  }) => void;
   now?: () => number;
 }) {
   const verdicts = new Map<string, {
     isBookable: boolean;
     decidedAt: number;
-    /** The row that proved it bookable, and what it said - the only place that date exists for us. */
-    soonest: {
-      date: string;
-      specialization: string;
-    } | null;
+    /** The row that proved it bookable is the only place its soonest slot exists for us. */
+    soonest: string | null;
   }>();
 
   function liveVerdict(navCode: string) {
@@ -48,7 +41,7 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
     return liveVerdict(navCode)?.isBookable ?? null;
   }
 
-  /** The soonest slot the probe saw for a branch, with the service whose diary it belongs to. */
+  /** The branch's soonest slot in the searched service, as the row that listed it printed it. */
   function soonestFor(navCode: string) {
     return liveVerdict(navCode)?.soonest ?? null;
   }
@@ -56,10 +49,7 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
   function remember({ navCode, isBookable, soonest = null }: {
     navCode: string;
     isBookable: boolean;
-    soonest?: {
-      date: string;
-      specialization: string;
-    } | null;
+    soonest?: string | null;
   }) {
     verdicts.set(navCode, {
       isBookable,
@@ -68,45 +58,21 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
     });
   }
 
-  /**
-   * Ask every service the session still believes in, stopping as soon as every branch is accounted for.
-   * The service the user searched is skipped: these rows exist precisely because it did not list them.
-   */
+  /** Ask the searched service, once, whether it lists these branches now. */
   async function probe(navCodes: Set<string>) {
-    const pending = new Set(navCodes);
-    const specializations = session.bookableSpecializations()
-      .filter(code => code !== session.state.activeSearchSpecialization);
-
-    for (const specialization of specializations) {
-      if (pending.size === 0 || !session.isActive() || isMintInFlight()) {
-        break;
-      }
-
-      const listed = await session.listedBranches({
+    const specialization = session.state.activeSearchSpecialization;
+    const listed = session.isSpecializationEmpty(specialization)
+      ? new Map<string, string>()
+      : await session.listedBranches({
         specialization,
-        navCodes: pending
+        navCodes
       }).catch(() => new Map<string, string>());
-      for (const [navCode, date] of listed) {
-        pending.delete(navCode);
-        remember({
-          navCode,
-          isBookable: true,
-          soonest: date ? {
-            date,
-            specialization
-          } : null
-        });
-        onDiaryFound({
-          navCode,
-          specialization
-        });
-      }
-    }
 
-    for (const navCode of pending) {
+    for (const navCode of navCodes) {
       remember({
         navCode,
-        isBookable: false
+        isBookable: listed.has(navCode),
+        soonest: listed.get(navCode) || null
       });
     }
 

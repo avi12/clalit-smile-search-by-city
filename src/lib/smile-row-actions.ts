@@ -27,6 +27,7 @@ import {
   BRANCH_PAGE_NOTE,
   buildUnavailableMessageHtml,
   detailsLinkFromRowHtml,
+  MINT_CHECK_NOTE,
   MINT_NAVIGATE_NOTE,
   rowNavCode,
   scanEnvelopeForNavCode,
@@ -34,21 +35,13 @@ import {
   slotsLinkFromRowHtml,
   SMILE_ENVELOPE_STATUS,
   SMILE_SLOTS_PATH,
-  sweepStepNote,
   SYNTHETIC_ROW_ATTR,
-  UNAVAILABLE_BUTTON_TITLE,
-  VISIT_APPOINTMENTS_NOTE
+  UNAVAILABLE_BUTTON_TITLE
 } from "./smile";
 import { TAILORED_BRANCH_HASH } from "./smile-clinic-page";
 import type { SmileSession } from "./smile-session";
-import { VISIT_APPOINTMENTS_PATH } from "./targets";
 
-export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecializationByNavCode }: {
-  session: SmileSession;
-  visitGuidsByClinicTitle: (options?: { isRefreshed?: boolean }) => Promise<Map<string, string>>;
-  /** Filled by the availability probe: the service that listed a branch, so the sweep tries it first. */
-  knownSpecializationByNavCode: Map<string, string>;
-}) {
+export function createRowActions({ session }: { session: SmileSession }) {
   let isMintInFlight = false;
 
   function branchByCode(code: string) {
@@ -134,63 +127,21 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
     return scan.actionLink;
   }
 
-  /** Sweep the services worth asking, the one that listed this branch before (or was searched) first. */
-  async function mintDiaryLink({ navCode, onStep }: {
-    navCode: string;
-    onStep: (progress: {
-      step: number;
-      total: number;
-    }) => void;
-  }) {
-    const preferred = [knownSpecializationByNavCode.get(navCode), session.state.activeSearchSpecialization]
-      .filter((code): code is string => code !== undefined && !session.isSpecializationEmpty(code));
-    const otherCodes = session.bookableSpecializations().filter(code => !preferred.includes(code));
-    const specializations = [...new Set([...preferred, ...otherCodes])];
-    for (const [i, specialization] of specializations.entries()) {
-      if (!session.isActive()) {
-        return null;
-      }
-
-      onStep({
-        step: i + 1,
-        total: specializations.length
-      });
-      try {
-        const link = await scanSearchForBranch({
-          specialization,
-          navCode
-        });
-        if (link) {
-          return link;
-        }
-      } catch { /* one service failing must not end the sweep */ }
-    }
-
-    return null;
-  }
-
   /**
-   * The branch's own appointments page needs a visit handle, so a branch is only reachable that way once
-   * the user has been treated there. The handles rotate with every render of the visits list, so this
-   * always reads a fresh one rather than the map cached for the details lightbox.
-   *
-   * Only THIS clinic's own visit counts. The visits list also holds neighbours that share an address -
-   * "מרכז מומחים מגדל המאה" is an ophthalmology diary in the same building (docs §12g) - and their pages
-   * carry their name, their phone and their profession. A branch with no visit of its own gets a page
-   * tailored to it instead (smile-clinic-page.ts), which is what the row promised.
+   * A diary for this branch in the SERVICE THE USER SEARCHED, minted fresh - the diary set moves during
+   * the day, so a branch the search omitted may have one by the time the button is clicked. No other
+   * service is asked: its slots page books a different appointment than the row promises.
    */
-  async function pastVisitGuidFor(code: string) {
-    const branch = branchByCode(code);
-    if (!branch) {
+  async function mintDiaryLink(navCode: string) {
+    const specialization = session.state.activeSearchSpecialization;
+    if (!session.isActive() || session.isSpecializationEmpty(specialization)) {
       return null;
     }
 
-    const detailsByTitle = await visitGuidsByClinicTitle({ isRefreshed: true }).catch(() => null);
-    if (!detailsByTitle) {
-      return null;
-    }
-
-    return detailsByTitle.get(branch.title) ?? null;
+    return await scanSearchForBranch({
+      specialization,
+      navCode
+    }).catch(() => null);
   }
 
   /**
@@ -235,10 +186,8 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
     isMintInFlight = true;
     setSiteLoader(true);
     try {
-      const link = await mintDiaryLink({
-        navCode: code,
-        onStep: progress => captionLoader(sweepStepNote(progress))
-      }).catch(() => null);
+      captionLoader(MINT_CHECK_NOTE);
+      const link = await mintDiaryLink(code);
       if (link && !session.state.isSuperseded) {
         // Loader stays up while the iframe navigates away, exactly like the site's own button.
         captionLoader(MINT_NAVIGATE_NOTE);
@@ -252,18 +201,9 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
         return;
       }
 
-      // The branch's OWN appointments page when a past visit keys one - the button only ever opens a
-      // page belonging to the clinic on the row. When no handle exists there is no such page in Tamuz
-      // (docs §12f), so the click leaves the list exactly where it is and the row says why: no dialog,
-      // and never the service's search form.
-      const visitGuid = await pastVisitGuidFor(code);
-      if (visitGuid) {
-        captionLoader(VISIT_APPOINTMENTS_NOTE);
-        window.location.assign(`${VISIT_APPOINTMENTS_PATH}${visitGuid}`);
-        return;
-      }
-
-      // Nothing Tamuz mints belongs to this branch, so the row borrows the site's own appointments page:
+      // No page of the SEARCHED service exists for this branch, and a page of another service is not
+      // what the row promised - a past visit's own appointments page carries that visit's profession
+      // (docs §12g), so it is not offered either. The row borrows the site's own appointments page:
       // a REAL diary's slots page carries the branch's code in its hash, and smile-clinic-page.ts
       // retitles it and answers its availability calls with the site's own empty month (docs §12i).
       const borrowedPage = liveSlotsLink() ?? slotsLinkFromRowHtml(session.state.latestTemplateRowHtml);

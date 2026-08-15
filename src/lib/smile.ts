@@ -11,7 +11,6 @@
 
 import type { SmileBranch } from "./clinic-directory";
 import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "./schemas";
-import { SMILE_SPECIALIZATION_SELECT_SELECTOR } from "./targets";
 
 /** The envelope's `errorType` values, from the site's own `z.ErrorType` (docs 12a). */
 export const SMILE_ENVELOPE_STATUS = {
@@ -140,36 +139,26 @@ const CALL_INSTEAD = "ניתן להתקשר למרפאה או למוקד";
 /** On a synthetic row: this search's service has no online diary for the branch. */
 export const NO_DIARY_ROW_NOTE = `אין יומן מקוון לשירות זה - ${CALL_INSTEAD}`;
 
-/** After a click-time sweep found no service listing the branch - on the row and in its lightbox. */
-export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו את כל שירותי כללית סמייל ואין יומן מקוון לסניף זה - ${CALL_INSTEAD}`;
+/** After a click-time check found no diary for the SEARCHED service - on the row and in its lightbox. */
+export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו ואין יומן מקוון לשירות שביקשתם בסניף זה - ${CALL_INSTEAD}`;
 
-/** On the loader once the sweep hits: the iframe is about to navigate to the branch's slots page. */
+/** On the loader once the check hits: the iframe is about to navigate to the branch's slots page. */
 export const MINT_NAVIGATE_NOTE = "נמצא יומן - פותחים את התורים";
-
-/** On the loader when the sweep missed but the branch has a past visit to open its own page with. */
-export const VISIT_APPOINTMENTS_NOTE = "פותחים את דף התורים של המרפאה";
 
 /** On the loader while the branch's own appointments page (a borrowed shell) is opening. */
 export const BRANCH_PAGE_NOTE = "פותחים את דף התורים של הסניף";
 
-/** On a row the availability probe found bookable under ANOTHER service - the button still works. */
-export const OTHER_SERVICE_ROW_NOTE = "יש יומן מקוון לסניף בשירות אחר - לחצו \"לכל התורים\"";
-
-/** On a row the probe found nowhere: no service lists this branch right now, so nothing opens. */
-export const NO_SERVICE_ROW_NOTE = `אין כרגע יומן מקוון לסניף בשום שירות של כללית סמייל - ${CALL_INSTEAD}`;
+/** On a row nothing can be booked at in the searched service - the only claim this row ever makes. */
+export const NO_SERVICE_ROW_NOTE = `אין כרגע יומן מקוון לשירות שביקשתם בסניף זה - ${CALL_INSTEAD}`;
 
 /** In the site's own message box, after a click found no page to open for the branch. */
-const NO_ONLINE_DIARY_MESSAGE = "בדקנו עכשיו את כל שירותי כללית סמייל ואין יומן מקוון לסניף זה, ולכן אין דף תורים לפתוח.";
+const NO_ONLINE_DIARY_MESSAGE =
+  "בדקנו עכשיו ואין יומן מקוון לשירות שביקשתם בסניף זה, ולכן אין דף תורים לפתוח.";
 const CALL_TO_BOOK = "לקביעת תור:";
 const OR_CENTRAL_LINE = "או במוקד";
 
-/** On the loader during the sweep - the wait is one fresh search per service, so say which one. */
-export function sweepStepNote({ step, total }: {
-  step: number;
-  total: number;
-}) {
-  return `בודקים אם יש יומן מקוון לסניף - שירות ${step} מתוך ${total}`;
-}
+/** On the loader while the click re-asks the SEARCHED service whether a diary has opened since. */
+export const MINT_CHECK_NOTE = "בודקים אם נפתח יומן מקוון לשירות שביקשתם בסניף";
 
 /** Retext a row's note in place, keeping the *2700 hotline link the note was built with. */
 export function setRowNote({ elRow, text }: {
@@ -208,7 +197,7 @@ const UNAVAILABLE_BUTTON_STYLE = {
 };
 
 /** What a red button promises when hovered - the same sentence the row's note carries. */
-export const UNAVAILABLE_BUTTON_TITLE = "אין כרגע תור מקוון לסניף זה";
+export const UNAVAILABLE_BUTTON_TITLE = "אין כרגע תור מקוון לשירות שביקשתם בסניף זה";
 
 /** Tint (or clear) a synthetic row's "לכל התורים" button by whether anything can be opened for it. */
 export function setRowBookable({ elRow, isBookable, title }: {
@@ -351,37 +340,21 @@ export function buildUnavailableMessageHtml(branch: SmileBranch) {
 }
 
 /**
- * Fill the row's soonest-slot line, or remove it. The LABEL is the lender row's own - the site is the
- * one that decides how that line reads - with the service appended, because this branch's date comes
- * from a different diary than the one the user searched.
+ * Fill the row's soonest-slot line, or remove it. The LABEL is the lender row's own - the site decides
+ * how that line reads - and the date is always the SEARCHED service's, so it needs no qualifier: a row
+ * that cannot be booked for what the user asked for shows no date at all.
  */
-function setSoonestSlotLine({ elLine, soonestSlot }: {
+function setSoonestSlotLine({ elLine, soonestSlotDate }: {
   elLine: Element;
-  soonestSlot: {
-    date: string;
-    service: string;
-  } | null;
+  soonestSlotDate: string | null;
 }) {
-  if (!soonestSlot) {
+  if (!soonestSlotDate) {
     elLine.remove();
     return;
   }
 
   const [label] = (elLine.textContent ?? "").split(":");
-  const { date, service } = soonestSlot;
-  elLine.textContent = service ? `${label.trim()} (${service}): ${date}` : `${label.trim()}: ${date}`;
-}
-
-/** A service's own name, read off the site's specialization select - the site owns those words. */
-export function specializationLabel({ ownerDocument, specialization }: {
-  ownerDocument: Document;
-  specialization: string;
-}) {
-  const elSelect = ownerDocument.querySelector(SMILE_SPECIALIZATION_SELECT_SELECTOR);
-  const elOption = elSelect instanceof HTMLSelectElement
-    ? [...elSelect.options].find(option => option.value === specialization)
-    : undefined;
-  return elOption?.textContent?.trim() ?? "";
+  elLine.textContent = `${label.trim()}: ${soonestSlotDate}`;
 }
 
 export interface BranchRowInput {
@@ -399,14 +372,11 @@ export interface BranchRowInput {
    */
   isBookable: boolean | null;
   /**
-   * The soonest slot the probe saw for this branch, named by the service whose diary it belongs to.
-   * This row exists because the SEARCHED service has no diary here, so an unnamed date would promise an
-   * appointment this search cannot book - the service is part of the claim, not a footnote.
+   * The soonest slot for this branch IN THE SEARCHED SERVICE - the only date this row may carry. A
+   * branch with a diary in some other service is not this row's business: the page such a date belongs
+   * to books a different appointment than the one the user came here for.
    */
-  soonestSlot: {
-    date: string;
-    service: string;
-  } | null;
+  soonestSlotDate: string | null;
 }
 
 /**
@@ -422,7 +392,7 @@ export function applyBranchToRow({
   detailsVisitGuid,
   isBookable,
   distanceKm,
-  soonestSlot
+  soonestSlotDate
 }: BranchRowInput) {
   const { code, title, street, city, phones } = branch;
   elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
@@ -463,7 +433,7 @@ export function applyBranchToRow({
       // put there the line goes, rather than standing with the lender row's own.
       setSoonestSlotLine({
         elLine: elDetail,
-        soonestSlot
+        soonestSlotDate
       });
     } else if (text.includes("מרחק") && distanceKm === null) {
       // A distance line we cannot fill would leave the lender row's own number standing.

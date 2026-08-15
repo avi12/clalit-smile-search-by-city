@@ -21,7 +21,6 @@ import {
   setHeaderCount,
   SMILE_MARKER_ATTR,
   type SmileFilterOutcome,
-  specializationLabel,
   SYNTHETIC_ROW_ATTR
 } from "./smile";
 import type { SmileSession } from "./smile-session";
@@ -98,10 +97,7 @@ function appendMissingBranches({
   templateRowHtml: string;
   detailsByTitle: Map<string, string>;
   bookabilityOf: (navCode: string) => boolean | null;
-  soonestOf: (navCode: string) => {
-    date: string;
-    service: string;
-  } | null;
+  soonestOf: (navCode: string) => string | null;
   distances: Map<string, number>;
 }) {
   const elTemplate =
@@ -128,7 +124,7 @@ function appendMissingBranches({
       branch,
       detailsVisitGuid: detailsByTitle.get(branch.title) ?? null,
       isBookable: bookabilityOf(branch.code),
-      soonestSlot: soonestOf(branch.code),
+      soonestSlotDate: soonestOf(branch.code),
       distanceKm: distances.get(branch.code) ?? null
     });
     elList.appendChild(elRowClone);
@@ -153,11 +149,8 @@ export function createSmileAggregation({
   ensureVerdicts: (navCodes: string[]) => Promise<void>;
   /** What the probe knows about a branch, so the row is BUILT in that state and never repainted. */
   bookabilityOf: (navCode: string) => boolean | null;
-  /** The soonest slot the probe saw, and the service whose diary it came from. */
-  soonestFor: (navCode: string) => {
-    date: string;
-    specialization: string;
-  } | null;
+  /** The soonest slot the probe saw for a branch, in the service the user searched. */
+  soonestFor: (navCode: string) => string | null;
 }) {
   const liveDistance = createLiveDistanceSort(() => session.isActive());
   let aggregationRun = 0;
@@ -294,23 +287,13 @@ export function createSmileAggregation({
       return;
     }
 
-    const { ownerDocument } = elList;
     const added = appendMissingBranches({
       elList,
       branches,
       templateRowHtml,
       detailsByTitle,
       bookabilityOf,
-      soonestOf(navCode) {
-        const soonest = soonestFor(navCode);
-        return soonest && {
-          date: soonest.date,
-          service: specializationLabel({
-            ownerDocument,
-            specialization: soonest.specialization
-          })
-        };
-      },
+      soonestOf: soonestFor,
       distances
     });
     if (added) {

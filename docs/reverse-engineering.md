@@ -948,6 +948,36 @@ list now asks the question once, right after it is complete:
   list unchanged reads as a broken button, which is exactly how it was reported. No service search form
   (§12f), no lightbox standing in for a page, no watch offer (§6e).
 
+### 12k. A slots page belongs to a (clinic, SERVICE) pair - and says so (captured 2026-08-15, 16:00)
+
+Measured, after Avi caught a hygienist search offering a dentist's calendar. The page a diary GUID opens
+names its own service in the first line under the title:
+
+| searched | row | GUID minted under | page opened | first line |
+| --- | --- | --- | --- | --- |
+| שיננית (92) | ירמיהו (appended) | בדיקת רופא (91) - the probe's find | `AvailableVisit/Smile/c567d949…` | `תור לבדיקת רופא שיניים` |
+| שיננית (92) | ירמיהו (appended) | none - borrowed page (§12i) | `AvailableVisit/Smile/aa6faeea…#clalit-city-clinic=865016` | `תור לשיננות` |
+
+So "the button opens a page belonging to the clinic on the row" (§12h) was not enough: a GUID from another
+specialization opens that specialization's booking page, with the branch's own name on it. Under a
+hygienist search it reads as a hygienist appointment and books a dentist check-up.
+
+**The contract now (Avi, 2026-08-15): a row answers for the SERVICE THE USER SEARCHED, or not at all.**
+
+- The availability probe asks ONE service - the searched one - with a fresh search (`listedBranches`,
+  §6c's mechanism), because the diary set moves during the day and the user's own search may be minutes
+  old. Any other service's answer is discarded: it cannot be offered, so it is not worth knowing.
+- The click-time mint asks the same one service. The multi-service sweep is gone, and with it the
+  "which service listed this branch" memo the sweep used to order its attempts.
+- A branch with no diary in that service opens the BORROWED page (§12i) instead - a real row of the
+  current search carries the searched service, so the page reads `תור לשיננות`, wears the branch's own
+  name, address and phones, and shows the site's own empty month. Verified live: 0 clickable days, 0 slot
+  links, no string of the lender anywhere, and the note "אין כרגע יומן מקוון לשירות שביקשתם בסניף זה".
+- The past-visit route (§12e) is no longer offered from the row: that page carries the VISIT's profession
+  (§12g), which is the same mistake one step removed.
+- The soonest-slot line follows the same rule - printed only when the searched service has a date for
+  that branch, and never labelled with another service's name.
+
 ### 12j. An appended row reads as a server row (2026-08-15)
 
 Avi's rule: a row the extension adds must look like one the server sent. Measured against a real row,
