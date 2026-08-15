@@ -1026,11 +1026,11 @@ list now asks the question once, right after it is complete:
 - **An unsettled row is never red.** Red is a claim - "no Smile service lists this branch" - and only the
   probe can make it. When probing cannot run (a click-time sweep owns the session), the row keeps the
   site's own button and the milder note it already carries.
-- **The probe** (`smile-availability.ts`) takes the appended rows' nav codes and asks each remaining
-  service `session.listedNavCodes` - one fresh search, re-sorted by distance from the searched city so the
-  city's own branches sit first, then its first two pages (the watch tick's mechanism, §6c, now shared by
-  both callers). It stops as soon as every branch is accounted for, and always ends with
-  `restoreUserSearch` - these are FOREIGN searches and the rendered rows' GUIDs die with them.
+- **The probe** (`smile-availability.ts`) takes the appended rows' nav codes and asks the SEARCHED service
+  one fresh search, walked page by page (`session.sweepListedBranches`). It used to end with
+  `restoreUserSearch`, because a foreign search kills the rendered rows' GUIDs; since §12l it heals those
+  rows from its own envelopes instead and keeps its search as the session's, which is what makes a click
+  instant.
 - **Verdicts live 5 minutes.** A sort re-renders the list and re-runs the aggregation; without the cache
   every sort click would pay for the probe again. The diary set moves during the day, so the cache is a
   short-lived snapshot, not a session-long fact.
@@ -1057,6 +1057,44 @@ list now asks the question once, right after it is complete:
   its phones. Not navigating is right; not saying anything was not - a 6-second loader that ends with the
   list unchanged reads as a broken button, which is exactly how it was reported. No service search form
   (§12f), no lightbox standing in for a page, no watch offer (§6e).
+
+### 12l. The click cost 3.3 seconds, and where it went (measured 2026-08-15, evening)
+
+Avi asked why "לכל התורים" on an appended row sits under a loader before the page opens. Timed in the
+page itself (`performance.getEntriesByType("resource")`, one real click on ירמיהו / שיננית / תל אביב יפו):
+
+| phase | calls | ms |
+|---|---|---|
+| the hunt: a new all-country search in the searched service | 1 | 1382 |
+| its pages, scanned for the branch | 9 × `Paging` | 383 |
+| `restoreUserSearch`: the user's own search, put back | 1 | 1352 |
+| navigate | - | ~150 |
+| **total** | **11** | **3273** |
+
+Two searches are 94% of it. A server row skips all of it: its button is the site's own link, already
+carrying a live GUID.
+
+- **Parallel paging does NOT help - it hurts.** Fetching pages 2-6 concurrently measured **656 ms**
+  against **161 ms** sequentially, with byte-identical results (same nav codes per page, so the pager is
+  keyed by `pageNumber` alone and is safe to call out of order). The scheduler serialises a session's
+  calls, so concurrency only adds queueing. Whatever must be asked, ask it once and in order.
+- **So the work moved off the click.** The availability sweep (§12h) already ran one search per rendered
+  list and asked the same question; it now keeps what that search produced instead of undoing it:
+  1. it walks its own search to the end rather than stopping at page 2,
+  2. it heals every displayed real row's slots/details links from those same envelopes
+     (`refreshRowActionLinks`, the mechanism `restoreUserSearch` already used), and
+  3. it takes the **slots link** out of each row that proves a branch bookable.
+  Its search then simply stays the session's search - it asks exactly what the user's rewritten search
+  asks (this city, this service, all-country) - so there is nothing to restore and nothing on screen is
+  stale.
+- **What a click costs now.** A bookable appended branch carries a plain `data-action-link` and the
+  site's own delegated handler opens it; a branch the sweep did not list borrows a live row's page
+  (§12i) straight away. Measured on the same row: **194 ms, zero server calls** (down from 3273 ms and
+  11 calls). A real row's healed link opens its own clinic in the searched service in ~170 ms.
+- **The trade-off, deliberately.** The click no longer re-asks whether a diary opened since the list
+  rendered (§6c's intraday drift). The list is a snapshot, exactly as the site's own rows are, and the
+  sweep is that snapshot's moment. A branch with no fresh verdict at all - the 5-minute cache expired -
+  still falls back to the old click-time hunt.
 
 ### 12k. A slots page belongs to a (clinic, SERVICE) pair - and says so (captured 2026-08-15, 16:00)
 
