@@ -57,16 +57,32 @@ const DATEPICKER_SELECTOR_INNER = "#datepicker";
 const FILTERS_SELECTOR = "#filter-wrapper";
 const SLOTS_SELECTOR = ".day-part, .noAvailableQueuesNotFound, header.margin-right";
 
+const MONTHLY_PATH = "/AvailableVisit/GetMonthlyAvailableVisit";
+const DAILY_PATH = "/AvailableVisit/GetDailyAvailableVisit";
+
 /** Is this one of the two availability calls the slots page makes for its diary? */
 export function isAvailabilityUrl(url: string) {
-  return url.includes("/AvailableVisit/GetMonthlyAvailableVisit") ||
-    url.includes("/AvailableVisit/GetDailyAvailableVisit");
+  return url.includes(MONTHLY_PATH) || url.includes(DAILY_PATH);
 }
 
-/** What those calls answer with on a borrowed page: the site's own empty month. */
-export function emptyAvailabilityEnvelope() {
+/**
+ * What those calls answer with on a borrowed page - in the SHAPE each one really uses, which is not the
+ * same shape: an empty month answers with `data` as a plain HTML string, while the day call always
+ * answers with an object (`dailyAvailableVisits` plus the filter lists it feeds). Handing the day call a
+ * string breaks the site's own success handler, and the loader it raised is then never lowered - which
+ * is exactly how it showed up: a page stuck under the spinner.
+ */
+export function emptyAvailabilityEnvelope(url: string) {
   return {
-    data: EMPTY_MONTH_HTML,
+    data: url.includes(DAILY_PATH) ? {
+      dailyAvailableVisits: EMPTY_MONTH_HTML,
+      doctors: "",
+      genders: "",
+      familyDoctorProfessions: [],
+      familyVisitTypes: null,
+      familyClinics: null,
+      message: null
+    } : EMPTY_MONTH_HTML,
     errorType: 0,
     message: null
   };

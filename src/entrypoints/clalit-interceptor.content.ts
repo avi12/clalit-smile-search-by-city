@@ -403,7 +403,7 @@ export default defineContentScript({
         isTransformed: true,
         resultsCount: 0,
         inCityCount: 0,
-        json: emptyAvailabilityEnvelope()
+        json: emptyAvailabilityEnvelope(url)
       } : transformForUrl({
         json,
         url,
@@ -503,7 +503,7 @@ export default defineContentScript({
         isTransformed: true,
         resultsCount: 0,
         inCityCount: 0,
-        json: emptyAvailabilityEnvelope()
+        json: emptyAvailabilityEnvelope(url)
       } : transformForUrl({
         json,
         url,

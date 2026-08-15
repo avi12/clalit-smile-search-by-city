@@ -965,8 +965,14 @@ What the page is made of, and what had to change on it:
   `setDate` alone does nothing, because the site pins the view through those options. Every day anchor is
   then replaced by a `span.ui-state-default.ui-state-disabled`, and a `MutationObserver` on
   `#datepicker-wrapper` repeats that on each month change.
-- **The availability calls are answered with the site's own empty month.**
-  `GetMonthlyAvailableVisit` / `GetDailyAvailableVisit` normally return `{ data: "<html>", errorType, message }`;
+- **The two availability calls do NOT share a payload shape**, and getting that wrong is what left the
+  page stuck under the site's spinner (reported live): `GetMonthlyAvailableVisit` answers an EMPTY month
+  with `data` as a plain HTML string, while `GetDailyAvailableVisit` always answers with an object -
+  `{ dailyAvailableVisits: html, doctors: html, genders: html, familyDoctorProfessions: [], familyVisitTypes: null, familyClinics: null, message: null }`.
+  Handing the day call a string breaks the site's own success handler, which is where `z.Ajax` would have
+  hidden the loader it raised - so the spinner stays forever. Each call is now answered in its own shape.
+- **The empty state itself is the site's own.**
+  `GetMonthlyAvailableVisit` / `GetDailyAvailableVisit` normally return `{ data: …, errorType, message }`;
   for a month with nothing free the site itself returns
   `{"data":"<div class=\"clear-fix noAvailableQueuesNotFound\"><header class=\"margin-right bottom-border\">אין תורים פנויים בחודש הזה</header><div id=\"error-panel\" class=\"margin-right\"><p>לא קיימים תורים פנויים.</p></div></div>","errorType":0,"message":null}`
   (captured live). The interceptor returns exactly that on a borrowed page, so the empty state is
