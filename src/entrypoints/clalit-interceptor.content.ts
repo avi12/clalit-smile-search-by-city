@@ -38,6 +38,8 @@ import {
 import { createRowActions } from "../lib/smile-row-actions";
 import { createSmileSession } from "../lib/smile-session";
 import {
+  ALL_COUNTRY_AREA_VALUE,
+  CITY_AREA_VALUE,
   CONTENT_MATCHES,
   GUARANTEE_MODE,
   isInterestingUrl,
@@ -141,7 +143,9 @@ export default defineContentScript({
         json
       };
       const city = session.city();
-      if (session.state.isSuperseded || !session.state.isEnabled || !city) {
+      // "מרפאות מכל הארץ" asks for the whole country; filtering that to one city would answer a
+      // question the user did not ask, so every response of such a search is passed through as it came.
+      if (session.state.isSuperseded || !session.state.isEnabled || !city || !session.state.isCitySearch) {
         return untouched;
       }
 
@@ -636,10 +640,17 @@ export default defineContentScript({
         session.state.activeSort = "cityDistance";
         session.state.isSortDescending = false;
 
+        // Which of the form's two radios this is. "מרפאות מכל הארץ" is a request for the whole country,
+        // so the guarantee stands down for it entirely - see SmileSessionState.isCitySearch.
+        session.state.isCitySearch = submitted.get(SMILE_AREA_FIELD) !== ALL_COUNTRY_AREA_VALUE;
+
         // City completeness: search the WHOLE country, then filter - the area subset can miss some of
         // the city's own clinics, and rows spliced from a second search would carry dead session GUIDs.
-        if (session.city()) {
-          outgoing = outgoing.replace(`${SMILE_AREA_FIELD}=1`, `${SMILE_AREA_FIELD}=0`);
+        if (session.city() && session.state.isCitySearch) {
+          outgoing = outgoing.replace(
+            `${SMILE_AREA_FIELD}=${CITY_AREA_VALUE}`,
+            `${SMILE_AREA_FIELD}=${ALL_COUNTRY_AREA_VALUE}`
+          );
         }
       }
 

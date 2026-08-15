@@ -160,8 +160,15 @@ export const SMILE_DETAILS_DIALOG_SELECTOR = "#clinicDetailsLightbox";
  */
 export const SITE_LOADER_SELECTOR = "div.loader.lottie";
 
-/** Search-form field: "1" = clinics from the searched city's area, "0" = the whole country. */
+/**
+ * Search-form field: which of the form's two radios was submitted. The guarantee only ever applies to
+ * the city one - "מרפאות מכל הארץ" is a request the extension has no business narrowing.
+ */
 export const SMILE_AREA_FIELD = "IsShowClinicsFromAreaCity";
+/** "מרפאות מאזור היישוב" - the city's own area, and the only search the guarantee touches. */
+export const CITY_AREA_VALUE = "1";
+/** "מרפאות מכל הארץ" - every clinic in the country, city filter and all. */
+export const ALL_COUNTRY_AREA_VALUE = "0";
 
 /** Search-form field: the site-canonical city its autocomplete committed. */
 export const SMILE_CITY_FIELD = "SelectedCityName";

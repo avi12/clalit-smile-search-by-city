@@ -229,6 +229,22 @@ which the address-parsed city "תל אביב יפו" appeared on more rows than 
 Tamuz only lists clinics that currently have a **bookable diary** - a branch with no open diary is
 absent entirely, even though it exists.
 
+The field is the form's own radio pair, and the guarantee is scoped to ONE of them (Avi, 2026-08-15):
+
+| radio | field | what the extension does |
+| --- | --- | --- |
+| מרפאות מאזור היישוב | `=1` | rewritten to `=0`, filtered to the city, aggregated, completed with missing branches, re-ranked |
+| מרפאות מכל הארץ | `=0` | nothing at all - the response is passed through as it came |
+
+Measured live on a שיננית search in תל אביב יפו: `=1` renders "נמצאו 5 תוצאות … בעיר: תל אביב יפו" (1
+server row + 4 appended), `=0` renders the site's own "נמצאו 70 תוצאות … באזור: כל הארץ" with 7 rows from
+תל אביב יפו / רמת גן / בני ברק / בת ים / חולון and no appended row.
+
+**Gotcha for anyone testing this:** the page does NOT read the radio's DOM state at submit time. Setting
+`.checked` from a script leaves the site's own copy untouched - the body still carries the old value. A
+programmatic switch has to fire the event too (`elRadio.checked = true` + a bubbling `change`), which is
+what a real click does.
+
 ### 6b. The diary GUID is minted at search time, inside the row markup (proved live 2026-08-14)
 
 Captured with a logged-in CDP session via the DevTools network log - which sees the **raw server

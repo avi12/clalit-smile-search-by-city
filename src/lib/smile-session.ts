@@ -46,6 +46,7 @@ interface SmileSessionState {
   isSessionLost: boolean;
   activeSearchCity: string;
   activeSearchSpecialization: string;
+  isCitySearch: boolean;
   latestTemplateRowHtml: string;
   activeSort: SmileSort;
   isSortDescending: boolean;
@@ -64,6 +65,13 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     /** What the SUBMITTED search asked for, which is what sort and paging operate on. */
     activeSearchCity: "",
     activeSearchSpecialization: SMILE_SPECIALIZATION_CODES[0].toString(),
+    /**
+     * Which of the form's two radios the user submitted: "מרפאות מאזור היישוב" (the city) or
+     * "מרפאות מכל הארץ". The guarantee exists to make the FIRST one mean the city and all of it; the
+     * second one is a request for the whole country, and narrowing that to one city is not a guarantee
+     * but a contradiction - so it is left alone, rows, pager, sorts and all.
+     */
+    isCitySearch: true,
     /** A real row of the current search - its ClinicDetailsByDiary GUID feeds the composed lightbox. */
     latestTemplateRowHtml: "",
     activeSort: "cityDistance",
