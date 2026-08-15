@@ -140,9 +140,6 @@ const CALL_INSTEAD = "ניתן להתקשר למרפאה או למוקד";
 /** On a synthetic row: this search's service has no online diary for the branch. */
 export const NO_DIARY_ROW_NOTE = `אין יומן מקוון לשירות זה - ${CALL_INSTEAD}`;
 
-/** After a click-time check found no diary for the SEARCHED service - on the row and in its lightbox. */
-export const NO_DIARY_SWEEP_NOTE = `בדקנו עכשיו ואין יומן מקוון לשירות שביקשתם בסניף זה - ${CALL_INSTEAD}`;
-
 /** On the loader once the check hits: the iframe is about to navigate to the branch's slots page. */
 export const MINT_NAVIGATE_NOTE = "נמצא יומן - פותחים את התורים";
 
@@ -176,24 +173,6 @@ export function completingListNote({ page, total }: {
 
 /** On the loader while the appended branches' bookability is settled, before any row is inserted. */
 export const CHECKING_BRANCHES_NOTE = "בודקים אילו סניפים בעיר ניתן לזמן";
-
-/** Retext a row's note in place, keeping the *2700 hotline link the note was built with. */
-export function setRowNote({ elRow, text }: {
-  elRow: Element;
-  text: string;
-}) {
-  const elNote = elRow.querySelector(`[${NOTE_ATTR}]`);
-  if (!elNote) {
-    return;
-  }
-
-  const elHotline = elNote.querySelector("a");
-  elNote.textContent = `${text} `;
-
-  if (elHotline) {
-    elNote.appendChild(elHotline);
-  }
-}
 
 /**
  * The site paints every row button in its own teal; a branch nothing can open right now gets a red one
@@ -846,15 +825,6 @@ export const SMILE_SLOTS_PATH = "/AvailableVisit/Smile/";
 const SLOTS_LINK_SELECTOR = `a[data-action-link*="${SMILE_SLOTS_PATH}"]`;
 const DETAILS_LINK_SELECTOR = "a[data-action-link*=\"ClinicDetailsByDiary\"]";
 
-export interface SmileEnvelopeScan {
-  /** The branch's fresh "לכל התורים" link (slots page, /AvailableVisit/Smile/{guid}) - null if absent. */
-  actionLink: string | null;
-  totalDeclared: number;
-  pageRowCount: number;
-  /** A real row of THIS search - its ClinicDetailsByDiary GUID is current while the search is last. */
-  firstRowHtml: string;
-}
-
 /** Scan one results envelope for a branch (by nav code) and its fresh slots link. */
 export function scanEnvelopeForNavCode({ json, navCode }: {
   json: unknown;
@@ -875,9 +845,11 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
   const elRows = [...parsedDocument.querySelectorAll("li.diary")];
   const match = navCode ? elRows.find(elRow => rowNavCode(elRow) === navCode) : undefined;
   return {
+    /** The branch's fresh "לכל התורים" link (slots page, /AvailableVisit/Smile/{guid}), null if absent. */
     actionLink: match?.querySelector(SLOTS_LINK_SELECTOR)?.getAttribute("data-action-link") ?? null,
     totalDeclared: readDeclaredTotal(parsedDocument),
     pageRowCount: elRows.length,
+    /** A real row of THIS search - its ClinicDetailsByDiary GUID is current while the search is last. */
     firstRowHtml: elRows[0]?.outerHTML ?? ""
   };
 }
@@ -965,11 +937,6 @@ export function refreshRowActionLinks({ elList, json }: {
   }
 
   return refreshed;
-}
-
-export interface SmileCityRow {
-  name: string;
-  html: string;
 }
 
 /** The searched city's rows from a paging envelope, order preserved, as append-ready HTML. */

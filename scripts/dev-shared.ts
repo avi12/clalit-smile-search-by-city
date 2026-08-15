@@ -3,10 +3,11 @@
  * with the extension sideloaded against a CLONED copy of your real Chrome profile (so the dev browser
  * carries your Clalit login yet never touches your real session), and hot-reloads on change.
  *
- * On a change it rebuilds and reloads the extension (web-ext over CDP); a `src/` change then has the
- * reloaded extension inject its own content scripts back into the open Clalit tabs, so the booking SPA
- * keeps its state, while a manifest-shaping change reloads those tabs outright. The CDP port it
- * launches is reused to drive the browser for verification (see scripts/verify-city-filter.ts).
+ * On a `src/` change it rebuilds and EVALUATES the fresh bundles straight into the open Clalit tabs over
+ * CDP, so the booking SPA keeps its state and the extension is never reloaded - a reload would revoke
+ * every open tab's isolated world. A reload is reserved for what Chrome caches and only a reload
+ * refreshes (the manifest, the background worker, the offscreen document), and it takes those tabs with
+ * it. The CDP port it launches is a fixed one, so a devtools client can attach to the same browser.
  *
  * Must run via tsx (Node), not Bun - web-ext-run waits for the browser's debug port to start listening,
  * which depends on Node's child_process socket handling.
@@ -29,7 +30,6 @@ import {
   renameSync,
   writeFileSync
 } from "node:fs";
-import { createServer } from "node:net";
 import { basename, dirname, join, resolve } from "node:path";
 import { inspect } from "node:util";
 import webExtRun from "web-ext-run";
@@ -136,23 +136,6 @@ export function installProcessDiagnostics() {
     logEvent("unhandledRejection - kept alive:");
     console.error(reason);
   });
-}
-
-export async function findFreeTcpPort(startPort: number) {
-  const MAX_PROBES = 50;
-  for (let port = startPort; port < startPort + MAX_PROBES; port++) {
-    const isAvailable = await new Promise<boolean>(resolvePromise => {
-      const server = createServer();
-      server.once("error", () => resolvePromise(false));
-      server.once("listening", () => server.close(() => resolvePromise(true)));
-      server.listen(port, "127.0.0.1");
-    });
-    if (isAvailable) {
-      return port;
-    }
-  }
-
-  return startPort;
 }
 
 export function cloneFile({ sourcePath, destinationPath }: {

@@ -58,9 +58,9 @@ src/
     geo.ts                 # great-circle distance (live-location ranking)
     clinic-directory.ts    # GENERATED: Smile branches + dental-clinic coords (from nearme c.json)
     schemas.ts             # zod validation for everything crossing a trust boundary
-    status-badge.ts        # the in-page badge (shadow-DOM UI)
+    status-badge.svelte.ts # the in-page badge (shadow-DOM UI)
     messaging.ts / messaging-page.ts   # window channel (MAIN ⇄ bridge)
-    transform.ts / text.ts / html.ts   # generic JSON fallback + shared pure utils
+    transform.ts / text.ts             # generic JSON fallback + shared pure utils
 scripts/                   # dev launcher (cloned-profile Chrome) + clinic-directory generator
 docs/reverse-engineering.md
 ```

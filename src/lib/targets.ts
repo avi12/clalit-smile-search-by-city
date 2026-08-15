@@ -88,10 +88,6 @@ export function isInterestingUrl(url: string) {
   return INTERESTING_URL_PATTERN.test(url);
 }
 
-export function isTargetHost(hostname: string) {
-  return TARGET_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`));
-}
-
 // ── The Clalit Smile clinic search (captured 2026-08-14 from the live logged-in flow) ──────────────
 
 /**
@@ -141,15 +137,6 @@ export const SMILE_SORT_VALUES = {
   soonest: "2",
   homeDistance: "3"
 } as const;
-
-/**
- * The appointments page reached from a PAST VISIT instead of a search: the visits list's "הזמן תור"
- * navigates here (`Visit/CanCreateVisit/{visitGuid}` → `AvailableVisit/Index/{visitGuid}`). It renders
- * the clinic's own calendar - including the site's "אין תורים פנויים" state - even for a Smile branch
- * whose button the visits list disables, so a branch the search omits still has an appointments page as
- * long as the user has been treated there (captured 2026-08-14, docs §12e).
- */
-export const VISIT_APPOINTMENTS_PATH = "/Zimunet/AvailableVisit/Index/";
 
 /** The clinic-details lightbox - the site's own ClinicDetailsByVisit view and our composed one share it. */
 export const SMILE_DETAILS_DIALOG_SELECTOR = "#clinicDetailsLightbox";

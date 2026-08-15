@@ -667,9 +667,10 @@ row's "הצגת מפה" `/nav/<code>` link) packs ~6,900 clinics as positional r
   live-location ranking is a static lookup with **zero runtime network, no background, no extra
   permissions**. Re-run `pnpm clinics:fetch` when Clalit opens/moves clinics.
 
-> The older `clalitsmile` DynamicForm dataset (111 `9xxx` specialty clinics, in
-> [`src/lib/clinics.ts`](../src/lib/clinics.ts)) is a *different* code space from Tamuz's nav codes and
-> is kept only as reference - the `/nav/<code>` codes are what the booking flow actually uses.
+> The older `clalitsmile` DynamicForm dataset (111 `9xxx` specialty clinics) is a *different* code space
+> from Tamuz's nav codes - the `/nav/<code>` codes are what the booking flow actually uses. It used to
+> ship as `src/lib/clinics.ts`, imported by nothing; deleted 2026-08-15, and recoverable from git if the
+> 9xxx space ever matters again.
 
 ---
 
