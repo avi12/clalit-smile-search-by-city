@@ -16,7 +16,7 @@ import {
   RuntimeMsg,
   type SearchConfig
 } from "../lib/messaging";
-import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
+import { onPageMessage, removeAllPageListeners, sendPageMessage } from "../lib/messaging-page";
 import { sendRuntimeMessage } from "../lib/messaging-runtime";
 import { frameRelayMessageSchema, guaranteeStatusSchema } from "../lib/schemas";
 import { mountStatusBadge } from "../lib/status-badge.svelte";
@@ -74,6 +74,7 @@ export default defineContentScript({
         onSuperseded() {
           isSuperseded = true;
           badge?.destroy();
+          removeAllPageListeners();
         }
       });
     }

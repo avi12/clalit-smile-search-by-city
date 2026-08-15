@@ -180,11 +180,23 @@ export const PROJECT_ROOT = resolve(import.meta.dirname, "..");
 export const USER_PROFILES_DIR = resolve(PROJECT_ROOT, "user-profiles");
 const OUTPUT_DIR_NAME = "chrome-mv3-dev";
 export const OUTPUT_DIR = resolve(PROJECT_ROOT, ".output", OUTPUT_DIR_NAME);
-// Built bundles re-injected into live pages on rebuild - interceptor first, so its patches are in
-// place before the bridge pushes config. Names follow the entrypoint file names.
-const CONTENT_SCRIPT_BUILD_PATHS = [
-  join(OUTPUT_DIR, "content-scripts", "clalit-interceptor.js"),
-  join(OUTPUT_DIR, "content-scripts", "clalit-bridge.js")
+/**
+ * Built bundles re-injected into live pages on rebuild - interceptor first, so its patches are in
+ * place before the bridge pushes config. Names follow the entrypoint file names.
+ *
+ * Each one goes back into the world it is declared for. The interceptor is MAIN-world by design; the
+ * bridge must land in the EXTENSION's own isolated world, because it now talks to the background
+ * (the position), and a copy evaluated in MAIN has no chrome.* to talk with.
+ */
+const CONTENT_SCRIPT_BUNDLES = [
+  {
+    path: join(OUTPUT_DIR, "content-scripts", "clalit-interceptor.js"),
+    isMainWorld: true
+  },
+  {
+    path: join(OUTPUT_DIR, "content-scripts", "clalit-bridge.js"),
+    isMainWorld: false
+  }
 ];
 // Open on the public clinic search; log in to e-services.clalit.co.il from here for the real booking flow.
 export const START_URL = "https://www.clalitsmile.co.il/search?t=clinics&k=citySearch";
@@ -367,13 +379,19 @@ export function startSessionKeepalive(cdpPort: number) {
  * src/lib/dev-takeover.ts). Both bundles are chrome-free, so evaluating them in each frame's main
  * world is equivalent to a real injection.
  */
-function reinjectIntoTarget({ websocketUrl, scripts }: {
+function reinjectIntoTarget({ websocketUrl, bundles, extensionName }: {
   websocketUrl: string;
-  scripts: string[];
+  bundles: {
+    source: string;
+    isMainWorld: boolean;
+  }[];
+  extensionName: string;
 }) {
   return new Promise<void>(resolvePromise => {
     const websocket = new WebSocket(websocketUrl);
     const mainWorldContexts: number[] = [];
+    // Latest context per frame: a frame that has been re-injected before carries stale worlds too.
+    const extensionWorldContexts = new Map<string, number>();
     const pendingEvaluations = new Set<number>();
     let nextId = 1;
     let enableId = 0;
@@ -412,28 +430,42 @@ function reinjectIntoTarget({ websocketUrl, scripts }: {
           context?: {
             id: number;
             origin: string;
-            auxData?: { isDefault?: boolean };
+            name?: string;
+            auxData?: {
+              isDefault?: boolean;
+              frameId?: string;
+            };
           };
         };
       } = JSON.parse(String(data));
       if (method === "Runtime.executionContextCreated") {
         const context = params?.context;
-        if (context?.auxData?.isDefault && isTargetTabUrl(context.origin)) {
+        const { auxData, name } = context ?? {};
+        if (context && auxData?.isDefault && isTargetTabUrl(context.origin)) {
           mainWorldContexts.push(context.id);
+        } else if (context && auxData?.frameId && name === extensionName) {
+          // Highest id wins, not last replayed: a frame can carry a stale extension world whose
+          // chrome.* is already invalidated, and contexts are replayed in no guaranteed order.
+          const known = extensionWorldContexts.get(auxData.frameId) ?? 0;
+          extensionWorldContexts.set(auxData.frameId, Math.max(known, context.id));
         }
 
         return;
       }
 
       if (id === enableId) {
-        // Pre-existing contexts are replayed before the enable ack, so the list is complete here.
-        for (const contextId of mainWorldContexts) {
-          for (const expression of scripts) {
+        // Pre-existing contexts are replayed before the enable ack, so the lists are complete here.
+        // A frame with no extension world (the content scripts never ran there) still gets the bridge
+        // in MAIN - a badge without the position beats no bridge at all.
+        const isolatedContexts = [...extensionWorldContexts.values()];
+        for (const { source, isMainWorld } of bundles) {
+          const contexts = isMainWorld || !isolatedContexts.length ? mainWorldContexts : isolatedContexts;
+          for (const contextId of contexts) {
             pendingEvaluations.add(
               send({
                 method: "Runtime.evaluate",
                 params: {
-                  expression,
+                  expression: source,
                   contextId
                 }
               })
@@ -456,19 +488,34 @@ function reinjectIntoTarget({ websocketUrl, scripts }: {
   });
 }
 
+/** Chrome names an extension's content-script world after the extension - the built manifest owns it. */
+function builtExtensionName() {
+  const manifestPath = join(OUTPUT_DIR, "manifest.json");
+  if (!existsSync(manifestPath)) {
+    return "";
+  }
+
+  const { name } = JSON.parse(readFileSync(manifestPath, "utf-8"));
+  return typeof name === "string" ? name : "";
+}
+
 export async function reinjectContentScriptsOverCdp(cdpPort: number) {
-  const scripts = CONTENT_SCRIPT_BUILD_PATHS.filter(path => existsSync(path)).map(path =>
-    readFileSync(path, "utf-8"));
-  if (scripts.length < CONTENT_SCRIPT_BUILD_PATHS.length) {
+  const bundles = CONTENT_SCRIPT_BUNDLES.filter(({ path }) => existsSync(path)).map(({ path, isMainWorld }) => ({
+    source: readFileSync(path, "utf-8"),
+    isMainWorld
+  }));
+  if (bundles.length < CONTENT_SCRIPT_BUNDLES.length) {
     logEvent("Re-inject: some built bundles are missing - did the build output move?");
   }
 
+  const extensionName = builtExtensionName();
   const tabs = (await fetchCdpTargets(cdpPort))
     .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
   await Promise.all(
     tabs.map(({ webSocketDebuggerUrl }) => reinjectIntoTarget({
       websocketUrl: webSocketDebuggerUrl!,
-      scripts
+      bundles,
+      extensionName
     }))
   );
   return tabs.length;

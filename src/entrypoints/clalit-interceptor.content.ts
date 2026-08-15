@@ -17,7 +17,7 @@
 
 import { installDevTakeover } from "../lib/dev-takeover";
 import { type GuaranteeStatus, PageMsg } from "../lib/messaging";
-import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
+import { onPageMessage, removeAllPageListeners, sendPageMessage } from "../lib/messaging-page";
 import { searchConfigSchema } from "../lib/schemas";
 import { openInNewTab } from "../lib/site-chrome";
 import {
@@ -95,6 +95,7 @@ export default defineContentScript({
         script: "interceptor",
         onSuperseded() {
           session.state.isSuperseded = true;
+          removeAllPageListeners();
         }
       });
     }
