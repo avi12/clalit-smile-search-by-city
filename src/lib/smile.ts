@@ -160,6 +160,22 @@ const OR_CENTRAL_LINE = "או במוקד";
 /** On the loader while the click re-asks the SEARCHED service whether a diary has opened since. */
 export const MINT_CHECK_NOTE = "בודקים אם נפתח יומן מקוון לשירות שביקשתם בסניף";
 
+/**
+ * On the loader while the city's list is being completed. The site's own search is answered by its first
+ * page; everything that makes the answer WHOLE - the rest of the server's pages, the branches it omits,
+ * the distances - runs after that, and a list that grows under the user's eyes with nothing to explain
+ * it reads as a page that has not finished loading.
+ */
+export function completingListNote({ page, total }: {
+  page: number;
+  total: number;
+}) {
+  return `משלימים את רשימת המרפאות בעיר - עמוד ${page} מתוך ${total}`;
+}
+
+/** On the loader while the appended branches' bookability is settled, before any row is inserted. */
+export const CHECKING_BRANCHES_NOTE = "בודקים אילו סניפים בעיר ניתן לזמן";
+
 /** Retext a row's note in place, keeping the *2700 hotline link the note was built with. */
 export function setRowNote({ elRow, text }: {
   elRow: Element;

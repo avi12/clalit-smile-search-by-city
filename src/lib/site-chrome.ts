@@ -101,6 +101,40 @@ export function setSiteLoader(isVisible: boolean) {
   } catch { /* site chrome only */ }
 }
 
+/**
+ * Hold the site's loader up across work of OURS that outlives the site's own request - completing a
+ * city's list runs on after the response the site was waiting for has rendered.
+ *
+ * The site takes its loader down when its own Ajax finishes, and that lowering lands right after the
+ * render we start on, so holding means putting it back when it goes: the loader's own removal from the
+ * top document is the event to listen for. Cosmetic like everything else here - if the page has no
+ * loader to hold, the caller's work simply runs uncaptioned.
+ */
+export function holdSiteLoader(note: string) {
+  const elHost = parentDocument()?.body ?? document.body;
+  function raise() {
+    setSiteLoader(true);
+    captionLoader(note);
+  }
+
+  const observer = new MutationObserver(() => {
+    const isLoaderGone = !(parentDocument() ?? document).querySelector(SITE_LOADER_SELECTOR);
+    if (isLoaderGone) {
+      raise();
+    }
+  });
+  raise();
+  observer.observe(elHost, { childList: true });
+
+  return {
+    note: captionLoader,
+    release() {
+      observer.disconnect();
+      setSiteLoader(false);
+    }
+  };
+}
+
 /** Call the page's own z.showDialog with a fragment - the exact call the site's handlers make. */
 export function showDetailsDialog({ html, note }: {
   html: string;

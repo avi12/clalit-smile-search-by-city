@@ -11,10 +11,12 @@
 import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
 import { createLiveDistanceSort } from "./live-distance";
 import type { GuaranteeStatus } from "./messaging";
-import { waitForElement } from "./site-chrome";
+import { holdSiteLoader, waitForElement } from "./site-chrome";
 import {
   applyBranchToRow,
+  CHECKING_BRANCHES_NOTE,
   cityMatches,
+  completingListNote,
   extractCityRows,
   rowClinicName,
   rowNavCode,
@@ -202,7 +204,12 @@ export function createSmileAggregation({
     }
   }
 
-  /** Collect the rest of the result set into the rendered list, then complete and re-rank it. */
+  /**
+   * Collect the rest of the result set into the rendered list, then complete and re-rank it - under the
+   * site's own loader, because the site's loader comes down when ITS request is answered and everything
+   * that makes the answer whole happens after that. A list that keeps growing with nothing to explain it
+   * reads as a page still loading; this says so, and says which part is still running.
+   */
   async function finalize({ marker, pageRowCount, totalDeclared, keptRowCount, templateRowHtml }: MarkedSmileOutcome) {
     const run = ++aggregationRun;
     const city = session.city();
@@ -224,12 +231,52 @@ export function createSmileAggregation({
     }
 
     const totalPages = Math.ceil(totalDeclared / pageRowCount);
+    const loader = holdSiteLoader(
+      completingListNote({
+        page: 1,
+        total: totalPages
+      })
+    );
+    try {
+      await complete({
+        elList,
+        city,
+        totalPages,
+        keptRowCount,
+        totalDeclared,
+        templateRowHtml,
+        isStale,
+        loader
+      });
+    } finally {
+      loader.release();
+    }
+  }
+
+  /** Everything the first rendered page is missing, in the order the list needs it. */
+  async function complete({ elList, city, totalPages, keptRowCount, totalDeclared, templateRowHtml, isStale, loader }: {
+    elList: Element;
+    city: string;
+    totalPages: number;
+    keptRowCount: number;
+    totalDeclared: number;
+    templateRowHtml: string;
+    isStale: () => boolean;
+    loader: { note: (text: string) => void };
+  }) {
     const seenNames = new Set([...elList.querySelectorAll("li.diary")].map(rowClinicName));
     let kept = keptRowCount;
     for (let page = 2; page <= totalPages; page++) {
       if (isStale()) {
         return;
       }
+
+      loader.note(
+        completingListNote({
+          page,
+          total: totalPages
+        })
+      );
 
       const envelope = await session.fetchSessionJson({ url: session.pagingUrl(page) }).catch(() => null);
       if (!envelope || isStale()) {
@@ -270,6 +317,7 @@ export function createSmileAggregation({
 
     // Their bookability is settled BEFORE they are inserted - a row that appears in one colour and
     // changes to another a moment later is a row that lied once (docs §12h).
+    loader.note(CHECKING_BRANCHES_NOTE);
     const branches = missingBranches({
       elList,
       city
