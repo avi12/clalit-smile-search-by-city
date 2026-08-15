@@ -57,6 +57,32 @@ function missingBranches({ elList, city }: {
   }));
 }
 
+/**
+ * The order the appended block gets. The server's rows keep the order the user's sort gave them, but
+ * these have no key that sort can read - a branch with no diary has no soonest appointment - so they
+ * used to land in the directory's own order, which is by clinic code and means nothing to anyone. Under
+ * "earliest appointment" that put branches nothing can book above branches that can.
+ *
+ * So: what can be booked first, and within each group the one key these rows do have - how far away
+ * they are, nearest first. An unsettled verdict keeps the site's own button, so it is grouped with the
+ * bookable ones, exactly as it looks; branches with no known position keep directory order at the end.
+ */
+function byBookableThenDistance({ distances, bookabilityOf }: {
+  distances: Map<string, number>;
+  bookabilityOf: (navCode: string) => boolean | null;
+}) {
+  function rankOf(branch: SmileBranch) {
+    return bookabilityOf(branch.code) === false ? 1 : 0;
+  }
+
+  function distanceOf(branch: SmileBranch) {
+    return distances.get(branch.code) ?? Number.POSITIVE_INFINITY;
+  }
+
+  return (first: SmileBranch, second: SmileBranch) =>
+    rankOf(first) - rankOf(second) || distanceOf(first) - distanceOf(second);
+}
+
 function appendMissingBranches({ elList, branches, templateRowHtml, detailsByTitle, bookabilityOf, distances }: {
   elList: Element;
   branches: SmileBranch[];
@@ -72,7 +98,13 @@ function appendMissingBranches({ elList, branches, templateRowHtml, detailsByTit
   }
 
   let added = 0;
-  for (const branch of branches) {
+  const ordered = [...branches].sort(
+    byBookableThenDistance({
+      distances,
+      bookabilityOf
+    })
+  );
+  for (const branch of ordered) {
     const elRowClone = elTemplate.cloneNode(true);
     if (!(elRowClone instanceof Element)) {
       continue;
