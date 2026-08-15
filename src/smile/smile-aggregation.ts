@@ -239,7 +239,7 @@ export function createSmileAggregation({
     const totalPages = Math.ceil(totalDeclared / pageRowCount);
     const loader = holdSiteLoader(
       completingListNote({
-        page: 1,
+        step: 1,
         total: totalPages
       })
     );
@@ -277,9 +277,11 @@ export function createSmileAggregation({
         return;
       }
 
+      // A step IS a page here; the caption says "step" because the reader is counting clinics, not
+      // Tamuz's pagination, and most of these pages carry none of theirs.
       loader.note(
         completingListNote({
-          page,
+          step: page,
           total: totalPages
         })
       );

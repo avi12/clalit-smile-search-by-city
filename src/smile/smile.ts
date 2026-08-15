@@ -163,12 +163,18 @@ export const MINT_CHECK_NOTE = "בודקים אם נפתח יומן מקוון �
  * page; everything that makes the answer WHOLE - the rest of the server's pages, the branches it omits,
  * the distances - runs after that, and a list that grows under the user's eyes with nothing to explain
  * it reads as a page that has not finished loading.
+ *
+ * The count is STEPS, not clinics, and it says so. It used to read "עמוד N מתוך M" - the server's own
+ * pages - in a sentence whose subject is the city's clinic list, so "13" read as thirteen clinics while
+ * the list showed one (all-country totals page at 7 rows each, so a one-clinic city still walks a dozen
+ * pages of other cities). How many clinics were found is the list's job and the header's, both of which
+ * update live; the only thing this number was ever for is how much longer.
  */
-export function completingListNote({ page, total }: {
-  page: number;
+export function completingListNote({ step, total }: {
+  step: number;
   total: number;
 }) {
-  return `משלימים את רשימת המרפאות בעיר - עמוד ${page} מתוך ${total}`;
+  return `משלימים את רשימת המרפאות בעיר - שלב ${step} מתוך ${total}`;
 }
 
 /** On the loader while the appended branches' bookability is settled, before any row is inserted. */
