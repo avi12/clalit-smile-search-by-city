@@ -39,6 +39,7 @@ import {
 } from "./smile";
 import type { SmileSession } from "./smile-session";
 import { VISIT_APPOINTMENTS_PATH } from "./targets";
+import { clinicNameCore, SMILE_CHAIN_NAME } from "./text";
 
 export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecializationByNavCode }: {
   session: SmileSession;
@@ -170,6 +171,11 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
    * The branch's own appointments page needs a visit handle, so a branch is only reachable that way once
    * the user has been treated there. The handles rotate with every render of the visits list, so this
    * always reads a fresh one rather than the map cached for the details lightbox.
+   *
+   * The visits list names clinics its own way ("מרכז מומחים מגדל המאה - תל אביב יפו" for the branch the
+   * directory calls "מגדל המאה - כללית סמייל - תל אביב יפו"), so an exact title wins first and the
+   * clinic's name core decides the rest - preferring a Smile-titled visit when the same site hosts more
+   * than one clinic (docs §12g).
    */
   async function pastVisitGuidFor(code: string): Promise<string | null> {
     const branch = branchByCode(code);
@@ -178,7 +184,21 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
     }
 
     const detailsByTitle = await visitGuidsByClinicTitle({ isRefreshed: true }).catch(() => null);
-    return detailsByTitle?.get(branch.title) ?? null;
+    if (!detailsByTitle) {
+      return null;
+    }
+
+    const exact = detailsByTitle.get(branch.title);
+    if (exact) {
+      return exact;
+    }
+
+    const core = clinicNameCore(branch.title);
+    const matches = core
+      ? [...detailsByTitle].filter(([title]) => clinicNameCore(title).includes(core))
+      : [];
+    const preferred = matches.find(([title]) => title.includes(SMILE_CHAIN_NAME)) ?? matches[0];
+    return preferred?.[1] ?? null;
   }
 
   /**

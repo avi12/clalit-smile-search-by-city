@@ -44,11 +44,12 @@ function parseRowTemplate(html: string): Element | null {
  * (never markup we authored - see applyBranchToRow), repurposed for the branch; "מידע נוסף" opens the
  * site's native clinic-details lightbox when the user has a visit there.
  */
-function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle }: {
+function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle, bookabilityOf }: {
   elList: Element;
   city: string;
   templateRowHtml: string;
   detailsByTitle: Map<string, string>;
+  bookabilityOf: (navCode: string) => boolean | null;
 }): number {
   const seenCodes = new Set([...elList.querySelectorAll("li.diary")].map(rowNavCode));
   const elTemplate =
@@ -74,7 +75,8 @@ function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle }
     applyBranchToRow({
       elRow: elRowClone,
       branch,
-      detailsVisitGuid: detailsByTitle.get(branch.title) ?? null
+      detailsVisitGuid: detailsByTitle.get(branch.title) ?? null,
+      isBookable: bookabilityOf(branch.code)
     });
     elList.appendChild(elRowClone);
     added += 1;
@@ -83,12 +85,14 @@ function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle }
   return added;
 }
 
-export function createSmileAggregation({ session, nativeFetch, reportStatus, markAvailability }: {
+export function createSmileAggregation({ session, nativeFetch, reportStatus, markAvailability, bookabilityOf }: {
   session: SmileSession;
   nativeFetch: typeof fetch;
   reportStatus: (status: GuaranteeStatus) => void;
   /** Decide which appended branches can be booked at all, and say so on their rows (docs §12h). */
   markAvailability: (elRows: Element[], navCodeOf: (elRow: Element) => string) => Promise<void>;
+  /** What the probe already knows about a branch, so the row is BUILT in that state, not repainted. */
+  bookabilityOf: (navCode: string) => boolean | null;
 }) {
   const liveDistance = createLiveDistanceSort(() => session.isActive());
   let aggregationRun = 0;
@@ -205,7 +209,8 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus, mar
       elList,
       city,
       templateRowHtml,
-      detailsByTitle
+      detailsByTitle,
+      bookabilityOf
     });
     if (added) {
       kept += added;

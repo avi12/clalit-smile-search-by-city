@@ -334,6 +334,12 @@ export interface BranchRowInput {
   branch: SmileBranch;
   /** A past visit at this branch → the site's native clinic-details lightbox; null → nearme page. */
   detailsVisitGuid: string | null;
+  /**
+   * What the availability probe already knows about this branch (docs §12h). The row is BUILT in that
+   * state - a red button and its reason are part of the markup that gets inserted, never a repaint a
+   * frame later. `null` = not asked yet, which for a row the search omitted means "not bookable yet".
+   */
+  isBookable: boolean | null;
 }
 
 /**
@@ -343,7 +349,7 @@ export interface BranchRowInput {
  * site's native clinic-details lightbox when the user has a visit here (ClinicDetailsByVisit) or the
  * official nearme page otherwise, and make the phone a tel: link.
  */
-export function applyBranchToRow({ elRow, branch, detailsVisitGuid }: BranchRowInput): void {
+export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }: BranchRowInput): void {
   const { code, title, street, city, phones } = branch;
   const { ownerDocument } = elRow;
   elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
@@ -408,9 +414,20 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid }: BranchRowI
   elRow.querySelector(".pull-right")?.appendChild(
     buildHotlineNote({
       ownerDocument,
-      text: NO_DIARY_ROW_NOTE
+      text: isBookable === true ? OTHER_SERVICE_ROW_NOTE : rowNoteFor(isBookable)
     })
   );
+
+  setRowBookable({
+    elRow,
+    isBookable: isBookable === true,
+    title: UNAVAILABLE_BUTTON_TITLE
+  });
+}
+
+/** Not asked yet reads as "this search has no diary here"; asked and answered reads as "none anywhere". */
+function rowNoteFor(isBookable: boolean | null): string {
+  return isBookable === null ? NO_DIARY_ROW_NOTE : NO_SERVICE_ROW_NOTE;
 }
 
 /**

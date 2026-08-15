@@ -158,5 +158,8 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
     }
   }
 
-  return { markRows };
+  return {
+    markRows,
+    verdictFor
+  };
 }
