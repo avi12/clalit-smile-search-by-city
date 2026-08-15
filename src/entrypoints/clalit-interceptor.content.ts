@@ -17,7 +17,7 @@
 
 import { type GuaranteeStatus, PageMsg } from "../lib/messaging";
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
-import { searchConfigSchema } from "../lib/schemas";
+import { searchConfigSchema, smileEnvelopeSchema } from "../lib/schemas";
 import { openInNewTab } from "../lib/site-chrome";
 import {
   DETAILS_CODE_ATTR,
@@ -47,7 +47,6 @@ import {
   matchEndpointRule,
   SMILE_AREA_FIELD,
   SMILE_CITY_FIELD,
-  SMILE_SEARCH_BUTTON_SELECTOR,
   SMILE_SEARCH_PATH,
   SMILE_SORT_PATH,
   SMILE_SORT_VALUES,
@@ -244,11 +243,16 @@ export default defineContentScript({
     // ── Restore-document recovery (the "back" hole, docs §6d) ─────────────────
     // "Back" from a slots page is a DOCUMENT load (SmileClinic?isRestoreSearch=True): the server
     // renders the session's last search RAW into the page - no fetch/XHR runs, so the guarantee never
-    // touches it, and the rendered rows are whatever Paging page the aggregation last fetched. Recovery
-    // re-drives that same search through the site's own form; the fresh XHR then flows through the
-    // normal pipeline. The restored form's specialization select is UNRELIABLE (observed 91 above a 92
-    // session) - the session's real specialization comes from the results header, matched against the
-    // select's own option labels.
+    // touches it, and the rendered rows are whatever Paging page the aggregation last fetched.
+    //
+    // Nothing is asked to search again. What the server rendered is the SAME fragment the network path
+    // delivers - the site's own success handler is `container.html(envelope.data)`, so the container's
+    // markup IS that envelope - and the guarantee is a pure string→string transform, so it runs on the
+    // page where it stands. The aggregation then completes the city from the pages the session still
+    // answers for, exactly as it does after an ordinary render.
+    //
+    // The restored specialization select is UNRELIABLE (observed 91 above a 92 session) - the session's
+    // real specialization comes from the results header, matched against the select's own option labels.
 
     /**
      * The document is parsed - announced by the `document_end` script of the same extension, running in
@@ -272,43 +276,6 @@ export default defineContentScript({
       return elOption?.value ?? null;
     }
 
-    /**
-     * Re-run the restored search through the site's own form. Answers whether the site took it.
-     *
-     * The search IS the site's submit handler - it binds one on the form and nothing on the button
-     * (docs §6d) - so the event is what has to reach it. FIRING that event is not the same as submitting
-     * the form: the native POST lives at the end of the form-submission algorithm, and dispatching an
-     * event does not start that algorithm. So there is no default here to suppress. The site's own
-     * behaviour is left exactly as it is and simply never comes into play, which is why nothing of ours
-     * cancels anything - the form cannot navigate this frame no matter when we fire.
-     *
-     * `dispatchEvent` reporting false is the site's handler saying it took the event (it cancels, then
-     * issues the XHR). That is the honest answer to "was anything listening yet", so a fire before the
-     * bundle bound its handler costs nothing and the caller simply waits for the next change and asks
-     * again - where a real submit would have navigated away and taken the session view with it.
-     */
-    function redriveSearch(specialization: string) {
-      const elSearchButton = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
-      const elForm = elSearchButton?.closest("form");
-      if (!elSearchButton || !elForm) {
-        return false;
-      }
-
-      const elSelect = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
-      if (elSelect && elSelect.value !== specialization) {
-        elSelect.value = specialization;
-        elSelect.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-
-      return !elForm.dispatchEvent(
-        new SubmitEvent("submit", {
-          bubbles: true,
-          cancelable: true,
-          submitter: elSearchButton
-        })
-      );
-    }
-
     /** A search has run in this document: ours landing (the marked render), the user's own
      * (activeSearchCity is set at send time), or a prior generation's before a dev re-inject. */
     function isRestoreSettled() {
@@ -316,59 +283,80 @@ export default defineContentScript({
         Boolean(session.state.activeSearchCity) || Boolean(document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`));
     }
 
-    /** Re-drive only once the city is known - the bridge has read it out of the restored search box, and
-     * searching before that would re-run the same unfiltered search we are here to replace. Whether the
-     * site is ready to take the search is not guessed at: `redriveSearch` fires and reports back. */
-    function isRestoreReady() {
-      return Boolean(session.city());
+    /**
+     * The element the site renders a search response into - `#am_diaries` is what the envelope carries,
+     * so its parent is the container and the container's markup is the envelope's `data` verbatim.
+     */
+    function restoredListContainer() {
+      return document.querySelector("#am_diaries")?.parentElement ?? null;
     }
 
     /**
-     * Each thing waited on says when to look again for itself: the page's own load event and every DOM
-     * change the bundle makes on its way in, and the bridge's config message for the city - the bridge
-     * runs at `document_idle`, which can be after both of the other two have already fired.
-     *
-     * The site's readiness is the one thing not waited on, because it does not have to be: a fire that
-     * lands before its handler is bound is a no-op that says so, so this stops on the search being TAKEN
-     * rather than on having tried once.
+     * The guarantee, applied to the markup already on the page. The same transform the network path
+     * runs, given the same fragment, put back where it came from - which also means the marker, the
+     * status report and the aggregation all behave exactly as they do after an ordinary render.
      */
-    function redriveWhenReady(specialization: string) {
+    function guaranteeRenderedList() {
+      const elContainer = restoredListContainer();
+      if (!elContainer) {
+        return;
+      }
+
+      const outcome = transformSmile({ data: elContainer.innerHTML });
+      // The envelope's own shape, not `getSmileHtml`: that one doubles as "is this a Smile response at
+      // all" by looking for a row in the markup, and a page whose every row belonged to another city
+      // filters down to none - which is a correct result here, and the aggregation is about to fill it
+      // from the rest of the session's pages.
+      const parsed = smileEnvelopeSchema.safeParse(outcome.json);
+      if (!outcome.smile || !parsed.success) {
+        return;
+      }
+
+      elContainer.innerHTML = parsed.data.data;
+      aggregation.finalize(outcome.smile).catch(() => { });
+    }
+
+    /**
+     * The city, which is the one thing this cannot start without: it comes from the bridge reading the
+     * restored search box, and filtering to an empty city would be filtering to nothing. The config
+     * message announces itself (see `configListeners`), so this waits on that rather than on the next
+     * thing to happen to touch the DOM.
+     */
+    function cityKnown() {
+      if (session.city()) {
+        return Promise.resolve();
+      }
+
       return new Promise<void>(resolve => {
-        const observer = new MutationObserver(attempt);
-
-        function stop() {
-          observer.disconnect();
-          configListeners.delete(attempt);
-          window.removeEventListener("load", attempt);
-          resolve();
-        }
-
-        function attempt() {
-          if (isRestoreSettled()) {
-            stop();
-            return;
-          }
-
-          if (isRestoreReady() && redriveSearch(specialization)) {
-            stop();
+        function onConfig() {
+          if (session.city()) {
+            configListeners.delete(onConfig);
+            resolve();
           }
         }
 
-        ctx.addEventListener(window, "load", attempt);
-        observer.observe(document, {
-          childList: true,
-          subtree: true
-        });
-        attempt();
+        configListeners.add(onConfig);
       });
     }
 
     async function recoverRestoredSearch() {
       await domReady;
+      // The session's own specialization, before anything asks it a question: the aggregation's sweep
+      // and every appended row answer for the service the restored search was FOR, and the select on
+      // this page is not that (docs §6d).
       const specialization = restoredSessionSpecialization();
-      if (specialization) {
-        await redriveWhenReady(specialization);
+      if (!specialization) {
+        return;
       }
+
+      session.state.activeSearchSpecialization = specialization;
+      await cityKnown();
+
+      if (isRestoreSettled()) {
+        return;
+      }
+
+      guaranteeRenderedList();
     }
 
     if (isSmileRestoreLocation(window.location)) {

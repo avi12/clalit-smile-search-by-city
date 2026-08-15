@@ -556,22 +556,44 @@ DOCUMENT-navigates the Zimunet iframe there. What the server renders into that d
   of §5b before every call - visible in the network log immediately before each search POST), and the
   render, which is just `container.html(envelope.data)`.
 
-**Shipped fix** (interceptor, `isSmileRestoreLocation` in `targets.ts`): on a restore document, read the
-session's specialization from the `#am_diaries` header by matching the select's own option labels, then
-**re-drive the site's own search form** (set the select, fire the form's submit event). The resulting XHR is
-an ordinary search that flows through the whole existing pipeline - area→all-country rewrite, city
-filter, page aggregation, synthetic branch rows, live-location re-rank - so the restored page ends up
-identical to a fresh guaranteed search, with working GUIDs. Guards, each one earned from a live failure
-or from the wire:
+**Shipped fix, rewritten 2026-08-15 - nothing is searched again.** The earlier version re-drove the
+site's search form and is gone; the note above on how that had to be done is kept because it is what the
+page's surface actually is, not because anything drives it now.
 
-- Re-drive only once the **city is known** (`smileCity()`, i.e. the bridge has read the restored search
-  box). Firing before the config arrives searches with no city and reproduces the raw all-country list -
-  observed exactly once, during a dev re-injection into an already-open restore document.
-- Re-drive only at `readyState === "complete"` **and** with the site's `z` namespace present, plus a
-  one-shot `preventDefault` on the form's `submit`, so a too-early click can never become a native
-  document POST.
-- Stop as soon as any search has run in the document (our marked render, or `activeSearchCity` set by
-  `patchedSend`), so exactly one search is re-driven; retries are capped at 20 × 500 ms.
+The insight is that the restored markup **is** the envelope: the site's own success path is
+`container.html(envelope.data)`, so `#am_diaries`'s parent contains exactly the fragment the network
+path delivers, and the guarantee is a pure string→string transform. So the interceptor takes the
+container's `innerHTML`, runs the SAME `filterSmileEnvelope` over it, writes the result back, and hands
+the outcome to the ordinary aggregation - which fetches the session's remaining pages, appends the
+branches Tamuz omits, and re-ranks by live location, exactly as it does after a real render. No search,
+no simulated interaction, no round trip for the part the server already sent.
+
+Order of operations (interceptor, guarded by `isSmileRestoreLocation` in `targets.ts`):
+
+1. Wait for the document, which now comes from `runAt` - a `document_end` script announces it on the
+   window channel (§7) rather than the interceptor reading `readyState`.
+2. Read the session's specialization from the `#am_diaries` header by matching the select's own option
+   labels, and put it on the session: the appended rows and the availability sweep answer for the
+   service the restored search was FOR, and the select on the page is not it (see above).
+3. Wait for the **city** - the bridge reads it out of the restored search box and pushes it, and the
+   config message announces itself, so this waits on the message rather than on DOM churn.
+4. Transform in place, then aggregate.
+
+Two things learned building it, both from live failures:
+
+- **Read the transformed envelope with the schema, not `getSmileHtml`.** That helper doubles as "is this
+  a Smile response at all" by looking for a row in the markup, and a restored page can filter down to
+  zero rows - which is correct, and the aggregation is about to fill it. Observed exactly that: the
+  restore rendered the session's LAST paging page, whose single row was אילת, so the filter emptied the
+  fragment and the round trip silently returned null.
+- **The restore renders the last page the aggregation fetched, not page 1** (page 11 of 71, one row) -
+  §6d's earlier note said page 1. Either way the aggregation re-fetches from page 1, so it does not
+  matter to the fix, but it does mean the rendered rows are no guide to what the session holds.
+
+**Verified live 2026-08-15** on two cities, restore document loaded directly:
+`תל אביב יפו` → "נמצאו 5 תוצאות חיפוש עבור שיננית בעיר: תל אביב יפו" with איילון, מגדל המאה, ירמיהו,
+רמת אביב, אוניברסיטת ת"א; `בת ים` → "נמצאו 3 … בעיר: בת ים" with רוטשילד, בתימון, מ.ר.ב. Identical to
+what a fresh guaranteed search renders.
 
 After a **cross-specialization mint**, back restores that specialization's search (91), and the recovery
 guarantees it as-is: "נמצאו 5 תוצאות חיפוש עבור בדיקת רופא בעיר: תל אביב יפו" - city-complete for what

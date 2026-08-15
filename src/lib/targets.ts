@@ -124,11 +124,12 @@ export function isSmileRestoreLocation({ pathname, search }: {
 }
 
 /**
- * The Smile search form's own controls (the restore recovery drives the SITE's search, never its own):
- * the specialization select and the submit button. The city box is SEARCH_CITY_SELECTORS above.
+ * The specialization select, read on a restore document to learn which service the restored session
+ * searched for - its option labels are what the results header is matched against. The city box is
+ * SEARCH_CITY_SELECTORS above. Nothing drives the form any more: the restore recovery transforms the
+ * markup the server already rendered rather than asking the site to search again.
  */
 export const SMILE_SPECIALIZATION_SELECT_SELECTOR = "select#SelectedSpecializationCode";
-export const SMILE_SEARCH_BUTTON_SELECTOR = "input.searchButton";
 
 /**
  * The values the rendered sort links carry (`SortSmileDiaries?sortValue=X&sortDirection=Y`). The city
