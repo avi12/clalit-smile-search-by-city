@@ -33,11 +33,11 @@ export default defineContentScript({
      * here is display text; the city the guarantee acts on comes from this frame's own search box and
      * from the submitted request body. `postPageMessage` is the cross-frame send - see the channel.
      *
-     * Only the frame holding the search box speaks. The page carries several same-origin frames besides
-     * the booking one - it keeps the session alive in a frame of its own, and the accessibility widget
-     * has another - and each runs a bridge of this script. They have no search box and so no city, and
-     * the top frame keeps ONE relayed state, so letting them relay means whichever spoke last decides
-     * what the badge says: the booking frame's city, or an empty one that reads as "type a city".
+     * Only the frame holding the search box speaks. The search box is two frames down - the booking
+     * iframe loads a page that frames the scheduler itself - and the page keeps a session-refresh frame
+     * of its own beside them, so THREE frames here match and run a bridge while only the innermost has
+     * a city. The top frame keeps ONE relayed state, so letting them all relay means whichever spoke
+     * last decides what the badge says: the searched city, or an empty one reading "type a city".
      */
     function relayStateToTop() {
       const topFrame = window.top;
