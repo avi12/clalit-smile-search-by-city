@@ -75,6 +75,32 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     return distances;
   }
 
+  /**
+   * Put every row's distance on the same footing: the server prints distance from the address Clalit has
+   * on file, ours from where the user actually is, and a list that mixes the two is a list with two
+   * different numbers under one heading. Rows whose clinic is not in the committed directory keep the
+   * server's line - a number from the wrong origin still beats no number at all.
+   */
+  async function relabelRows(elList: Element) {
+    const position = await currentPosition();
+    if (!position) {
+      return;
+    }
+
+    for (const elRow of elList.querySelectorAll("li.diary")) {
+      const coords = DENTAL_CLINIC_COORDS[rowNavCode(elRow)];
+      if (coords) {
+        setRowDistanceLabel({
+          elRow,
+          km: haversineKm({
+            from: position,
+            to: coords
+          })
+        });
+      }
+    }
+  }
+
   /** Re-rank the finished list by great-circle distance from the user's live position. */
   async function reorder({ elList, isDescending }: {
     elList: Element;
@@ -124,6 +150,7 @@ export function createLiveDistanceSort(isActive: () => boolean) {
 
   return {
     reorder,
-    distancesByNavCode
+    distancesByNavCode,
+    relabelRows
   };
 }

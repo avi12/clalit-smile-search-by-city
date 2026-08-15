@@ -957,6 +957,13 @@ ours differed in four ways - two are now closed, one is deliberate, one is impos
 | --- | --- | --- |
 | `מרפאה:` / `כתובת:` / `טלפון:` | ✓ | ✓ (from the committed directory) |
 | distance | `מרחק מהבית שלך: 6.67 ק"מ` | `מרחק ממיקומך: 0.20 ק"מ` - the live position, the only distance we can source; no position, no line |
+
+**One origin for the whole list (Avi, 2026-08-15).** Leaving the server's rows alone meant a list with two
+different numbers under one heading: its rows measured from the address Clalit has on file, ours from
+where the user is. Every row whose clinic is in the committed directory is now relabelled from the live
+position once the aggregation has it - the same pass the distance sort used to do only when that sort was
+active. A row whose code is not in the directory keeps the server's line: a number from the wrong origin
+still beats no number.
 | `מועד התור הפנוי הקרוב ביותר` | ✓ | absent by necessity: there is no diary to date |
 | our own note | - | **removed**: the reason lives on the button's `title` and behind "מידע נוסף" |
 | `לכל התורים` | site sprite | site sprite, red when nothing lists the branch - the one deliberate difference |

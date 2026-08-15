@@ -252,6 +252,14 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus, ens
       });
     }
 
+    // One origin for the whole list: the position is already in hand from the line above, so the rows the
+    // server rendered get the same "from where you are" number the appended ones were built with.
+    await liveDistance.relabelRows(elList);
+
+    if (isStale()) {
+      return;
+    }
+
     if (session.state.activeSort === "home") {
       await liveDistance.reorder({
         elList,
