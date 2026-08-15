@@ -19,8 +19,11 @@ export default defineConfig({
     name: "Clalit Smile - Search by City",
     description:
       "Guarantees the city you searched shows appointments in Clalit dental scheduling, keeping the site's distance-vs-time sort.",
-    // No permissions at all - the extension is only content scripts: the city comes from the page's
-    // search box, nothing is stored, and there is no background.
+    // The only two permissions, and both serve one feature: "distance from where you are" is the
+    // extension's own reading, not the site's. `geolocation` is that reading; `offscreen` is the only
+    // context allowed to take it (a service worker cannot). Nothing is stored, and the city still comes
+    // from the page's own search box.
+    permissions: ["geolocation", "offscreen"],
     host_permissions: HOST_PERMISSIONS
   },
   vite: () => ({

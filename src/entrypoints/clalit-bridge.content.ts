@@ -3,7 +3,8 @@
  * to the MAIN interceptor over the window channel. Runs in ALL frames - the Tamuz booking UI lives in
  * an iframe - and each frame feeds its own MAIN interceptor. The status badge renders only in the top
  * frame: child frames relay their {city, status} up and receive the toggle back (see FrameRelayMessage).
- * No storage, no runtime messaging - the searched city is the only "setting".
+ * No storage - the searched city is the only "setting". Its one privileged errand is the user's
+ * position: the MAIN world asks, and the background answers from the extension's offscreen document.
  */
 
 import { installDevTakeover } from "../lib/dev-takeover";
@@ -12,9 +13,11 @@ import {
   type FrameRelayMessage,
   type GuaranteeStatus,
   PageMsg,
+  RuntimeMsg,
   type SearchConfig
 } from "../lib/messaging";
 import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
+import { sendRuntimeMessage } from "../lib/messaging-runtime";
 import { frameRelayMessageSchema, guaranteeStatusSchema } from "../lib/schemas";
 import { mountStatusBadge } from "../lib/status-badge.svelte";
 import { CONTENT_MATCHES, isTargetHost, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "../lib/targets";
@@ -124,6 +127,18 @@ export default defineContentScript({
       lastStatus = parsed.data;
       refreshBadge();
       relayStateToTop();
+    });
+
+    /**
+     * The MAIN world cannot read a position (no chrome.*) and must not depend on what the SITE was
+     * granted, so it asks here and the background reads it in the extension's own offscreen document.
+     */
+    onPageMessage(PageMsg.Position, () => {
+      if (isSuperseded) {
+        return null;
+      }
+
+      return sendRuntimeMessage(RuntimeMsg.Position, undefined).catch(() => null);
     });
 
     // ── Frame ⇄ top relay ──────────────────────────────────────────────────────

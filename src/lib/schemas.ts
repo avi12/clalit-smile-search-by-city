@@ -23,6 +23,15 @@ export const guaranteeStatusSchema = z.object({
   inCityCount: z.number().int().nonnegative()
 });
 
+/**
+ * The answer to a position request. It reaches the MAIN world over window.postMessage, so a page script
+ * could answer instead of the bridge - a bad shape is treated exactly like "no fix".
+ */
+export const positionAnswerSchema = z.tuple([
+  z.number().min(-90).max(90),
+  z.number().min(-180).max(180)
+]).nullable();
+
 // ── Frame ⇄ top relay (raw window.postMessage, so any page could forge it) ──────
 
 const frameRelaySource = z.literal(FRAME_RELAY_SOURCE);

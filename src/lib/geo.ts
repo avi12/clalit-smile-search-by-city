@@ -2,6 +2,14 @@
 
 export type LatLng = readonly [number, number];
 
+/**
+ * How long one fix stands. The offscreen document hands it to `getCurrentPosition` as `maximumAge` and
+ * the MAIN-world re-rank uses the same window to decide whether to ask again - two numbers that must
+ * agree, so they are one.
+ */
+export const POSITION_MAX_AGE_MS = 120_000;
+export const POSITION_TIMEOUT_MS = 8000;
+
 const EARTH_RADIUS_KM = 6371;
 
 function toRadians(degrees: number) {

@@ -1,13 +1,18 @@
 /**
- * Message contracts, as an @webext-core/messaging ProtocolMap keyed by a string enum.
+ * Message contracts, as @webext-core/messaging ProtocolMaps keyed by string enums.
  *
- * There is only ONE channel now: the window channel between the MAIN-world interceptor and the
- * ISOLATED bridge (see messaging-page.ts). The bridge reads the city from the page's search box and
- * pushes it here; the interceptor reports back what it guaranteed so the badge can show it. No runtime
- * (chrome) messaging and no storage are involved.
+ * Two channels. The WINDOW channel (messaging-page.ts) joins the MAIN-world interceptor and the
+ * ISOLATED bridge: the bridge reads the city from the page's search box and pushes it, the interceptor
+ * reports back what it guaranteed so the badge can show it, and it asks for the user's position. The
+ * RUNTIME channel (messaging-runtime.ts) is how that position is actually obtained - the bridge asks
+ * the background, which reads it in the extension's OWN offscreen document, so the answer belongs to
+ * the extension's geolocation permission rather than to whatever the site was granted. No storage is
+ * involved in either.
  *
- * This module is pure types + the enum + the namespace constant, so any context can import it.
+ * This module is pure types + the enums + the namespace constant, so any context can import it.
  */
+
+import type { LatLng } from "./geo";
 
 export type GuaranteeMode = "filter" | "boost";
 
@@ -58,10 +63,25 @@ export enum PageMsg {
   /** bridge → MAIN: the current search config to apply. */
   Config = "config",
   /** MAIN → bridge: the outcome of the last guarantee. */
-  Status = "status"
+  Status = "status",
+  /** MAIN → bridge: where the user is, or null when there is no fix to be had. */
+  Position = "position"
 }
 
 export type PageProtocol = {
   [PageMsg.Config]: (config: SearchConfig) => void;
   [PageMsg.Status]: (status: GuaranteeStatus) => void;
+  [PageMsg.Position]: () => LatLng | null;
+};
+
+export enum RuntimeMsg {
+  /** bridge → background: the user's position, read in the extension's own context. */
+  Position = "position",
+  /** offscreen document → background: the fix it was opened to take (null = none to be had). */
+  ReportPosition = "report-position"
+}
+
+export type RuntimeProtocol = {
+  [RuntimeMsg.Position]: () => LatLng | null;
+  [RuntimeMsg.ReportPosition]: (position: LatLng | null) => void;
 };

@@ -8,10 +8,9 @@
  */
 
 import { clinicCoords } from "./clinic-coord-fixes";
-import { haversineKm, type LatLng } from "./geo";
+import { haversineKm, type LatLng, POSITION_MAX_AGE_MS } from "./geo";
+import { requestPosition } from "./page-position";
 import { rowNavCode, setRowDistanceLabel } from "./smile";
-
-const POSITION_MAX_AGE_MS = 120_000;
 
 export function createLiveDistanceSort(isActive: () => boolean) {
   let cachedPosition: {
@@ -19,33 +18,22 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     fetchedAt: number;
   } | null = null;
 
-  function currentPosition() {
+  /** One fix per list: the same rendered list asks for distances, labels and a re-rank in turn. */
+  async function currentPosition() {
     if (cachedPosition && Date.now() - cachedPosition.fetchedAt < POSITION_MAX_AGE_MS) {
-      return Promise.resolve(cachedPosition.coords);
+      return cachedPosition.coords;
     }
 
-    return new Promise<LatLng | null>(resolve => {
-      if (!("geolocation" in navigator)) {
-        resolve(null);
-        return;
-      }
+    const coords = await requestPosition();
+    if (!coords) {
+      return null;
+    }
 
-      navigator.geolocation.getCurrentPosition(
-        ({ coords: { latitude, longitude } }) => {
-          cachedPosition = {
-            coords: [latitude, longitude],
-            fetchedAt: Date.now()
-          };
-          resolve(cachedPosition.coords);
-        },
-        () => resolve(null),
-        {
-          enableHighAccuracy: false,
-          timeout: 8000,
-          maximumAge: POSITION_MAX_AGE_MS
-        }
-      );
-    });
+    cachedPosition = {
+      coords,
+      fetchedAt: Date.now()
+    };
+    return coords;
   }
 
   /**
