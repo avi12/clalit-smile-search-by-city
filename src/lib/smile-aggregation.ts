@@ -92,6 +92,7 @@ function appendMissingBranches({
   detailsByTitle,
   bookabilityOf,
   soonestOf,
+  slotsLinkOf,
   distances
 }: {
   elList: Element;
@@ -100,6 +101,7 @@ function appendMissingBranches({
   detailsByTitle: Map<string, string>;
   bookabilityOf: (navCode: string) => boolean | null;
   soonestOf: (navCode: string) => string | null;
+  slotsLinkOf: (navCode: string) => string | null;
   distances: Map<string, number>;
 }) {
   const elTemplate =
@@ -127,6 +129,7 @@ function appendMissingBranches({
       detailsVisitGuid: detailsByTitle.get(branch.title) ?? null,
       isBookable: bookabilityOf(branch.code),
       soonestSlotDate: soonestOf(branch.code),
+      slotsLink: slotsLinkOf(branch.code),
       distanceKm: distances.get(branch.code) ?? null
     });
     elList.appendChild(elRowClone);
@@ -142,7 +145,8 @@ export function createSmileAggregation({
   reportStatus,
   ensureVerdicts,
   bookabilityOf,
-  soonestFor
+  soonestFor,
+  slotsLinkFor
 }: {
   session: SmileSession;
   nativeFetch: typeof fetch;
@@ -153,6 +157,8 @@ export function createSmileAggregation({
   bookabilityOf: (navCode: string) => boolean | null;
   /** The soonest slot the probe saw for a branch, in the service the user searched. */
   soonestFor: (navCode: string) => string | null;
+  /** And the page that books it, so the row's button is a link and the click waits for nothing. */
+  slotsLinkFor: (navCode: string) => string | null;
 }) {
   const liveDistance = createLiveDistanceSort(() => session.isActive());
   let aggregationRun = 0;
@@ -342,6 +348,7 @@ export function createSmileAggregation({
       detailsByTitle,
       bookabilityOf,
       soonestOf: soonestFor,
+      slotsLinkOf: slotsLinkFor,
       distances
     });
     if (added) {

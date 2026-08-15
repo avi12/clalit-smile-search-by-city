@@ -8,12 +8,15 @@
  * than the one the user came here for, and offering it reads as a hygienist search answering with a
  * dentist's calendar.
  *
- * The search this runs is a FOREIGN search - it replaces what the session holds and kills the displayed
- * rows' GUIDs - so the probe restores the user's own search before it marks anything. Verdicts are
- * cached for a few minutes because a sort re-renders the list (and re-runs the aggregation) without
- * changing which branches have diaries.
+ * The search this runs REPLACES what the session holds, and the sweep hands the whole list over to it:
+ * the displayed real rows are healed onto its GUIDs and every branch it lists gives up the slots link
+ * its row carried. So the answer is not just "can this be booked" but "here is the page that books it",
+ * and clicking such a row is one navigation with nothing in front of it. Verdicts are cached for a few
+ * minutes because a sort re-renders the list (and re-runs the aggregation) without changing which
+ * branches have diaries.
  */
 
+import type { ListedBranchRow } from "./smile";
 import type { SmileSession } from "./smile-session";
 
 /** The diary set moves during the day (docs §6c), so a verdict is a snapshot with a short life. */
@@ -30,6 +33,8 @@ export function createAvailabilityProbe({ session, isMintInFlight, now = Date.no
     decidedAt: number;
     /** The row that proved it bookable is the only place its soonest slot exists for us. */
     soonest: string | null;
+    /** And the only place its slots page exists - the link that makes the row's button a plain link. */
+    slotsLink: string | null;
   }>();
 
   function liveVerdict(navCode: string) {
@@ -46,37 +51,44 @@ export function createAvailabilityProbe({ session, isMintInFlight, now = Date.no
     return liveVerdict(navCode)?.soonest ?? null;
   }
 
-  function remember({ navCode, isBookable, soonest = null }: {
+  /** The branch's slots page in the searched service, minted by the sweep the session still holds. */
+  function slotsLinkFor(navCode: string) {
+    return liveVerdict(navCode)?.slotsLink ?? null;
+  }
+
+  function remember({ navCode, isBookable, soonest = null, slotsLink = null }: {
     navCode: string;
     isBookable: boolean;
     soonest?: string | null;
+    slotsLink?: string | null;
   }) {
     verdicts.set(navCode, {
       isBookable,
       soonest,
+      slotsLink,
       decidedAt: now()
     });
   }
 
-  /** Ask the searched service, once, whether it lists these branches now. */
+  /** Ask the searched service, once, whether it lists these branches now - and take its links with us. */
   async function probe(navCodes: Set<string>) {
     const specialization = session.state.activeSearchSpecialization;
     const listed = session.isSpecializationEmpty(specialization)
-      ? new Map<string, string>()
-      : await session.listedBranches({
+      ? new Map<string, ListedBranchRow>()
+      : await session.sweepListedBranches({
         specialization,
         navCodes
-      }).catch(() => new Map<string, string>());
+      }).catch(() => new Map<string, ListedBranchRow>());
 
     for (const navCode of navCodes) {
+      const row = listed.get(navCode);
       remember({
         navCode,
-        isBookable: listed.has(navCode),
-        soonest: listed.get(navCode) || null
+        isBookable: row !== undefined,
+        soonest: row?.soonest || null,
+        slotsLink: row?.slotsLink ?? null
       });
     }
-
-    await session.restoreUserSearch().catch(() => {});
   }
 
   /**
@@ -95,6 +107,7 @@ export function createAvailabilityProbe({ session, isMintInFlight, now = Date.no
   return {
     ensureVerdicts,
     verdictFor,
-    soonestFor
+    soonestFor,
+    slotsLinkFor
   };
 }

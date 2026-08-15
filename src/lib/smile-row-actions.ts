@@ -41,7 +41,13 @@ import {
 import { TAILORED_BRANCH_HASH } from "./smile-clinic-page";
 import type { SmileSession } from "./smile-session";
 
-export function createRowActions({ session }: { session: SmileSession }) {
+export function createRowActions({ session, slotsLinkFor, verdictFor }: {
+  session: SmileSession;
+  /** The branch's slots page as the availability sweep saw it, while that sweep is still the session's. */
+  slotsLinkFor: (navCode: string) => string | null;
+  /** What the sweep decided about the branch, or null once that answer is too old to act on. */
+  verdictFor: (navCode: string) => boolean | null;
+}) {
   let isMintInFlight = false;
 
   function branchByCode(code: string) {
@@ -177,9 +183,31 @@ export function createRowActions({ session }: { session: SmileSession }) {
     }
   }
 
-  /** A synthetic row's "לכל התורים": the clinic's own appointments page, or nothing at all. */
+  /**
+   * A synthetic row's "לכל התורים": the clinic's own appointments page, or nothing at all.
+   *
+   * The sweep that settled this row's colour already asked the searched service about this branch, and
+   * its search is still the session's - so what it learned is still true and still openable. That makes
+   * both answers immediate: a branch it listed hands over its own slots link (that row is not even
+   * handled here - it carries a plain data-action-link), and a branch it did not list can borrow a live
+   * row's page right away, because those rows were healed onto the same search. Only an unsettled
+   * branch - no verdict, or one old enough to have gone stale - is worth a click-time sweep of its own.
+   */
   async function openDiaries(code: string) {
     if (isMintInFlight || !session.city()) {
+      return;
+    }
+
+    const knownLink = slotsLinkFor(code);
+    if (knownLink) {
+      window.location.assign(knownLink);
+      return;
+    }
+
+    const isKnownUnbookable = verdictFor(code) === false;
+    const borrowable = isKnownUnbookable ? liveSlotsLink() : null;
+    if (borrowable) {
+      window.location.assign(`${borrowable}${TAILORED_BRANCH_HASH}${code}`);
       return;
     }
 

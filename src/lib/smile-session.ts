@@ -14,6 +14,7 @@
 
 import {
   envelopeStatus,
+  type ListedBranchRow,
   listedRowsInEnvelope,
   refreshRowActionLinks,
   rowNavCode,
@@ -27,8 +28,6 @@ import {
   SMILE_CITY_FIELD,
   SMILE_PAGING_PATH,
   SMILE_SEARCH_PATH,
-  SMILE_SORT_PATH,
-  SMILE_SORT_VALUES,
   SMILE_SPECIALIZATION_CODES,
   SMILE_SPECIALIZATION_FIELD
 } from "./targets";
@@ -164,41 +163,68 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   }
 
   /**
-   * Which of these branches a service lists RIGHT NOW - one fresh search, re-sorted by distance from the
-   * searched city so the city's own branches sit first, then its first two pages. Both callers that ask
-   * this (the click-time watch and the availability probe) want the same cheap answer, and both must
-   * restore the user's search afterwards: the search this runs is what the session now holds.
+   * ONE fresh search for a service, read to the end: which of these branches it lists right now, what
+   * each one's row said, and - from the very same envelopes - the displayed real rows healed onto this
+   * search's GUIDs.
+   *
+   * The healing is why there is no restore afterwards, and that is the whole point. The old sweep threw
+   * its search away and re-ran the user's one to undo it, which cost a second search and left every
+   * appended row without a handle, so each click had to mint one and wait ~3 s for it. Here the sweep's
+   * search BECOMES the session's search - it asks the same thing the user's rewritten search asks (this
+   * city, this service, all-country) - and everything on screen is made to belong to it: real rows by
+   * healing, appended rows by taking the link out of the row that proves them bookable. A click then
+   * needs no server round trip at all.
+   *
+   * Pages are walked one at a time on purpose: the scheduler serialises a session's calls, so ten
+   * parallel page fetches measured 656 ms against 161 ms sequential (2026-08-15).
    */
-  async function listedBranches({ specialization, navCodes }: {
+  async function sweepListedBranches({ specialization, navCodes }: {
     specialization: string;
     navCodes: Iterable<string>;
   }) {
     const wanted = new Set(navCodes);
+    const found = new Map<string, ListedBranchRow>();
     const first = await search(specialization);
-    if (wanted.size === 0 || trackEnvelopeStatus({
+    if (trackEnvelopeStatus({
       json: first,
       specialization
     }) !== SMILE_ENVELOPE_STATUS.success) {
-      return new Map<string, string>();
-    }
-
-    const sorted = await fetchSessionJson({
-      url: `${SMILE_SORT_PATH}?sortValue=${SMILE_SORT_VALUES.cityDistance}&sortDirection=1`
-    });
-    const found = listedRowsInEnvelope({
-      json: sorted,
-      navCodes: wanted
-    });
-    if (found.size === wanted.size) {
       return found;
     }
 
-    // The city's own branches sit first, but a dense city can push them past page 1 - check one more.
-    for (const [code, soonest] of listedRowsInEnvelope({
-      json: await fetchSessionJson({ url: pagingUrl(2) }),
-      navCodes: wanted
-    })) {
-      found.set(code, soonest);
+    const scan = scanEnvelopeForNavCode({ json: first });
+    if (scan.firstRowHtml) {
+      state.latestTemplateRowHtml = scan.firstRowHtml;
+    }
+
+    const elList = document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}] ul`);
+    const pendingRows = new Set(
+      elList ? [...elList.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)].map(rowNavCode) : []
+    );
+
+    function readEnvelope(json: unknown) {
+      for (const [code, row] of listedRowsInEnvelope({
+        json,
+        navCodes: wanted
+      })) {
+        found.set(code, row);
+      }
+
+      if (elList) {
+        for (const code of refreshRowActionLinks({
+          elList,
+          json
+        })) {
+          pendingRows.delete(code);
+        }
+      }
+    }
+
+    readEnvelope(first);
+
+    const totalPages = pagesOf(scan);
+    for (let page = 2; (found.size < wanted.size || pendingRows.size > 0) && page <= totalPages; page++) {
+      readEnvelope(await fetchSessionJson({ url: pagingUrl(page) }));
     }
 
     return found;
@@ -259,7 +285,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     isSpecializationEmpty,
     pagesOf,
     pagingUrl,
-    listedBranches,
+    sweepListedBranches,
     restoreUserSearch
   };
 }

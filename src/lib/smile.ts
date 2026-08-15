@@ -393,6 +393,12 @@ export interface BranchRowInput {
    * to books a different appointment than the one the user came here for.
    */
   soonestSlotDate: string | null;
+  /**
+   * This branch's slots page as the sweep's own row carried it, when the sweep found one. It belongs to
+   * the search the session still holds, so the button can just be the site's own link and the click
+   * costs nothing; `null` leaves the button to click-time minting.
+   */
+  slotsLink: string | null;
 }
 
 /**
@@ -408,7 +414,8 @@ export function applyBranchToRow({
   detailsVisitGuid,
   isBookable,
   distanceKm,
-  soonestSlotDate
+  soonestSlotDate,
+  slotsLink
 }: BranchRowInput) {
   const { code, title, street, city, phones } = branch;
   elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
@@ -466,12 +473,16 @@ export function applyBranchToRow({
     });
   }
 
-  // No diary GUID exists YET for this branch - keep the native "לכל התורים" button but strip its
-  // data-action-link (the site's delegated handler only fires on that attribute) and mark it for the
-  // interceptor's click-time GUID minting instead. The diary set fluctuates intraday, so a diary may
-  // exist by the time the user clicks even though the search omitted this branch.
+  // The sweep that settled this branch's verdict also came back with the link its row carried, so a
+  // bookable branch gets a NORMAL "לכל התורים": the site's own delegated handler opens it, with no
+  // round trip of ours between the click and the page. Without a link there is nothing to point at -
+  // strip data-action-link (that attribute is what fires the site's handler) and mark the button for
+  // the interceptor's click-time minting instead.
   const elDiaryButton = elRow.querySelector("#CreateVisitButton, a.diaryButton");
-  if (elDiaryButton) {
+  if (elDiaryButton && slotsLink) {
+    elDiaryButton.setAttribute("data-action-link", slotsLink);
+    elDiaryButton.removeAttribute(MINT_CODE_ATTR);
+  } else if (elDiaryButton) {
     elDiaryButton.removeAttribute("data-action-link");
     elDiaryButton.setAttribute(MINT_CODE_ATTR, code);
   }
@@ -938,17 +949,25 @@ export function rowSoonestSlot(elRow: Element) {
   return elLine?.textContent?.split(":").slice(1).join(":").trim() ?? "";
 }
 
+/** What one search's own row says about a branch: when it can be booked, and the page that books it. */
+export interface ListedBranchRow {
+  /** The soonest slot the row printed, or "" when it printed none. */
+  soonest: string;
+  /** That row's slots page, GUID and all - valid exactly as long as this search is the session's. */
+  slotsLink: string | null;
+}
+
 /**
- * Which of these branches one results envelope lists, and the soonest slot each one showed - the batch
- * question the single scan cannot answer. The date comes back with the verdict because the row that
- * proves a branch IS bookable is the only place that date exists.
+ * Which of these branches one results envelope lists, what each one's row said, and the link it
+ * carried - the batch question the single scan cannot answer. The date and the link come back with the
+ * verdict because the row that proves a branch IS bookable is the only place either of them exists.
  */
 export function listedRowsInEnvelope({ json, navCodes }: {
   json: unknown;
   navCodes: Iterable<string>;
 }) {
   const wanted = new Set(navCodes);
-  const found = new Map<string, string>();
+  const found = new Map<string, ListedBranchRow>();
   const html = getSmileHtml(json);
   if (!html || wanted.size === 0) {
     return found;
@@ -958,7 +977,10 @@ export function listedRowsInEnvelope({ json, navCodes }: {
   for (const elRow of parsedDocument.querySelectorAll("li.diary")) {
     const code = rowNavCode(elRow);
     if (wanted.has(code)) {
-      found.set(code, rowSoonestSlot(elRow));
+      found.set(code, {
+        soonest: rowSoonestSlot(elRow),
+        slotsLink: elRow.querySelector(SLOTS_LINK_SELECTOR)?.getAttribute("data-action-link") ?? null
+      });
     }
   }
 

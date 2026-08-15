@@ -80,9 +80,14 @@ export default defineContentScript({
       reportStatus,
       ensureVerdicts: navCodes => availability.ensureVerdicts(navCodes),
       bookabilityOf: navCode => availability.verdictFor(navCode),
-      soonestFor: navCode => availability.soonestFor(navCode)
+      soonestFor: navCode => availability.soonestFor(navCode),
+      slotsLinkFor: navCode => availability.slotsLinkFor(navCode)
     });
-    const rowActions = createRowActions({ session });
+    const rowActions = createRowActions({
+      session,
+      slotsLinkFor: navCode => availability.slotsLinkFor(navCode),
+      verdictFor: navCode => availability.verdictFor(navCode)
+    });
     if (import.meta.env.DEV) {
       installDevTakeover({
         script: "interceptor",
