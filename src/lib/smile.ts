@@ -146,6 +146,9 @@ export const MINT_NAVIGATE_NOTE = "נמצא יומן - פותחים את התו�
 /** On the loader when the sweep missed but the branch has a past visit to open its own page with. */
 export const VISIT_APPOINTMENTS_NOTE = "פותחים את דף התורים של המרפאה";
 
+/** On the loader while the branch's own appointments page (a borrowed shell) is opening. */
+export const BRANCH_PAGE_NOTE = "פותחים את דף התורים של הסניף";
+
 /** On a row the availability probe found bookable under ANOTHER service - the button still works. */
 export const OTHER_SERVICE_ROW_NOTE = "יש יומן מקוון לסניף בשירות אחר - לחצו \"לכל התורים\"";
 
@@ -231,7 +234,7 @@ function toCssProperty(camelCase: string) {
  * Directory phones come without the leading 0 ("36316561") - render like the site ("03-6316561").
  * A parenthesized IVR hint like "077-8012222 (1)" stays visible but its digit is never dialed.
  */
-function formatPhone(raw: string) {
+export function formatPhone(raw: string) {
   const hintStart = raw.indexOf("(");
   const digits = (hintStart === -1 ? raw : raw.slice(0, hintStart)).replace(/\D/g, "");
   if (!digits) {
@@ -273,7 +276,7 @@ function appendPhoneLinks({ elContainer, phones }: {
 }
 
 /** The "no online diary" note, in the site's own row/details text style, ending in the *2700 hotline. */
-function buildHotlineNote({ ownerDocument, text }: {
+export function buildHotlineNote({ ownerDocument, text }: {
   ownerDocument: Document;
   text: string;
 }) {
@@ -625,6 +628,20 @@ export function detailsLinkFromRowHtml(html: string) {
 
   const parsedDocument = new DOMParser().parseFromString(html, "text/html");
   return parsedDocument.querySelector("a[data-action-link*=\"ClinicDetailsByDiary\"]")?.getAttribute("data-action-link") ?? null;
+}
+
+/**
+ * A REAL row's slots-page link, which is the shell a branch with no diary of its own borrows: the site's
+ * own appointments page, retitled to that branch and emptied of the other clinic's availability
+ * (smile-clinic-page.ts). Like every GUID here it belongs to the session's LAST search.
+ */
+export function slotsLinkFromRowHtml(html: string) {
+  if (!html) {
+    return null;
+  }
+
+  const parsedDocument = new DOMParser().parseFromString(html, "text/html");
+  return parsedDocument.querySelector(SLOTS_LINK_SELECTOR)?.getAttribute("data-action-link") ?? null;
 }
 
 /**

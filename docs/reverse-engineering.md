@@ -941,6 +941,47 @@ list now asks the question once, right after it is complete:
   list unchanged reads as a broken button, which is exactly how it was reported. No service search form
   (§12f), no lightbox standing in for a page, no watch offer (§6e).
 
+### 12i. A branch's own appointments page, borrowed (shipped 2026-08-15)
+
+Avi's call: clicking מגדל המאה must produce what איילון's button produces - the appointments page - only
+tailored to מגדל המאה. Tamuz mints no handle for that branch (§12f), so the row **borrows the site's own
+slots page**: it navigates to a REAL row's `AvailableVisit/Smile/{diaryGuid}` with
+`#clalit-city-clinic={code}` in the hash (a fragment, so the server never sees it), and
+`smile-clinic-page.ts` makes that page the branch's.
+
+What the page is made of, and what had to change on it:
+
+- **`#availableVisitClinicTitle`** is `תור למרפאה: {a#availableVisitsClinicDetails}, כתובת: …, טלפון: …`
+  spread over text nodes with `<span>, </span>` separators. Only what FOLLOWS each label is rewritten
+  (name, address and phones from the committed directory, formatted by the same `formatPhone` the rows
+  use); rewriting a whole node doubled the comma and dropped the phone.
+- **The clinic link's `data-action-link` goes.** It points at `ClinicDoctor/ClinicDetailsByParams`, which
+  answers for the SERVER-SESSION clinic (§12) - the lender's - so the site's own handler must not fire.
+- **`#filter-wrapper` is removed entirely.** Its hour/gender lists are meaningless with no slots and its
+  name list is the LENDER's hygienist (איסמאילוב מרגריטה on איילון's page) - the one identity leak a
+  retitled page must not keep.
+- **The datepicker** opens on the lender's first free month (January 2027). Moving it needs BOTH calls:
+  `datepicker("option", { defaultDate: today, minDate: null })` and then `datepicker("setDate", today)` -
+  `setDate` alone does nothing, because the site pins the view through those options. Every day anchor is
+  then replaced by a `span.ui-state-default.ui-state-disabled`, and a `MutationObserver` on
+  `#datepicker-wrapper` repeats that on each month change.
+- **The availability calls are answered with the site's own empty month.**
+  `GetMonthlyAvailableVisit` / `GetDailyAvailableVisit` normally return `{ data: "<html>", errorType, message }`;
+  for a month with nothing free the site itself returns
+  `{"data":"<div class=\"clear-fix noAvailableQueuesNotFound\"><header class=\"margin-right bottom-border\">אין תורים פנויים בחודש הזה</header><div id=\"error-panel\" class=\"margin-right\"><p>לא קיימים תורים פנויים.</p></div></div>","errorType":0,"message":null}`
+  (captured live). The interceptor returns exactly that on a borrowed page, so the empty state is
+  Clalit's own markup rather than ours - and no slot can ever render, let alone be clicked.
+- **The loader comes down on arrival** (the click leaves it up while the iframe navigates, the site's own
+  pattern), otherwise the borrowed page renders under a 70%-white overlay.
+
+Measured on the live page: clinic line, address and phone are the branch's, `0` clickable days, `0` slot
+links, no string of the lender anywhere in the text, the site's own "אין תורים פנויים בחודש הזה", and the
+page's own "חזור לבחירת מרפאה בכללית סמייל" still returns to the list.
+
+**Consequence for §12g:** the past-visit fallback is now EXACT-title only. A neighbour that shares an
+address (מרכז מומחים מגדל המאה) has its own page with its own name, phone and profession - the branch gets
+a page tailored to itself instead, which is what the row promised.
+
 **Service hours, observed 2026-08-15 00:20:** every Smile search answered `errorType: 3` for every city
 and every service, while `Diary/GetCities` answered `errorType: 0` on the same session - the session was
 healthy, the service was not. The Smile page renders Clalit's own "זמנית לא ניתן לזמן לתור הזה דרך

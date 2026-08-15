@@ -29,6 +29,12 @@ import {
 } from "../lib/smile";
 import { createSmileAggregation, type MarkedSmileOutcome } from "../lib/smile-aggregation";
 import { createAvailabilityProbe } from "../lib/smile-availability";
+import {
+  createTailoredClinicPage,
+  emptyAvailabilityEnvelope,
+  isAvailabilityUrl,
+  tailoredBranchCode
+} from "../lib/smile-clinic-page";
 import { createRowActions } from "../lib/smile-row-actions";
 import { createSmileSession } from "../lib/smile-session";
 import {
@@ -308,6 +314,18 @@ export default defineContentScript({
       recoverRestoredSearch().catch(() => {});
     }
 
+    // ── A branch's own appointments page, borrowed (docs §12i) ─────────────────
+    // "לכל התורים" on a branch Tamuz has no handle for lands on a REAL diary's slots page carrying the
+    // branch's code in the hash. Here that page becomes the branch's: retitled, and its availability
+    // calls answered with the site's own empty month, so nothing of the lender's is left to book.
+    const tailoredClinicPage = createTailoredClinicPage(tailoredBranchCode(window.location.hash));
+    if (tailoredClinicPage.isTailored) {
+      domReady().then(() => {
+        tailoredClinicPage.apply();
+        tailoredClinicPage.watchDatepicker();
+      }).catch(() => {});
+    }
+
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
     function transformJson({ json, url, method }: UrlTransformInput) {
       const city = session.state.configCity;
@@ -381,7 +399,12 @@ export default defineContentScript({
         status: response.status,
         json
       });
-      const outcome = transformForUrl({
+      const outcome = tailoredClinicPage.isTailored && isAvailabilityUrl(url) ? {
+        isTransformed: true,
+        resultsCount: 0,
+        inCityCount: 0,
+        json: emptyAvailabilityEnvelope()
+      } : transformForUrl({
         json,
         url,
         method
@@ -476,7 +499,12 @@ export default defineContentScript({
         status: xhr.status,
         json
       });
-      const outcome = transformForUrl({
+      const outcome = tailoredClinicPage.isTailored && isAvailabilityUrl(url) ? {
+        isTransformed: true,
+        resultsCount: 0,
+        inCityCount: 0,
+        json: emptyAvailabilityEnvelope()
+      } : transformForUrl({
         json,
         url,
         method

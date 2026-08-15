@@ -24,6 +24,7 @@ import {
 } from "./site-chrome";
 import {
   applyBranchToDetailsFragment,
+  BRANCH_PAGE_NOTE,
   buildUnavailableMessageHtml,
   detailsLinkFromRowHtml,
   MINT_NAVIGATE_NOTE,
@@ -32,14 +33,15 @@ import {
   scanEnvelopeForNavCode,
   setRowBookable,
   setRowNote,
+  slotsLinkFromRowHtml,
   SMILE_ENVELOPE_STATUS,
   sweepStepNote,
   UNAVAILABLE_BUTTON_TITLE,
   VISIT_APPOINTMENTS_NOTE
 } from "./smile";
+import { TAILORED_BRANCH_HASH } from "./smile-clinic-page";
 import type { SmileSession } from "./smile-session";
 import { VISIT_APPOINTMENTS_PATH } from "./targets";
-import { clinicNameCore, SMILE_CHAIN_NAME } from "./text";
 
 export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecializationByNavCode }: {
   session: SmileSession;
@@ -172,10 +174,10 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
    * the user has been treated there. The handles rotate with every render of the visits list, so this
    * always reads a fresh one rather than the map cached for the details lightbox.
    *
-   * The visits list names clinics its own way ("מרכז מומחים מגדל המאה - תל אביב יפו" for the branch the
-   * directory calls "מגדל המאה - כללית סמייל - תל אביב יפו"), so an exact title wins first and the
-   * clinic's name core decides the rest - preferring a Smile-titled visit when the same site hosts more
-   * than one clinic (docs §12g).
+   * Only THIS clinic's own visit counts. The visits list also holds neighbours that share an address -
+   * "מרכז מומחים מגדל המאה" is an ophthalmology diary in the same building (docs §12g) - and their pages
+   * carry their name, their phone and their profession. A branch with no visit of its own gets a page
+   * tailored to it instead (smile-clinic-page.ts), which is what the row promised.
    */
   async function pastVisitGuidFor(code: string) {
     const branch = branchByCode(code);
@@ -188,17 +190,7 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
       return null;
     }
 
-    const exact = detailsByTitle.get(branch.title);
-    if (exact) {
-      return exact;
-    }
-
-    const core = clinicNameCore(branch.title);
-    const matches = core
-      ? [...detailsByTitle].filter(([title]) => clinicNameCore(title).includes(core))
-      : [];
-    const preferred = matches.find(([title]) => title.includes(SMILE_CHAIN_NAME)) ?? matches[0];
-    return preferred?.[1] ?? null;
+    return detailsByTitle.get(branch.title) ?? null;
   }
 
   /**
@@ -257,15 +249,25 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
       // (docs §12f), so the click leaves the list exactly where it is and the row says why: no dialog,
       // and never the service's search form.
       const visitGuid = await pastVisitGuidFor(code);
-      if (!visitGuid) {
-        // The loader covers the whole frame, so it has to go before the message box under it can show.
-        setSiteLoader(false);
-        sayUnbookable(code);
+      if (visitGuid) {
+        captionLoader(VISIT_APPOINTMENTS_NOTE);
+        window.location.assign(`${VISIT_APPOINTMENTS_PATH}${visitGuid}`);
         return;
       }
 
-      captionLoader(VISIT_APPOINTMENTS_NOTE);
-      window.location.assign(`${VISIT_APPOINTMENTS_PATH}${visitGuid}`);
+      // Nothing Tamuz mints belongs to this branch, so the row borrows the site's own appointments page:
+      // a REAL diary's slots page carries the branch's code in its hash, and smile-clinic-page.ts
+      // retitles it and answers its availability calls with the site's own empty month (docs §12i).
+      const borrowedPage = slotsLinkFromRowHtml(session.state.latestTemplateRowHtml);
+      if (borrowedPage) {
+        captionLoader(BRANCH_PAGE_NOTE);
+        window.location.assign(`${borrowedPage}${TAILORED_BRANCH_HASH}${code}`);
+        return;
+      }
+
+      // No real row in this search means no page to borrow - say it in the site's own message box.
+      setSiteLoader(false);
+      sayUnbookable(code);
     } finally {
       isMintInFlight = false;
     }
