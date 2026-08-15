@@ -16,7 +16,7 @@
 import { SMILE_BRANCHES } from "./clinic-directory";
 import type { SmileBranch } from "./clinic-directory";
 import { setSiteLoader } from "./site-chrome";
-import { buildHotlineNote, formatPhone, NO_SERVICE_ROW_NOTE } from "./smile";
+import { buildHotlineNote, formatPhone, NO_SERVICE_ROW_NOTE, SMILE_ENVELOPE_STATUS } from "./smile";
 
 declare global {
   interface Window {
@@ -66,24 +66,20 @@ export function isAvailabilityUrl(url: string) {
 }
 
 /**
- * What those calls answer with on a borrowed page - in the SHAPE each one really uses, which is not the
- * same shape: an empty month answers with `data` as a plain HTML string, while the day call always
- * answers with an object (`dailyAvailableVisits` plus the filter lists it feeds). Handing the day call a
- * string breaks the site's own success handler, and the loader it raised is then never lowered - which
- * is exactly how it showed up: a page stuck under the spinner.
+ * What those calls answer with on a borrowed page, in the site's OWN "nothing to show" form.
+ *
+ * `z.AvailableVisits` branches on the envelope's status (docs §12i): `Success` means `data` is the full
+ * object and the handler walks it - `data.dailyVisits`, `data.availableDays`, and
+ * `data.familyDoctorProfessions[1].filterCounter` - while `Information` means `data` is a plain HTML
+ * string, which it drops into the queues container before clearing `availableDays`. Answering `Success`
+ * with anything less than the whole object throws inside that walk, and the throw takes the success
+ * handler down with it - including the line where `z.Ajax` lowers the loader it raised, which is the
+ * spinner that never stops. So the answer here is the one the server itself gives for an empty month.
  */
-export function emptyAvailabilityEnvelope(url: string) {
+export function emptyAvailabilityEnvelope() {
   return {
-    data: url.includes(DAILY_PATH) ? {
-      dailyAvailableVisits: EMPTY_MONTH_HTML,
-      doctors: "",
-      genders: "",
-      familyDoctorProfessions: [],
-      familyVisitTypes: null,
-      familyClinics: null,
-      message: null
-    } : EMPTY_MONTH_HTML,
-    errorType: 0,
+    data: EMPTY_MONTH_HTML,
+    errorType: SMILE_ENVELOPE_STATUS.information,
     message: null
   };
 }

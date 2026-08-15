@@ -965,18 +965,22 @@ What the page is made of, and what had to change on it:
   `setDate` alone does nothing, because the site pins the view through those options. Every day anchor is
   then replaced by a `span.ui-state-default.ui-state-disabled`, and a `MutationObserver` on
   `#datepicker-wrapper` repeats that on each month change.
-- **The two availability calls do NOT share a payload shape**, and getting that wrong is what left the
-  page stuck under the site's spinner (reported live): `GetMonthlyAvailableVisit` answers an EMPTY month
-  with `data` as a plain HTML string, while `GetDailyAvailableVisit` always answers with an object -
-  `{ dailyAvailableVisits: html, doctors: html, genders: html, familyDoctorProfessions: [], familyVisitTypes: null, familyClinics: null, message: null }`.
-  Handing the day call a string breaks the site's own success handler, which is where `z.Ajax` would have
-  hidden the loader it raised - so the spinner stays forever. Each call is now answered in its own shape.
-- **The empty state itself is the site's own.**
-  `GetMonthlyAvailableVisit` / `GetDailyAvailableVisit` normally return `{ data: …, errorType, message }`;
-  for a month with nothing free the site itself returns
-  `{"data":"<div class=\"clear-fix noAvailableQueuesNotFound\"><header class=\"margin-right bottom-border\">אין תורים פנויים בחודש הזה</header><div id=\"error-panel\" class=\"margin-right\"><p>לא קיימים תורים פנויים.</p></div></div>","errorType":0,"message":null}`
-  (captured live). The interceptor returns exactly that on a borrowed page, so the empty state is
-  Clalit's own markup rather than ours - and no slot can ever render, let alone be clicked.
+- **`z.AvailableVisits` branches on the envelope's STATUS, and that is the whole trick.** Read from
+  `bundles/z`, its availability success callback is:
+  `if (r.errorType === z.ErrorType.Success) { queues.html(r.data.dailyVisits); availableDays = r.data.availableDays; … r.data.familyDoctorProfessions[1].filterCounter … }`
+  `else if (r.errorType === z.ErrorType.Information) { queues.html(r.data); availableDays = null; datepicker.refresh() }`.
+  So **`Success` means `data` is the full object** (`dailyVisits`, `availableDays`, `doctors`, `genders`,
+  `familyDoctorProfessions` - and that last one is INDEXED, `[1]`, unconditionally), while
+  **`Information` means `data` is a plain HTML string**. That is why an empty month arrives as a string:
+  the server sends it as `errorType: 1`, not 0.
+- **Getting that wrong is an indefinite spinner, not a broken panel.** Answering `Success` with a string
+  (or with an object missing `familyDoctorProfessions[1]`) throws inside that walk, and the throw takes
+  the rest of the success handler with it - including the line where `z.Ajax` lowers the loader it
+  raised. Symptoms, in order, all reported live: the page hangs under the spinner on load, then on a day
+  click, then on a month/year change. The borrowed page now answers both calls exactly as the server
+  answers an empty month - `{ data: "<div class=\"clear-fix noAvailableQueuesNotFound\">…", errorType: 1, message: null }` -
+  and the site renders its own empty state on every path: load, day click, month select, year select,
+  and the next/prev arrows.
 - **The loader comes down on arrival** (the click leaves it up while the iframe navigates, the site's own
   pattern), otherwise the borrowed page renders under a 70%-white overlay.
 
