@@ -9,7 +9,7 @@
  */
 
 import { type GuaranteeStatus, PageMsg, RuntimeMsg, type SearchConfig } from "../lib/messaging";
-import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
+import { onPageMessage, postPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { sendRuntimeMessage } from "../lib/messaging-runtime";
 import { frameStateSchema, guaranteeStatusSchema } from "../lib/schemas";
 import { mountStatusBadge } from "../lib/status-badge.svelte";
@@ -18,7 +18,6 @@ import { defineContentScript } from "#imports";
 
 export default defineContentScript({
   matches: [...CONTENT_MATCHES],
-  runAt: "document_start",
   allFrames: true,
   main(ctx) {
     const isTopFrame = window.self === window.top;
@@ -30,24 +29,27 @@ export default defineContentScript({
     let frameStatus: GuaranteeStatus | null = null;
 
     /**
-     * The window channel, addressed at ANOTHER frame: the messenger takes the window to post into, so a
-     * frame talks to a frame with the same protocol the rest of the extension uses. "*" as the target
-     * origin because top and child may sit on different Clalit hosts, and the payload is the typed city
-     * plus result counts - display text for the badge, never anything the guarantee acts on (that city
-     * comes from this frame's own search box and from the submitted request body).
+     * What this frame's badge would show, handed up to the frame that actually renders one. The city
+     * here is display text; the city the guarantee acts on comes from this frame's own search box and
+     * from the submitted request body. `postPageMessage` is the cross-frame send - see the channel.
      *
-     * Nothing awaits these: a reply cannot cross frames, so the promise the sender gets never settles.
+     * Only the frame holding the search box speaks. The page carries several same-origin frames besides
+     * the booking one - it keeps the session alive in a frame of its own, and the accessibility widget
+     * has another - and each runs a bridge of this script. They have no search box and so no city, and
+     * the top frame keeps ONE relayed state, so letting them relay means whichever spoke last decides
+     * what the badge says: the booking frame's city, or an empty one that reads as "type a city".
      */
     function relayStateToTop() {
       const topFrame = window.top;
-      if (isTopFrame || !topFrame) {
+      const isSearchBoxFrame = Boolean(findSearchInput());
+      if (isTopFrame || !topFrame || !isSearchBoxFrame) {
         return;
       }
 
-      void sendPageMessage(PageMsg.FrameState, {
+      postPageMessage(PageMsg.FrameState, {
         city,
         status: lastStatus
-      }, "*", topFrame);
+      }, topFrame);
     }
 
     const badge = isTopFrame
@@ -67,7 +69,7 @@ export default defineContentScript({
     function broadcastToggle(parentFrame: Window) {
       for (let i = 0; i < parentFrame.length; i++) {
         const childFrame: Window = parentFrame[i];
-        void sendPageMessage(PageMsg.Toggle, isEnabled, "*", childFrame);
+        postPageMessage(PageMsg.Toggle, isEnabled, childFrame);
         try {
           broadcastToggle(childFrame);
         } catch { /* inaccessible frame subtree */ }
@@ -87,7 +89,7 @@ export default defineContentScript({
         isEnabled,
         city
       };
-      sendPageMessage(PageMsg.Config, config).catch(() => {});
+      sendPageMessage(PageMsg.Config, config).catch(() => { });
     }
 
     onPageMessage(PageMsg.Status, ({ data }) => {
@@ -173,7 +175,11 @@ export default defineContentScript({
       }, { capture: true });
     }
 
-    // Initial read once the input exists (it may carry a value from the URL / a prior search).
+    // Initial read: the input exists by now (it may carry a value from the URL / a prior search).
+    // `document_idle` is what makes that true without a readyState branch - the script runs on a parsed
+    // document, whether Chrome injected it on the page's own load or the dev loop evaluated it into an
+    // already-loaded one. Nothing here needs to be earlier: the one thing that does, the interceptor's
+    // restore recovery, waits on the config message this pushes rather than on when it ran.
     function initialScan() {
       const elInput = findSearchInput();
       if (elInput) {
@@ -182,18 +188,31 @@ export default defineContentScript({
 
       pushConfig();
       refreshBadge();
+      announceToOtherFrames();
+    }
+
+    /**
+     * The frames come up in whatever order the page loads them - at `document_idle` the booking iframe's
+     * bridge can be running before the top frame's - so whichever starts first announces itself and the
+     * other answers, and the relay ends up complete from either side.
+     *
+     * From the top the announcement IS the toggle: a child that already scanned answers it with its
+     * state, which is the city this badge prints. From a child it is "hello", which the top answers with
+     * that same toggle.
+     */
+    function announceToOtherFrames() {
+      if (isTopFrame) {
+        broadcastToggle(window.self);
+        return;
+      }
 
       const topFrame = window.top;
-      if (!isTopFrame && topFrame) {
-        void sendPageMessage(PageMsg.Hello, undefined, "*", topFrame);
+      if (topFrame) {
+        postPageMessage(PageMsg.Hello, undefined, topFrame);
         relayStateToTop();
       }
     }
 
-    if (document.readyState === "loading") {
-      ctx.addEventListener(document, "DOMContentLoaded", initialScan, { once: true });
-    } else {
-      initialScan();
-    }
+    initialScan();
   }
 });

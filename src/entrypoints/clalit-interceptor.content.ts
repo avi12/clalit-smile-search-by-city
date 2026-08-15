@@ -94,11 +94,23 @@ export default defineContentScript({
       slotsLinkFor: navCode => availability.slotsLinkFor(navCode),
       verdictFor: navCode => availability.verdictFor(navCode)
     });
+    /**
+     * The one thing a waiting retry cannot see in the DOM: the bridge's config landing. The city
+     * arriving is a condition of the restore re-drive, so it announces itself here instead of being
+     * noticed the next time something else happens to mutate the document.
+     */
+    const configListeners = new Set<() => void>();
+
     onPageMessage(PageMsg.Config, ({ data }) => {
       const parsed = searchConfigSchema.safeParse(data);
-      if (parsed.success) {
-        session.state.isEnabled = parsed.data.isEnabled;
-        session.state.configCity = parsed.data.city;
+      if (!parsed.success) {
+        return;
+      }
+
+      session.state.isEnabled = parsed.data.isEnabled;
+      session.state.configCity = parsed.data.city;
+      for (const listener of configListeners) {
+        listener();
       }
     });
 
@@ -107,7 +119,7 @@ export default defineContentScript({
         city,
         resultsCount,
         inCityCount
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     function logDiscovery(
@@ -210,7 +222,7 @@ export default defineContentScript({
         // live). Capture-phase + stopPropagation keeps the click ours alone.
         e.preventDefault();
         e.stopPropagation();
-        rowActions.openDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => {});
+        rowActions.openDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => { });
         return;
       }
 
@@ -293,8 +305,9 @@ export default defineContentScript({
     }
 
     /**
-     * Both conditions are things the PAGE does, so the page says when to look again: its own load event,
-     * and every DOM change the bundle and the bridge make on their way in.
+     * Each condition says when to look again for itself: the page's own load event and every DOM change
+     * the bundle makes on its way in for `window.z`, and the bridge's config message for the city - the
+     * bridge runs at `document_idle`, which can be after both of the other two have already fired.
      */
     function redriveWhenReady(specialization: string) {
       return new Promise<void>(resolve => {
@@ -302,6 +315,7 @@ export default defineContentScript({
 
         function stop() {
           observer.disconnect();
+          configListeners.delete(attempt);
           window.removeEventListener("load", attempt);
           resolve();
         }
@@ -336,7 +350,7 @@ export default defineContentScript({
     }
 
     if (isSmileRestoreLocation(window.location)) {
-      recoverRestoredSearch().catch(() => {});
+      recoverRestoredSearch().catch(() => { });
     }
 
     // ── A branch's own appointments page, borrowed (docs §12i) ─────────────────
@@ -352,7 +366,7 @@ export default defineContentScript({
     }
 
     if (tailoredClinicPage.isTailored) {
-      tailorClinicPage().catch(() => {});
+      tailorClinicPage().catch(() => { });
     }
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
@@ -445,7 +459,7 @@ export default defineContentScript({
       }
 
       if (outcome.smile && isSmileAggregationTrigger(url)) {
-        aggregation.finalize(outcome.smile).catch(() => {});
+        aggregation.finalize(outcome.smile).catch(() => { });
       }
 
       // Rebuild from the original headers but drop content-encoding/length: the body is now plain
@@ -672,7 +686,7 @@ export default defineContentScript({
             state
           });
           if (computed?.smile) {
-            aggregation.finalize(computed.smile).catch(() => {});
+            aggregation.finalize(computed.smile).catch(() => { });
           }
         });
       }
