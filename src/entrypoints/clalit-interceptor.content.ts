@@ -283,32 +283,60 @@ export default defineContentScript({
       elSearchButton.click();
     }
 
+    /** A search has run in this document: ours landing (the marked render), the user's own
+     * (activeSearchCity is set at send time), or a prior generation's before a dev re-inject. */
+    function isRestoreSettled() {
+      return session.state.isSuperseded || !session.state.isEnabled ||
+        Boolean(session.state.activeSearchCity) || Boolean(document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`));
+    }
+
+    /** Re-drive only once BOTH are true: the city is known (the bridge has read it out of the restored
+     * search box - searching before that would re-run the same unfiltered search we are here to
+     * replace), and the site's bundle is up (before that the button is not an XHR search). */
+    function isRestoreReady() {
+      return Boolean(session.city()) && document.readyState === "complete" && Boolean(window.z);
+    }
+
+    /**
+     * Both conditions are things the PAGE does, so the page says when to look again: its own load event,
+     * and every DOM change the bundle and the bridge make on their way in.
+     */
+    function redriveWhenReady(specialization: string) {
+      return new Promise<void>(resolve => {
+        const observer = new MutationObserver(attempt);
+
+        function stop() {
+          observer.disconnect();
+          window.removeEventListener("load", attempt);
+          resolve();
+        }
+
+        function attempt() {
+          if (isRestoreSettled()) {
+            stop();
+            return;
+          }
+
+          if (isRestoreReady()) {
+            redriveSearch(specialization);
+            stop();
+          }
+        }
+
+        window.addEventListener("load", attempt);
+        observer.observe(document, {
+          childList: true,
+          subtree: true
+        });
+        attempt();
+      });
+    }
+
     async function recoverRestoredSearch() {
       await domReady();
       const specialization = restoredSessionSpecialization();
-      if (!specialization) {
-        return;
-      }
-
-      for (let attempt = 0; attempt < 20; attempt++) {
-        if (session.state.isSuperseded || !session.state.isEnabled) {
-          return;
-        }
-
-        // Stop once a search has run in this document: ours landing (the marked render), the user's
-        // own (session.state.activeSearchCity is set at send time), or a prior generation's before a dev re-inject.
-        if (session.state.activeSearchCity || document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`)) {
-          return;
-        }
-
-        // Re-drive only once BOTH are true: the city is known (the bridge has read it out of the
-        // restored search box - searching before that would re-run the same unfiltered search we are
-        // here to replace), and the site's bundle is up (before that the button is not an XHR search).
-        if (session.city() && document.readyState === "complete" && window.z) {
-          redriveSearch(specialization);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 500));
+      if (specialization) {
+        await redriveWhenReady(specialization);
       }
     }
 
@@ -321,11 +349,15 @@ export default defineContentScript({
     // branch's code in the hash. Here that page becomes the branch's: retitled, and its availability
     // calls answered with the site's own empty month, so nothing of the lender's is left to book.
     const tailoredClinicPage = createTailoredClinicPage(tailoredBranchCode(window.location.hash));
+
+    async function tailorClinicPage() {
+      await domReady();
+      tailoredClinicPage.apply();
+      tailoredClinicPage.watchDatepicker();
+    }
+
     if (tailoredClinicPage.isTailored) {
-      domReady().then(() => {
-        tailoredClinicPage.apply();
-        tailoredClinicPage.watchDatepicker();
-      }).catch(() => {});
+      tailorClinicPage().catch(() => {});
     }
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────

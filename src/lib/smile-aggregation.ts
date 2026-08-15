@@ -174,12 +174,13 @@ export function createSmileAggregation({
     }
 
     // No history / not reachable leaves the map empty - synthetic rows fall back to the nearme page.
-    const html = await nativeFetch.call(window, "/Zimunet/", {
+    const response = await nativeFetch.call(window, "/Zimunet/", {
       headers: {
         "X-Requested-With": "XMLHttpRequest"
       },
       credentials: "same-origin"
-    }).then(response => response.text()).catch(() => "");
+    }).catch(() => null);
+    const html = response ? await response.text().catch(() => "") : "";
 
     const map = new Map<string, string>();
     const parsedDocument = new DOMParser().parseFromString(html, "text/html");
@@ -216,13 +217,17 @@ export function createSmileAggregation({
       return;
     }
 
-    const elList = await waitForElement({ selector: `#am_diaries[${SMILE_MARKER_ATTR}="${marker}"] ul` });
-    if (!elList) {
-      return;
-    }
-
     function isStale() {
       return !session.isActive() || run !== aggregationRun;
+    }
+
+    // A newer render supersedes this one, so the wait ends with it rather than outliving it.
+    const elList = await waitForElement({
+      selector: `#am_diaries[${SMILE_MARKER_ATTR}="${marker}"] ul`,
+      isAbandoned: isStale
+    });
+    if (!elList || isStale()) {
+      return;
     }
 
     const totalPages = Math.ceil(totalDeclared / pageRowCount);

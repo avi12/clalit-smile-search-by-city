@@ -200,7 +200,8 @@ export default defineContentScript({
       return [...document.querySelectorAll<HTMLInputElement>("input")].find(isSearchInput) ?? null;
     }
 
-    let cityDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+    // Pushed on the keystroke that changes it, not on a timer: the work is one postMessage to the same
+    // window, and a debounce here only ever meant "the city might be stale for another 150 ms".
     function setCity(nextCity: string) {
       const trimmedCity = nextCity.trim();
       if (trimmedCity === city) {
@@ -208,12 +209,9 @@ export default defineContentScript({
       }
 
       city = trimmedCity;
-      clearTimeout(cityDebounceTimer);
-      cityDebounceTimer = setTimeout(() => {
-        pushConfig();
-        refreshBadge();
-        relayStateToTop();
-      }, 150);
+      pushConfig();
+      refreshBadge();
+      relayStateToTop();
     }
 
     for (const eventType of ["input", "change"] as const) {

@@ -12,7 +12,7 @@
  * which Chrome refuses.
  */
 
-import { type LatLng, POSITION_TIMEOUT_MS } from "../lib/geo";
+import { type LatLng } from "../lib/geo";
 import { RuntimeMsg } from "../lib/messaging";
 import { onRuntimeMessage } from "../lib/messaging-runtime";
 import { defineBackground } from "#imports";
@@ -20,8 +20,6 @@ import { defineBackground } from "#imports";
 const OFFSCREEN_PATH = "/offscreen.html";
 const OFFSCREEN_JUSTIFICATION =
   "Reads the user's location once per results list, to show how far each clinic is from them.";
-/** The fix's own timeout, plus room for the document to load and report. */
-const READ_TIMEOUT_MS = POSITION_TIMEOUT_MS + 2000;
 
 export default defineBackground(() => {
   let inFlightRead: Promise<LatLng | null> | null = null;
@@ -31,25 +29,33 @@ export default defineBackground(() => {
     reportFix?.(data);
   });
 
+  async function openDocument() {
+    try {
+      await chrome.offscreen.createDocument({
+        url: OFFSCREEN_PATH,
+        reasons: [chrome.offscreen.Reason.GEOLOCATION],
+        justification: OFFSCREEN_JUSTIFICATION
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function readPosition() {
     const reported = new Promise<LatLng | null>(resolve => {
       reportFix = resolve;
-    });
-    const gaveUp = new Promise<null>(resolve => {
-      setTimeout(() => resolve(null), READ_TIMEOUT_MS);
     });
 
     // Closing first makes the next document a fresh one: a leftover has already reported and would
     // never report again, and this way no read can wait on it.
     await chrome.offscreen.closeDocument().catch(() => {});
-    await chrome.offscreen.createDocument({
-      url: OFFSCREEN_PATH,
-      reasons: [chrome.offscreen.Reason.GEOLOCATION],
-      justification: OFFSCREEN_JUSTIFICATION
-    }).catch(() => {});
+    // A document that cannot be opened is the only way the report never comes - the document itself
+    // always answers, fix or no fix, and its own getCurrentPosition timeout bounds how long that takes.
+    const isOpen = await openDocument();
 
-    // Best effort by contract: no document, no answer or no fix all mean "no distance line".
-    const position = await Promise.race([reported, gaveUp]);
+    // Best effort by contract: no document and no fix both mean "no distance line".
+    const position = isOpen ? await reported : null;
     reportFix = null;
     await chrome.offscreen.closeDocument().catch(() => {});
     return position;

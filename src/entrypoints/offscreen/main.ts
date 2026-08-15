@@ -11,8 +11,14 @@ import { type LatLng, POSITION_MAX_AGE_MS, POSITION_TIMEOUT_MS } from "../../lib
 import { RuntimeMsg } from "../../lib/messaging";
 import { sendRuntimeMessage } from "../../lib/messaging-runtime";
 
+/** Always settles: a refusal, an unavailable provider and the call's own timeout all come back null. */
 function currentPosition() {
   return new Promise<LatLng | null>(resolve => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       ({ coords: { latitude, longitude } }) => resolve([latitude, longitude]),
       () => resolve(null),
@@ -25,6 +31,10 @@ function currentPosition() {
   });
 }
 
-currentPosition()
-  .then(position => sendRuntimeMessage(RuntimeMsg.ReportPosition, position))
-  .catch(() => {});
+// The background has nothing else to wait on, so this document answers even when it has nothing.
+async function report() {
+  const position = await currentPosition();
+  await sendRuntimeMessage(RuntimeMsg.ReportPosition, position);
+}
+
+report().catch(() => {});

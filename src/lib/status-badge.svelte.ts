@@ -64,25 +64,26 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
     });
   }
 
-  void createUi()
-    .then(created => {
-      if (isDestroyed) {
-        created.remove();
-        return;
-      }
+  async function mountUi() {
+    const created = await createUi();
+    if (isDestroyed) {
+      created.remove();
+      return;
+    }
 
-      for (const elStale of document.querySelectorAll(HOST_TAG)) {
-        elStale.remove(); // a leftover host from a superseded dev generation
-      }
+    for (const elStale of document.querySelectorAll(HOST_TAG)) {
+      elStale.remove(); // a leftover host from a superseded dev generation
+    }
 
-      ui = created;
-      created.autoMount();
-    })
-    .catch((error: unknown) => {
-      if (import.meta.env.DEV) {
-        console.warn("[clalit-city] status badge mount failed", error);
-      }
-    });
+    ui = created;
+    created.autoMount();
+  }
+
+  mountUi().catch((error: unknown) => {
+    if (import.meta.env.DEV) {
+      console.warn("[clalit-city] status badge mount failed", error);
+    }
+  });
 
   return {
     update(next) {

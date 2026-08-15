@@ -52,6 +52,8 @@ Key lib modules - the interceptor owns only the patches and the wiring, each beh
 - No type assertions (`consistent-type-assertions: never`), no `any`, no `@ts-` comments
 - Content-script code never reads `process` - Node globals exist only in `scripts/` and config files
 - Minimize indentation: avoid nested `try`/`catch` - flatten with early returns, `.catch()` on the awaited promise, or an extracted function. One `try` per function is the ceiling
+- `await`, never `.then` - an async function with `await` reads top to bottom, and a floating chain hides where the work continues. `.catch()` on the awaited promise stays: it is how a failure is swallowed without a `try` block
+- NEVER `setTimeout` / `setInterval` - not for polling, not for debouncing, not as a deadline. Wait on the thing itself: a `MutationObserver` for DOM the site renders, the page's own events (`load`, `DOMContentLoaded`), or the API's own timeout option (`getCurrentPosition`'s). A timer is a guess about someone else's timing, and it is wrong on a slow machine and wasteful on a fast one
 - Extract an `if`/ternary/guard condition into a descriptive `is`-prefixed boolean rather than inlining the raw expression - the named boolean reads as the documentation
 - Double quotes, 2-space indent, 120-char lines - ESLint enforces the rest, don't fight it
 

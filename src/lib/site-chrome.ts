@@ -24,24 +24,44 @@ declare global {
 }
 
 /**
- * Poll for an element the SITE renders asynchronously (its own Ajax, or our filtered fragment).
+ * Wait for an element the SITE renders asynchronously (its own Ajax, or our filtered fragment). The DOM
+ * says when it arrives - no polling, and no ceiling that gives up on a slow render.
+ *
  * `exclude` skips the one that was already there: the site HIDES a lightbox instead of removing it
  * (`z.hideAllLightboxes`) and prepends the new one, so a stale dialog can still match the selector.
+ * `isAbandoned` is how a caller whose work no longer matters stops waiting - checked on the next DOM
+ * change, so a superseded run releases its observer instead of holding it for the page's life.
  */
-export async function waitForElement({ selector, exclude }: {
+export function waitForElement({ selector, exclude, isAbandoned }: {
   selector: string;
   exclude?: Element | null;
+  isAbandoned?: () => boolean;
 }) {
-  for (let attempt = 0; attempt < 25; attempt++) {
+  function currentMatch() {
     const elMatch = document.querySelector(selector);
-    if (elMatch && elMatch !== exclude) {
-      return elMatch;
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 200));
+    return elMatch && elMatch !== exclude ? elMatch : null;
   }
 
-  return null;
+  const elAlreadyThere = currentMatch();
+  if (elAlreadyThere) {
+    return Promise.resolve(elAlreadyThere);
+  }
+
+  return new Promise<Element | null>(resolve => {
+    const observer = new MutationObserver(() => {
+      const elMatch = currentMatch();
+      if (!elMatch && !isAbandoned?.()) {
+        return;
+      }
+
+      observer.disconnect();
+      resolve(elMatch);
+    });
+    observer.observe(document, {
+      childList: true,
+      subtree: true
+    });
+  });
 }
 
 /** The parent document, or null when this frame is the top one / the parent is cross-origin. */
