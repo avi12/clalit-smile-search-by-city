@@ -10,7 +10,7 @@
  *   2. A "distance" sort references the USER's location - the "distance from the searched city" sort is
  *      removed/rewritten to the site's own "מרחק מהבית שלך" sort.
  *
- * Generic JSON responses (non-Smile) go through the heuristic transform in transform.ts. No chrome.*
+ * Generic JSON responses (non-Smile) go through the heuristic transform in transform.ts. No browser.*
  * access, no storage: config comes in over the window channel and status goes back the same way. In the
  * dev build it logs interesting requests to the page console (Discovery).
  */

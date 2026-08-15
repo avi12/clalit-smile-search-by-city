@@ -1,5 +1,5 @@
 /**
- * Where the user is, as seen from the MAIN world. The MAIN world has no chrome.* and the SITE's own
+ * Where the user is, as seen from the MAIN world. The MAIN world has no browser.* and the SITE's own
  * geolocation permission is not ours to rely on, so nothing is read here: the bridge is asked, and it
  * gets the fix from the extension's own offscreen document (docs: messaging.ts).
  *

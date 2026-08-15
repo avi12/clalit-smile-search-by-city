@@ -109,18 +109,25 @@ is how the dev-loop bug of 15.08 was found. Two probes, both against the live bo
 - **Which worlds exist, and which frame owns them.** `Runtime.enable` replays every
   `Runtime.executionContextCreated`; `Page.getFrameTree` maps `frameId → url`. Joining the two prints,
   per frame, the MAIN context and each isolated world by name - Chrome names an extension's world after
-  the extension, so ours is `Clalit Smile - Search by City`.
+  the extension, so ours is `כללית סמייל - חיפוש לפי עיר` (it was English until 15.08 evening; match on
+  the built manifest's `name`, never a literal).
 - **Ask a channel the way its own code would.** The window channel is
   `@webext-core/messaging/page`, i.e. a `window.postMessage` of
   `{type: "@webext-core/messaging/window", namespace, instanceId, message: {id, type, data, timestamp}}`
   answered by a `…/window/response`. Posting that by hand from the MAIN world and collecting **every**
   responder shows who is still listening: a `{res: null}` came back from the bridge and an empty
   response from the interceptor (which has no listener for that type). Evaluating
-  `chrome.runtime.id` in that frame's extension world then read `null`, and `sendMessage` threw
+  `browser.runtime.id` in that frame's extension world then read `null`, and `sendMessage` threw
   `Extension context invalidated` - the world was orphaned by the extension reload that every rebuild
-  performs, so the re-injected bridge could not reach the background and the position answered null.
-  Fixed by injecting through the extension itself (`chrome.scripting.executeScript` from the reloaded
-  service worker), which is the only way to get a FRESH world into a live tab.
+  performed, so the re-injected bridge could not reach the background and the position answered null.
+  The fix went through two shapes in one evening, and the second is the one that stuck: first the
+  extension was asked to inject itself (`browser.scripting.executeScript`), which needed a dev-only
+  `scripting` permission and a service worker that Chrome does not start after a reload; then the reload
+  itself was removed. A content-script change is evaluated straight into the LIVE worlds - valid,
+  because nothing revoked them - and only a change to what Chrome caches (manifest, background,
+  offscreen document) costs a reload, and takes the open tabs with it. Chrome keeps serving its cached
+  content scripts to pages loaded in between, so each tab is stamped with the build it runs and a 3 s
+  reconcile injects the current one into whatever is behind.
 
 ---
 

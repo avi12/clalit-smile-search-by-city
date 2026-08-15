@@ -131,7 +131,7 @@ export default defineContentScript({
     });
 
     /**
-     * The MAIN world cannot read a position (no chrome.*) and must not depend on what the SITE was
+     * The MAIN world cannot read a position (no browser.*) and must not depend on what the SITE was
      * granted, so it asks here and the background reads it in the extension's own offscreen document.
      */
     onPageMessage(PageMsg.Position, () => {

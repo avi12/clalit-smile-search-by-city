@@ -4,7 +4,7 @@
  * in-city count. Pure UI: it owns its DOM and knows nothing about messaging. The bridge feeds it
  * state and a toggle callback; updates land in a $state proxy the component reads reactively, so a
  * badge that mounts late (the shadow-root UI creation is async) shows current state. Component CSS is
- * compiled into the JS (`css: "injected"`, shadow-root-aware), so mounting needs no chrome.* APIs and
+ * compiled into the JS (`css: "injected"`, shadow-root-aware), so mounting needs no browser.* APIs and
  * works in the dev loop's re-injected MAIN-world generations too.
  */
 
