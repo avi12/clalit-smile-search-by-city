@@ -56,9 +56,9 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
           }
         });
       },
-      onRemove(app) {
+      async onRemove(app) {
         if (app) {
-          void unmount(app);
+          await unmount(app);
         }
       }
     });
