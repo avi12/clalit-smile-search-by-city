@@ -59,6 +59,7 @@ Key lib modules - the interceptor owns only the patches and the wiring, each beh
 - NEVER `setTimeout` / `setInterval` - not for polling, not for debouncing, not as a deadline. Wait on the thing itself: a `MutationObserver` for DOM the site renders, the page's own events (`load`, `DOMContentLoaded`), or the API's own timeout option (`getCurrentPosition`'s). A timer is a guess about someone else's timing, and it is wrong on a slow machine and wasteful on a fast one
 - Extract an `if`/ternary/guard condition into a descriptive `is`-prefixed boolean rather than inlining the raw expression - the named boolean reads as the documentation
 - `.replaceAll` for every global replace - `.replace(/…/g)` says the same thing in a way that reads like a single replacement. A non-global `.replace(/…/)` stays as it is
+- An event handler's parameter type is INFERRED, never written - `ctx.addEventListener(document, "click", e => …)`, not `(e: MouseEvent)`. The listener's own signature already says what the event is, and repeating it is a second copy that can drift from the first. Same rule wherever a callback's parameter type comes from the API it is passed to (`onPageMessage`, `MutationObserver`, `watcher.on`). Only write the type when TypeScript would otherwise infer `any`
 
 # Naming conventions
 Shared with `avi/youtube-time-manager` - the same conventions apply across Avi's extensions.

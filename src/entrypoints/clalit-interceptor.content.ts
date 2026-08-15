@@ -204,7 +204,7 @@ export default defineContentScript({
       });
     }
 
-    ctx.addEventListener(document, "click", (e: MouseEvent) => {
+    ctx.addEventListener(document, "click", e => {
       const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
       if (!session.state.isEnabled || e.defaultPrevented || isModified) {
         return;
