@@ -914,6 +914,10 @@ list now asks the question once, right after it is complete:
   listed nowhere → the button is painted `#b3261e` with the title "אין כרגע תור מקוון לסניף זה" and the
   note becomes "אין כרגע יומן מקוון לסניף בשום שירות של כללית סמייל". Inline styles, because the MAIN
   world must not add a stylesheet to a page it does not own and the site has no red button variant.
+- **`.diaryButton` is painted by an IMAGE, not a colour** (`/Zimunet/css/images/wideButton.png`), so
+  setting `background-color` alone changes nothing on screen - the computed style reads `#b3261e` while
+  the pixels stay blue. `background-image: none` has to go with it, and clearing both restores the site's
+  own button. Caught by screenshotting the live list; the DOM assertion alone said it had worked.
 - **The click, now.** Diary found by the sweep → the branch's slots page. No diary but a past visit at
   THAT clinic → `AvailableVisit/Index/{visitGuid}` (§12e). Neither → the branch's details lightbox with
   the reason, its phones and the watch - never the service's search form again (§12f).
