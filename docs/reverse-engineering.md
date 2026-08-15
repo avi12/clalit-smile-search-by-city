@@ -909,6 +909,13 @@ be booked must say so in the list rather than at the end of a sweep. A synthetic
 "unbookable" - it means the SEARCHED service has no diary here, while another service often does - so the
 list now asks the question once, right after it is complete:
 
+- **It runs BEFORE the rows exist.** The aggregation works out which branches this render is missing,
+  settles their verdicts, and only then builds the rows - so a row is inserted in its final colour. Doing
+  it the other way round (insert, then repaint) is what Avi saw and rejected: איילון arriving red and
+  turning blue a moment later, which reads as "cannot book" until it silently changes its mind.
+- **An unsettled row is never red.** Red is a claim - "no Smile service lists this branch" - and only the
+  probe can make it. When probing cannot run (a click-time sweep owns the session), the row keeps the
+  site's own button and the milder note it already carries.
 - **The probe** (`smile-availability.ts`) takes the appended rows' nav codes and asks each remaining
   service `session.listedNavCodes` - one fresh search, re-sorted by distance from the searched city so the
   city's own branches sit first, then its first two pages (the watch tick's mechanism, §6c, now shared by

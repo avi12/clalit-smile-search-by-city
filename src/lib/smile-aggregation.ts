@@ -8,7 +8,7 @@
  * directory (docs §10a), and a "distance" sort is re-ranked by the user's live position.
  */
 
-import { SMILE_BRANCHES } from "./clinic-directory";
+import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
 import { createLiveDistanceSort } from "./live-distance";
 import type { GuaranteeStatus } from "./messaging";
 import { waitForElement } from "./site-chrome";
@@ -44,14 +44,26 @@ function parseRowTemplate(html: string) {
  * (never markup we authored - see applyBranchToRow), repurposed for the branch; "מידע נוסף" opens the
  * site's native clinic-details lightbox when the user has a visit there.
  */
-function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle, bookabilityOf }: {
+/** The city's branches this render is missing - decided BEFORE anything is inserted, so their
+ * bookability can be settled while the list still shows only what the server sent. */
+function missingBranches({ elList, city }: {
   elList: Element;
   city: string;
+}) {
+  const seenCodes = new Set([...elList.querySelectorAll("li.diary")].map(rowNavCode));
+  return SMILE_BRANCHES.filter(branch => !seenCodes.has(branch.code) && cityMatches({
+    rowCity: branch.city,
+    searchedCity: city
+  }));
+}
+
+function appendMissingBranches({ elList, branches, templateRowHtml, detailsByTitle, bookabilityOf }: {
+  elList: Element;
+  branches: SmileBranch[];
   templateRowHtml: string;
   detailsByTitle: Map<string, string>;
   bookabilityOf: (navCode: string) => boolean | null;
 }) {
-  const seenCodes = new Set([...elList.querySelectorAll("li.diary")].map(rowNavCode));
   const elTemplate =
     elList.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
   if (!elTemplate) {
@@ -59,14 +71,7 @@ function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle, 
   }
 
   let added = 0;
-  for (const branch of SMILE_BRANCHES) {
-    if (seenCodes.has(branch.code) || !cityMatches({
-      rowCity: branch.city,
-      searchedCity: city
-    })) {
-      continue;
-    }
-
+  for (const branch of branches) {
     const elRowClone = elTemplate.cloneNode(true);
     if (!(elRowClone instanceof Element)) {
       continue;
@@ -85,13 +90,13 @@ function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle, 
   return added;
 }
 
-export function createSmileAggregation({ session, nativeFetch, reportStatus, markAvailability, bookabilityOf }: {
+export function createSmileAggregation({ session, nativeFetch, reportStatus, ensureVerdicts, bookabilityOf }: {
   session: SmileSession;
   nativeFetch: typeof fetch;
   reportStatus: (status: GuaranteeStatus) => void;
-  /** Decide which appended branches can be booked at all, and say so on their rows (docs §12h). */
-  markAvailability: (elRows: Element[], navCodeOf: (elRow: Element) => string) => Promise<void>;
-  /** What the probe already knows about a branch, so the row is BUILT in that state, not repainted. */
+  /** Settle whether these branches can be booked at all, BEFORE their rows exist (docs §12h). */
+  ensureVerdicts: (navCodes: string[]) => Promise<void>;
+  /** What the probe knows about a branch, so the row is BUILT in that state and never repainted. */
   bookabilityOf: (navCode: string) => boolean | null;
 }) {
   const liveDistance = createLiveDistanceSort(() => session.isActive());
@@ -205,9 +210,21 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus, mar
       return;
     }
 
+    // Their bookability is settled BEFORE they are inserted - a row that appears in one colour and
+    // changes to another a moment later is a row that lied once (docs §12h).
+    const branches = missingBranches({
+      elList,
+      city
+    });
+    await ensureVerdicts(branches.map(branch => branch.code));
+
+    if (isStale()) {
+      return;
+    }
+
     const added = appendMissingBranches({
       elList,
-      city,
+      branches,
       templateRowHtml,
       detailsByTitle,
       bookabilityOf
@@ -231,14 +248,6 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus, mar
         isDescending: session.state.isSortDescending
       });
     }
-
-    if (isStale()) {
-      return;
-    }
-
-    // Last, because it runs FOREIGN searches: the list is already complete and ranked on screen, and the
-    // probe restores the user's search before it marks anything.
-    await markAvailability([...elList.querySelectorAll(`li.diary[${SYNTHETIC_ROW_ATTR}]`)], rowNavCode);
   }
 
   return {

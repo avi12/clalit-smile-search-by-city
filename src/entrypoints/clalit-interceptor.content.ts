@@ -82,7 +82,7 @@ export default defineContentScript({
       session,
       nativeFetch,
       reportStatus,
-      markAvailability: (elRows, navCodeOf) => availability.markRows(elRows, navCodeOf),
+      ensureVerdicts: navCodes => availability.ensureVerdicts(navCodes),
       bookabilityOf: navCode => availability.verdictFor(navCode)
     });
     const rowActions = createRowActions({

@@ -421,9 +421,11 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }
     })
   );
 
+  // Red is a claim - "no Smile service lists this branch". Only the probe can make it; an unsettled row
+  // keeps the site's own button and says the milder thing its note already says.
   setRowBookable({
     elRow,
-    isBookable: isBookable === true,
+    isBookable: isBookable !== false,
     title: UNAVAILABLE_BUTTON_TITLE
   });
 }

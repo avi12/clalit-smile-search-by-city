@@ -13,13 +13,6 @@
  * aggregation) without changing which branches have diaries.
  */
 
-import {
-  NO_SERVICE_ROW_NOTE,
-  OTHER_SERVICE_ROW_NOTE,
-  setRowBookable,
-  setRowNote,
-  UNAVAILABLE_BUTTON_TITLE
-} from "./smile";
 import type { SmileSession } from "./smile-session";
 
 /** The diary set moves during the day (docs §6c), so a verdict is a snapshot with a short life. */
@@ -101,65 +94,21 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
     await session.restoreUserSearch().catch(() => {});
   }
 
-  /** Say on one row what is known about it: the site's own button, or a red one and the reason. */
-  function markRow({ elRow, isBookable }: {
-    elRow: Element;
-    isBookable: boolean;
-  }) {
-    setRowBookable({
-      elRow,
-      isBookable,
-      title: UNAVAILABLE_BUTTON_TITLE
-    });
-    setRowNote({
-      elRow,
-      text: isBookable ? OTHER_SERVICE_ROW_NOTE : NO_SERVICE_ROW_NOTE
-    });
-  }
-
   /**
-   * Mark the rendered synthetic rows, probing only what is not already known. A re-render (a sort, say)
-   * therefore costs nothing, and the rows carry their answer the moment they appear.
+   * Settle every branch whose verdict is unknown or stale, so the caller can build rows that already
+   * carry their answer. Cached verdicts make a re-render (a sort, say) cost nothing.
    */
-  async function markRows(elRows: Element[], navCodeOf: (elRow: Element) => string) {
-    const unknown = new Set<string>();
-    for (const elRow of elRows) {
-      const navCode = navCodeOf(elRow);
-      const isBookable = navCode ? verdictFor(navCode) : null;
-      if (isBookable === null) {
-        if (navCode) {
-          unknown.add(navCode);
-        }
-
-        continue;
-      }
-
-      markRow({
-        elRow,
-        isBookable
-      });
-    }
-
+  async function ensureVerdicts(navCodes: string[]) {
+    const unknown = new Set(navCodes.filter(navCode => navCode && verdictFor(navCode) === null));
     if (unknown.size === 0 || isMintInFlight() || !session.isActive()) {
       return;
     }
 
     await probe(unknown);
-
-    if (!session.isActive()) {
-      return;
-    }
-
-    for (const elRow of elRows) {
-      markRow({
-        elRow,
-        isBookable: verdictFor(navCodeOf(elRow)) === true
-      });
-    }
   }
 
   return {
-    markRows,
+    ensureVerdicts,
     verdictFor
   };
 }
