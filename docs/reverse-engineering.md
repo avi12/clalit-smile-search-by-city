@@ -18,7 +18,8 @@ traffic look like?_
 
 ## 2. Tools & method
 
-Everything below was gathered from the **public** surface only - no login, no credentials.
+How the whole thing was actually taken apart, in the order each instrument became necessary. The
+first phase below is the **public** surface only - no login, no credentials.
 
 - `curl` with a real Chrome User-Agent to fetch pages and follow redirects (`-L`, `-w "%{http_code}"`).
 - `nslookup` to map hostnames.
@@ -27,6 +28,99 @@ Everything below was gathered from the **public** surface only - no login, no cr
 
 Raw artifacts (saved HTML, extracted JSON, the clinic list) live in the scratchpad; the load-bearing
 findings are reproduced here.
+
+### 2a. The four instruments
+
+1. **Anonymous HTTP probes** (`curl`). Enough to map the topology and to prove where it ends: every
+   path under `/OnlineWeb/Services/Tamuz/` and `/Zimunet/` answers `302 → Login.aspx`, the static `.js`
+   included (§4). That negative result is what forced instrument 2 - and it also settled that the
+   marketing site is not a second booking channel (§12b).
+2. **A logged-in browser under CDP** (`pnpm ext:dev`). Chrome is launched against a **clone** of the
+   real profile, so it carries the developer's own Clalit session and never touches it, on a fixed
+   debug port (`9223`) that both chrome-devtools-mcp and small driver scripts attach to. This is the
+   only way to see the appointment API at all; §6-§10 were captured through it. No credentials are
+   stored in the repo.
+3. **The page's own session, from inside the page.** Some questions cannot be answered by replaying a
+   request from a script, because the answer is **server-session state**: sort and `Paging` operate on
+   the session's last search, and a row's diary GUID is only valid for that search (§6b). Those probes
+   run in the MAIN world with the page's credentials and its **unpatched** `fetch` - the same call the
+   site would have made - which is exactly what `smile-session.ts` does in the shipped extension.
+4. **Reading the client bundle.** `/Zimunet/bundles/z` (~90 KB) plus enumerating `window.z` from the
+   iframe (§12), to confirm from the source list what the probes suggested: no endpoint takes a clinic
+   code, and the site's own loader/lightbox are reusable public methods.
+
+### 2b. The loop
+
+Every section of this document was produced the same way:
+
+1. **Watch the real flow.** Dev builds log interesting requests to the page console (`[clalit-city] …`
+   in `clalit-interceptor.content.ts`) - method, URL, status and the parsed envelope. That log is the
+   discovery mode: an endpoint that shows up there is a candidate, and what it answers is the shape.
+2. **Name the question in one sentence** ("does the area search list every branch in the city?",
+   "where does a row's GUID come from?", "can a branch with no diary be booked at all?").
+3. **Probe with valid values only**, one variable at a time, with a control in the loop (§12a). Read
+   the envelope's own error type rather than guessing from the HTTP status.
+4. **Confirm in the live app**, not in a script: toggle the guarantee off, run the search a user would
+   run, and compare. A finding that cannot be reproduced through the UI is not a finding yet.
+5. **Encode it in ONE module** (see 2d) and write the section here in the same change - findings and
+   method together, with the capture date.
+6. **Verify again through the UI** with the extension on, driving the browser over CDP and reading the
+   rendered rows back out of the iframe's DOM.
+
+### 2c. Rules the site taught us
+
+- **Never sweep unknown parameter values.** A bad specialization value poisons the browser's scheduler
+  session for every re-entry, and a fresh login does not clear it - only deleting the scheduler's own
+  cookies does (§12a). Probe with values the UI itself can produce, and stop at the first `errorType: 3`.
+- **Never re-`GET` `Login.aspx` while a login is in progress** - it resets the WebForms form and rotates
+  the BotDetect CAPTCHA into an endless mismatch loop (§5a). Auth state is detected passively instead,
+  with a `redirect: "manual"` fetch of `TamuzTransfer.aspx` from any same-origin page.
+- **Never splice rows from a second search into a rendered list.** The GUIDs belong to the session's
+  last search; that single constraint is why the guarantee rewrites the ONE outgoing search to
+  all-country and then filters and aggregates its own responses (§6, §7).
+- **Read the radio before rewriting the body.** "מרפאות מכל הארץ" is a different question and passes
+  through untouched (§6a) - and the form does not read the radio's DOM state at submit, so a scripted
+  `.checked = true` without a bubbling `change` event changes nothing.
+- **Prefer the site's own chrome to ours.** `window.z` already has the loader, the lightbox and the
+  message box the flows needed (§12, §12i) - reusing them means one less thing that can look foreign.
+
+### 2d. From finding to module
+
+Each finding has exactly one home in the code; nothing is re-derived elsewhere.
+
+| Finding | Where it lives |
+|---|---|
+| Hosts, matches, search-box selectors, Smile endpoint paths | `src/lib/targets.ts` (also feeds `wxt.config.ts`) |
+| The response is a JSON envelope wrapping server-rendered `li.diary` HTML (§6) | `src/lib/smile.ts` (string → string), `src/lib/transform.ts` for the generic case |
+| Sort/`Paging`/GUIDs are server-session state (§6b) | `src/lib/smile-session.ts` - the one shared session |
+| "Area" is a subset, and Tamuz omits diary-less branches (§6a) | `src/lib/smile-aggregation.ts` + `SMILE_BRANCHES` |
+| A GUID is minted inside the row markup at search time (§6c) | `src/lib/smile-row-actions.ts` (click-time mint) |
+| A slots page belongs to a (clinic, **service**) pair (§12k) | `smile-availability.ts`, `smile-row-actions.ts` |
+| A no-GUID branch can still show its own page (§12i) | `src/lib/smile-clinic-page.ts` |
+| The "back" restore document bypasses the patches (§6d) | the interceptor's restore re-drive |
+| Clinic coordinates, and the few Clalit gets wrong (§8, §14) | `clinic-directory.ts` (generated) + `clinic-coord-fixes.ts` |
+| `window.z` loader/lightbox are reusable (§12) | `src/lib/site-chrome.ts` |
+
+### 2e. Probing our own plumbing, in the live page (2026-08-15)
+
+The same CDP attachment answers questions about **the extension** when a feature fails silently, which
+is how the dev-loop bug of 15.08 was found. Two probes, both against the live booking tab:
+
+- **Which worlds exist, and which frame owns them.** `Runtime.enable` replays every
+  `Runtime.executionContextCreated`; `Page.getFrameTree` maps `frameId → url`. Joining the two prints,
+  per frame, the MAIN context and each isolated world by name - Chrome names an extension's world after
+  the extension, so ours is `Clalit Smile - Search by City`.
+- **Ask a channel the way its own code would.** The window channel is
+  `@webext-core/messaging/page`, i.e. a `window.postMessage` of
+  `{type: "@webext-core/messaging/window", namespace, instanceId, message: {id, type, data, timestamp}}`
+  answered by a `…/window/response`. Posting that by hand from the MAIN world and collecting **every**
+  responder shows who is still listening: a `{res: null}` came back from the bridge and an empty
+  response from the interceptor (which has no listener for that type). Evaluating
+  `chrome.runtime.id` in that frame's extension world then read `null`, and `sendMessage` threw
+  `Extension context invalidated` - the world was orphaned by the extension reload that every rebuild
+  performs, so the re-injected bridge could not reach the background and the position answered null.
+  Fixed by injecting through the extension itself (`chrome.scripting.executeScript` from the reloaded
+  service worker), which is the only way to get a FRESH world into a live tab.
 
 ---
 
