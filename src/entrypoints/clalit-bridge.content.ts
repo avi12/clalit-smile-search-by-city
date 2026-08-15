@@ -2,25 +2,18 @@
  * ISOLATED bridge. It reads the city out of the site's search box and pushes it (plus a session on/off)
  * to the MAIN interceptor over the window channel. Runs in ALL frames - the Tamuz booking UI lives in
  * an iframe - and each frame feeds its own MAIN interceptor. The status badge renders only in the top
- * frame: child frames relay their {city, status} up and receive the toggle back (see FrameRelayMessage).
+ * frame: child frames relay their {city, status} up the SAME window channel (its `sendMessage` takes the
+ * window to post into) and receive the toggle back that way.
  * No storage - the searched city is the only "setting". Its one privileged errand is the user's
  * position: the MAIN world asks, and the background answers from the extension's offscreen document.
  */
 
-import { installDevTakeover } from "../lib/dev-takeover";
-import {
-  FRAME_RELAY_SOURCE,
-  type FrameRelayMessage,
-  type GuaranteeStatus,
-  PageMsg,
-  RuntimeMsg,
-  type SearchConfig
-} from "../lib/messaging";
-import { onPageMessage, removeAllPageListeners, sendPageMessage } from "../lib/messaging-page";
+import { type GuaranteeStatus, PageMsg, RuntimeMsg, type SearchConfig } from "../lib/messaging";
+import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
 import { sendRuntimeMessage } from "../lib/messaging-runtime";
-import { frameRelayMessageSchema, guaranteeStatusSchema } from "../lib/schemas";
+import { frameStateSchema, guaranteeStatusSchema } from "../lib/schemas";
 import { mountStatusBadge } from "../lib/status-badge.svelte";
-import { CONTENT_MATCHES, isTargetHost, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "../lib/targets";
+import { CONTENT_MATCHES, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "../lib/targets";
 import { defineContentScript } from "#imports";
 
 export default defineContentScript({
@@ -36,27 +29,25 @@ export default defineContentScript({
     let frameCity = "";
     let frameStatus: GuaranteeStatus | null = null;
 
-    // The payload is only the typed city + result counts, so "*" is fine as target origin (top and
-    // child may sit on different Clalit hosts); INCOMING relay messages are origin-checked instead.
-    function postRelay({ target, message }: {
-      target: Window | null;
-      message: FrameRelayMessage;
-    }) {
-      target?.postMessage(message, "*");
-    }
-
+    /**
+     * The window channel, addressed at ANOTHER frame: the messenger takes the window to post into, so a
+     * frame talks to a frame with the same protocol the rest of the extension uses. "*" as the target
+     * origin because top and child may sit on different Clalit hosts, and the payload is the typed city
+     * plus result counts - display text for the badge, never anything the guarantee acts on (that city
+     * comes from this frame's own search box and from the submitted request body).
+     *
+     * Nothing awaits these: a reply cannot cross frames, so the promise the sender gets never settles.
+     */
     function relayStateToTop() {
-      if (!isTopFrame) {
-        postRelay({
-          target: window.top,
-          message: {
-            source: FRAME_RELAY_SOURCE,
-            kind: "frame-state",
-            city,
-            status: lastStatus
-          }
-        });
+      const topFrame = window.top;
+      if (isTopFrame || !topFrame) {
+        return;
       }
+
+      void sendPageMessage(PageMsg.FrameState, {
+        city,
+        status: lastStatus
+      }, "*", topFrame);
     }
 
     const badge = isTopFrame
@@ -65,19 +56,6 @@ export default defineContentScript({
         broadcastToggle(window.self);
       })
       : null;
-
-    // Dev re-injection: a newer generation flips this; every handler below then ignores its events.
-    let isSuperseded = false;
-    if (import.meta.env.DEV) {
-      installDevTakeover({
-        script: "bridge",
-        onSuperseded() {
-          isSuperseded = true;
-          badge?.destroy();
-          removeAllPageListeners();
-        }
-      });
-    }
 
     function setEnabled(isNextEnabled: boolean) {
       isEnabled = isNextEnabled;
@@ -89,14 +67,7 @@ export default defineContentScript({
     function broadcastToggle(parentFrame: Window) {
       for (let i = 0; i < parentFrame.length; i++) {
         const childFrame: Window = parentFrame[i];
-        postRelay({
-          target: childFrame,
-          message: {
-            source: FRAME_RELAY_SOURCE,
-            kind: "toggle",
-            isEnabled
-          }
-        });
+        void sendPageMessage(PageMsg.Toggle, isEnabled, "*", childFrame);
         try {
           broadcastToggle(childFrame);
         } catch { /* inaccessible frame subtree */ }
@@ -121,7 +92,7 @@ export default defineContentScript({
 
     onPageMessage(PageMsg.Status, ({ data }) => {
       const parsed = guaranteeStatusSchema.safeParse(data);
-      if (isSuperseded || !parsed.success) {
+      if (!parsed.success) {
         return;
       }
 
@@ -134,56 +105,36 @@ export default defineContentScript({
      * The MAIN world cannot read a position (no browser.*) and must not depend on what the SITE was
      * granted, so it asks here and the background reads it in the extension's own offscreen document.
      */
-    onPageMessage(PageMsg.Position, () => {
-      if (isSuperseded) {
-        return null;
-      }
+    onPageMessage(PageMsg.Position, () =>
+      sendRuntimeMessage(RuntimeMsg.Position, undefined).catch(() => null));
 
-      return sendRuntimeMessage(RuntimeMsg.Position, undefined).catch(() => null);
-    });
-
-    // ── Frame ⇄ top relay ──────────────────────────────────────────────────────
-    /**
-     * Frame relay events always come from windows; rule out the port/worker sources by elimination -
-     * `instanceof Window` would be false for a CROSS-ORIGIN child frame (its proxy's prototype is
-     * null), and top and child frames may sit on different Clalit hosts.
-     */
-    function isWindowSource(source: MessageEventSource | null): source is Window {
-      return source !== null && !(source instanceof MessagePort) && !(source instanceof ServiceWorker);
-    }
-
-    function isClalitOrigin(origin: string) {
-      try {
-        return isTargetHost(new URL(origin).hostname);
-      } catch {
-        return false;
-      }
-    }
-
-    window.addEventListener("message", ({ data, origin, source }) => {
-      const parsed = frameRelayMessageSchema.safeParse(data);
-      if (isSuperseded || !parsed.success || !isClalitOrigin(origin)) {
+    // ── Frame ⇄ top relay, on the same channel as everything else ──────────────
+    onPageMessage(PageMsg.FrameState, ({ data }) => {
+      const parsed = frameStateSchema.safeParse(data);
+      if (!isTopFrame || !parsed.success) {
         return;
       }
 
-      const message = parsed.data;
-      if (message.kind === "frame-state" && isTopFrame) {
-        frameCity = message.city;
-        frameStatus = message.status;
-        refreshBadge();
-      } else if (message.kind === "hello" && isTopFrame && isWindowSource(source)) {
-        postRelay({
-          target: source,
-          message: {
-            source: FRAME_RELAY_SOURCE,
-            kind: "toggle",
-            isEnabled
-          }
-        });
-      } else if (message.kind === "toggle" && !isTopFrame) {
-        setEnabled(message.isEnabled);
-        relayStateToTop();
+      frameCity = parsed.data.city;
+      frameStatus = parsed.data.status;
+      refreshBadge();
+    });
+
+    // A child that just started asks for the toggle; the answer goes to every frame, because a reply
+    // cannot travel back to the one that asked.
+    onPageMessage(PageMsg.Hello, () => {
+      if (isTopFrame) {
+        broadcastToggle(window.self);
       }
+    });
+
+    onPageMessage(PageMsg.Toggle, ({ data }) => {
+      if (isTopFrame || typeof data !== "boolean") {
+        return;
+      }
+
+      setEnabled(data);
+      relayStateToTop();
     });
 
     // ── Read the searched city out of the site's search box ────────────────────
@@ -215,11 +166,11 @@ export default defineContentScript({
     }
 
     for (const eventType of ["input", "change"] as const) {
-      document.addEventListener(eventType, ({ target }) => {
-        if (!isSuperseded && target instanceof HTMLInputElement && isSearchInput(target)) {
+      ctx.addEventListener(document, eventType, ({ target }) => {
+        if (target instanceof HTMLInputElement && isSearchInput(target)) {
           setCity(target.value);
         }
-      }, true);
+      }, { capture: true });
     }
 
     // Initial read once the input exists (it may carry a value from the URL / a prior search).
@@ -232,20 +183,15 @@ export default defineContentScript({
       pushConfig();
       refreshBadge();
 
-      if (!isTopFrame) {
-        postRelay({
-          target: window.top,
-          message: {
-            source: FRAME_RELAY_SOURCE,
-            kind: "hello"
-          }
-        });
+      const topFrame = window.top;
+      if (!isTopFrame && topFrame) {
+        void sendPageMessage(PageMsg.Hello, undefined, "*", topFrame);
         relayStateToTop();
       }
     }
 
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", initialScan, { once: true });
+      ctx.addEventListener(document, "DOMContentLoaded", initialScan, { once: true });
     } else {
       initialScan();
     }

@@ -1,13 +1,12 @@
 /**
  * Zod schemas for every value that crosses a trust boundary into the extension: the window-channel
- * config/status payloads (bridge ⇄ MAIN), the frame-relay and dev-takeover window messages (which any
- * page script could forge), and the Smile JSON envelope from the network. Parsing at the edge means the
- * rest of the code works with already-validated shapes.
+ * config/status payloads (bridge ⇄ MAIN), the frame-relay window messages (which any page script could
+ * forge), and the Smile JSON envelope from the network. Parsing at the edge means the rest of the code
+ * works with already-validated shapes.
  *
  * Dependency-light (zod only) so the MAIN-world interceptor can import it.
  */
 
-import { FRAME_RELAY_SOURCE, PAGE_NAMESPACE } from "./messaging";
 import { z } from "zod";
 
 // ── Window channel: bridge ⇄ MAIN ──────────────────────────────────────────────
@@ -32,35 +31,11 @@ export const positionAnswerSchema = z.tuple([
   z.number().min(-180).max(180)
 ]).nullable();
 
-// ── Frame ⇄ top relay (raw window.postMessage, so any page could forge it) ──────
+// ── Frame ⇄ top relay (window messages, so any page script could forge one) ─────
 
-const frameRelaySource = z.literal(FRAME_RELAY_SOURCE);
-
-export const frameRelayMessageSchema = z.discriminatedUnion("kind", [
-  z.object({
-    source: frameRelaySource,
-    kind: z.literal("frame-state"),
-    city: z.string(),
-    status: guaranteeStatusSchema.nullable()
-  }),
-  z.object({
-    source: frameRelaySource,
-    kind: z.literal("toggle"),
-    isEnabled: z.boolean()
-  }),
-  z.object({
-    source: frameRelaySource,
-    kind: z.literal("hello")
-  })
-]);
-
-// ── Dev takeover ping (dev builds only) ─────────────────────────────────────────
-
-export const devTakeoverMessageSchema = z.object({
-  source: z.literal(`${PAGE_NAMESPACE}/dev-takeover`),
-  script: z.enum(["bridge", "interceptor"]),
-  token: z.string(),
-  bornAt: z.number()
+export const frameStateSchema = z.object({
+  city: z.string(),
+  status: guaranteeStatusSchema.nullable()
 });
 
 // ── Smile network envelope ──────────────────────────────────────────────────────
