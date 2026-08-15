@@ -10,6 +10,7 @@
  */
 
 import type { SmileBranch } from "./clinic-directory";
+import { renderPhoneLinks } from "./phone-links";
 import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "./schemas";
 
 /** The envelope's `errorType` values, from the site's own `z.ErrorType` (docs 12a). */
@@ -238,63 +239,6 @@ function toCssProperty(camelCase: string) {
   return camelCase.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
 }
 
-/**
- * Directory phones come without the leading 0 ("36316561") - render like the site ("03-6316561").
- * A parenthesized IVR hint like "077-8012222 (1)" stays visible but its digit is never dialed.
- */
-export function formatPhone(raw: string) {
-  const hintStart = raw.indexOf("(");
-  const digits = (hintStart === -1 ? raw : raw.slice(0, hintStart)).replace(/\D/g, "");
-  if (!digits) {
-    return null;
-  }
-
-  const withZero = digits.startsWith("0") ? digits : `0${digits}`;
-  const areaLength = withZero.startsWith("05") || withZero.startsWith("07") ? 3 : 2;
-  const display = `${withZero.slice(0, areaLength)}-${withZero.slice(areaLength)}`;
-  const hint = hintStart === -1 ? "" : raw.slice(hintStart).trim();
-  return {
-    dial: withZero,
-    display: hint ? `${display} ${hint}` : display
-  };
-}
-
-/**
- * Render directory phones as tel: links into a telephone slot (the row, the lightbox and the message
- * box share this).
- *
- * A number here IS a link - tapping it dials, and for a branch with no online diary the phone is the
- * booking route - so it looks like one everywhere: the site's own link blue, underlined (Avi,
- * 2026-08-15). Nothing sets the colour: not overriding it is what leaves the site's own
- * `a { color: rgb(15,130,209) }` showing, so the number matches every other link on the page. The
- * underline has to be inline, because that same rule set carries `text-decoration: none` and the site's
- * `.underline` class loses to it in this document.
- */
-function appendPhoneLinks({ elContainer, phones }: {
-  elContainer: Element;
-  phones: string[];
-}) {
-  const { ownerDocument } = elContainer;
-  elContainer.textContent = "";
-  for (const phone of phones) {
-    const formatted = formatPhone(phone);
-    if (!formatted) {
-      continue;
-    }
-
-    const elLink = ownerDocument.createElement("a");
-    elLink.style.setProperty("text-decoration", "underline");
-    elLink.setAttribute("href", `tel:${formatted.dial}`);
-    // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
-    elLink.setAttribute("dir", "ltr");
-    elLink.textContent = formatted.display;
-    elContainer.appendChild(elLink);
-    // The space that separates two numbers sits OUTSIDE the anchor: inside it, the underline runs
-    // straight through the gap and two numbers read as one long link (Avi, 2026-08-15).
-    elContainer.appendChild(ownerDocument.createTextNode(" "));
-  }
-}
-
 /** The "no online diary" note, in the site's own row/details text style, ending in the *2700 hotline. */
 export function buildHotlineNote({ ownerDocument, text }: {
   ownerDocument: Document;
@@ -330,9 +274,9 @@ export function buildUnavailableMessageHtml(branch: SmileBranch) {
 
   const elPhones = document.createElement("p");
   elPhones.appendChild(document.createTextNode(`${CALL_TO_BOOK} `));
-  // appendPhoneLinks empties whatever it is given, so the numbers get a slot of their own.
+  // renderPhoneLinks empties whatever it is given, so the numbers get a slot of their own.
   const elNumbers = document.createElement("span");
-  appendPhoneLinks({
+  renderPhoneLinks({
     elContainer: elNumbers,
     phones: branch.phones
   });
@@ -463,7 +407,7 @@ export function applyBranchToRow({
   // Phones as tel: links, reusing the row's own telephone slot.
   const elTelephone = elRow.querySelector(".clinicTelephone");
   if (elTelephone) {
-    appendPhoneLinks({
+    renderPhoneLinks({
       elContainer: elTelephone,
       phones
     });
@@ -632,7 +576,7 @@ function applyBranchToDetailLine({ elLine, branch }: {
   if (text.includes("טלפון:")) {
     const elTelephone = elLine.querySelector(".clinicTelephone");
     if (elTelephone) {
-      appendPhoneLinks({
+      renderPhoneLinks({
         elContainer: elTelephone,
         phones
       });

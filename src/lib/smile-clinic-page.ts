@@ -15,8 +15,9 @@
 
 import { SMILE_BRANCHES } from "./clinic-directory";
 import type { SmileBranch } from "./clinic-directory";
+import { formatPhone } from "./phone-links";
 import { setSiteLoader } from "./site-chrome";
-import { buildHotlineNote, formatPhone, NO_SERVICE_ROW_NOTE, SMILE_ENVELOPE_STATUS } from "./smile";
+import { buildHotlineNote, NO_SERVICE_ROW_NOTE, SMILE_ENVELOPE_STATUS } from "./smile";
 
 declare global {
   interface Window {
