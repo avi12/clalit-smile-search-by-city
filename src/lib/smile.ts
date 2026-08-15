@@ -252,11 +252,15 @@ export function setRowWatchState({ elRow, note, label }: {
  * the MAIN world must not add stylesheets to a page it does not own - and the site has no red variant.
  */
 const UNAVAILABLE_BUTTON_STYLE = {
-  // The site paints .diaryButton with a background IMAGE (css/images/wideButton.png), so a colour alone
-  // renders underneath it and nothing changes on screen - the image has to go first.
-  backgroundImage: "none",
+  // Every site button IS an 86x24 slice of css/images/wideButton.png - the rounded corners and the
+  // vertical gradient are pixels, not CSS (border-radius computes to 0). So a colour alone renders
+  // underneath the image and changes nothing, and dropping the image alone squares the button off next
+  // to "מידע נוסף". This repaints the same shape in red: the sprite's own 3px corners and its
+  // top-to-bottom darkening, both sampled from the PNG itself - its alpha corner is a quarter circle of
+  // radius 5, its face runs rgb(3,102,176) → rgb(1,86,149).
+  backgroundImage: "linear-gradient(to bottom, #c22a21, #9e211a)",
   backgroundColor: "#b3261e",
-  borderColor: "#b3261e",
+  borderRadius: "5px",
   color: "#ffffff"
 };
 

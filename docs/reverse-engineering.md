@@ -914,10 +914,17 @@ list now asks the question once, right after it is complete:
   listed nowhere → the button is painted `#b3261e` with the title "אין כרגע תור מקוון לסניף זה" and the
   note becomes "אין כרגע יומן מקוון לסניף בשום שירות של כללית סמייל". Inline styles, because the MAIN
   world must not add a stylesheet to a page it does not own and the site has no red button variant.
-- **`.diaryButton` is painted by an IMAGE, not a colour** (`/Zimunet/css/images/wideButton.png`), so
-  setting `background-color` alone changes nothing on screen - the computed style reads `#b3261e` while
-  the pixels stay blue. `background-image: none` has to go with it, and clearing both restores the site's
-  own button. Caught by screenshotting the live list; the DOM assertion alone said it had worked.
+- **Every site button IS a sprite slice, not a styled box.** `/Zimunet/css/images/wideButton.png` is
+  86x48 - the enabled face on top (a vertical gradient `rgb(3,102,176)` → `rgb(1,86,149)`), the disabled
+  grey face (`rgb(172,172,172)` → `rgb(165,165,165)`) below it - and every `.wideButtonEnabled` is
+  exactly 86x24 with `border-radius: 0` and no padding. Two consequences, both found on screen rather
+  than in the DOM:
+  1. `background-color` alone renders UNDER the image, so the computed style reads `#b3261e` while the
+     pixels stay blue.
+  2. Dropping the image to fix that also drops the corners, and the button squares off next to
+     "מידע נוסף" - the rounding is pixels. The PNG's alpha corner is a quarter circle of **radius 5**
+     (full opacity first reached at (5,0) and (0,5)), so the red button repaints that same geometry:
+     `border-radius: 5px` plus a top-to-bottom red gradient in place of the sprite's blue one.
 - **The click, now.** Diary found by the sweep → the branch's slots page. No diary but a past visit at
   THAT clinic → `AvailableVisit/Index/{visitGuid}` (§12e). Neither → the branch's details lightbox with
   the reason, its phones and the watch - never the service's search form again (§12f).
