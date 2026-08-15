@@ -27,6 +27,7 @@ Key lib modules - the interceptor owns only the patches and the wiring, each beh
 - `smile-row-actions.ts` - a synthetic row's two buttons: "לכל התורים" opens a page of THAT clinic or nothing (mint a diary GUID → its slots page, else a past visit → its own appointments page, else stay put and repaint the row), "מידע נוסף" composes the site's own lightbox from a real row of the current search
 - `site-chrome.ts` - the PAGE's own chrome reused instead of ours: `window.z` loader/lightbox plus the DOM waits. MAIN-world only, every call cosmetic
 - `schemas.ts` - zod schemas for every external input (call `schema.safeParse()` at the boundary); `messaging.ts`/`messaging-page.ts` - the window channel contracts; `text.ts` (`normalizeCity`) + `html.ts` (`escapeHtml`) - the shared string helpers
+- `clinic-coord-fixes.ts` - the few Clalit coordinates that contradict their own address (sourced, one per entry); every distance path reads `clinicCoords(navCode)`, never the generated map directly
 - `geo.ts` (haversine) + `clinic-directory.ts` - GENERATED from Clalit's public `nearme.clalit.co.il/c.json` by `pnpm clinics:fetch`; never hand-edit (ESLint ignores it). `clinics.ts` is a different code space (marketing-site 9xxx codes), reference only
 - `dev-takeover.ts` - dev-only generation handoff; `status-badge.svelte.ts` + `StatusBadge.svelte` - pure UI
 

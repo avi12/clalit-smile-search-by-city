@@ -1039,6 +1039,32 @@ morning rather than resetting anything.
 
 ---
 
+## 14. Clalit's own coordinates are not all correct (captured 2026-08-15)
+
+Reported as "the distance calculation is incorrect". It was not the arithmetic and not the import - it
+was the datum. Method, in order:
+
+1. **Checked the maths by hand** against three rows (stub position `32.0853, 34.7818`): איילון 3.11 km,
+   מגדל המאה 0.20 km, ירמיהו 1.23 km - each matches a manual haversine to the stored point.
+2. **Re-fetched the source** (`curl https://nearme.clalit.co.il/c.json`, 1.7 MB, rows under key `u` as
+   `[code, name, …, [city, street], [lat, lng], …]`) and compared it with `clinic-directory.ts`: our
+   import is byte-identical, including the bad points.
+3. **Scanned for outliers** - every clinic against the median point of its own city. 70 clinics sit more
+   than 8 km from their city's cluster (mostly non-Smile services registered to a head office); among the
+   Smile branches we ship, the >3 km list is all legitimate big-city spread (Jerusalem neighbourhoods,
+   רמת אביב 3.8 km north of central Tel Aviv).
+4. **The one that is genuinely wrong**: `865193` כללית סמייל - אוניברסיטת תל אביב is published at
+   `[32.066236, 34.7789339]` - central Tel Aviv - while the same record's address says
+   "ביה"ס לרפואת שיניים בקמפוס האוניברסיטה, הגישה דרך שער 10". OpenStreetMap's node for that school
+   (nominatim, `Goldschleger School of Dental Medicine Tel Aviv University`, queried 2026-08-15) is
+   `[32.117326, 34.804497]` - **6.0 km away**. The row's distance was wrong by that much.
+
+**Where corrections live.** `clinic-directory.ts` stays a faithful import (`pnpm clinics:fetch`
+regenerates it), so the fix is a separate, tiny, sourced table - `clinic-coord-fixes.ts` - read through
+one accessor, `clinicCoords(navCode)`, which every distance path now calls. Each entry records Clalit's
+published point, the address it contradicts, the replacement's source and the size of the error; an entry
+is deleted the moment Clalit fixes it upstream.
+
 ## 13. Native styling of injected elements (captured live 2026-08-14)
 
 So the extension's injected elements blend into the site instead of rendering browser-default, captured

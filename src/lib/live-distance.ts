@@ -7,7 +7,7 @@
  * denied or unavailable position leaves the list exactly as the server sorted it.
  */
 
-import { DENTAL_CLINIC_COORDS } from "./clinic-directory";
+import { clinicCoords } from "./clinic-coord-fixes";
 import { haversineKm, type LatLng } from "./geo";
 import { rowNavCode, setRowDistanceLabel } from "./smile";
 
@@ -61,7 +61,7 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     }
 
     for (const navCode of navCodes) {
-      const coords = DENTAL_CLINIC_COORDS[navCode];
+      const coords = clinicCoords(navCode);
       if (coords) {
         distances.set(
           navCode, haversineKm({
@@ -88,7 +88,7 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     }
 
     for (const elRow of elList.querySelectorAll("li.diary")) {
-      const coords = DENTAL_CLINIC_COORDS[rowNavCode(elRow)];
+      const coords = clinicCoords(rowNavCode(elRow));
       if (coords) {
         setRowDistanceLabel({
           elRow,
@@ -112,7 +112,7 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     }
 
     const ranked = [...elList.querySelectorAll("li.diary")].map((elRow, i) => {
-      const coords = DENTAL_CLINIC_COORDS[rowNavCode(elRow)];
+      const coords = clinicCoords(rowNavCode(elRow));
       return {
         elRow,
         iRow: i,
