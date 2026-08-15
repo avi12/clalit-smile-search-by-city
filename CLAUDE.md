@@ -33,6 +33,7 @@ Key lib modules - the interceptor owns only the patches and the wiring, each beh
 - `schemas.ts` - zod schemas for every external input (call `schema.safeParse()` at the boundary); `messaging.ts` - the contracts for BOTH channels, `messaging-page.ts` (window) + `messaging-runtime.ts` (chrome); `page-position.ts` - the MAIN world's only way to a position; `text.ts` (`normalizeCity`) + `html.ts` (`escapeHtml`) - the shared string helpers
 - `clinic-coord-fixes.ts` - the few Clalit coordinates that contradict their own address (sourced, one per entry); every distance path reads `clinicCoords(navCode)`, never the generated map directly
 - `geo.ts` (haversine) + `clinic-directory.ts` - GENERATED from Clalit's public `nearme.clalit.co.il/c.json` by `pnpm clinics:fetch`; never hand-edit (ESLint ignores it). `clinics.ts` is a different code space (marketing-site 9xxx codes), reference only
+- `phone-links.ts` + `PhoneLinks.svelte` - phone presentation in one home: `formatPhone` (the directory's digits → what the site prints) and the markup, a Svelte component so the whitespace between two numbers is visible in a template instead of buried in appendChild calls. Mounted into a row's telephone slot, the composed lightbox and the message box alike - the last two read the slot's HTML immediately (hence `flushSync`) and the lightbox's slot belongs to a DOMParser document (hence the import)
 - `dev-takeover.ts` - dev-only generation handoff; `status-badge.svelte.ts` + `StatusBadge.svelte` - pure UI
 
 # Engineering conventions
