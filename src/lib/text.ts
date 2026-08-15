@@ -4,7 +4,7 @@
  */
 
 /** Normalize a Hebrew place string for tolerant matching: drop geresh/quotes, collapse whitespace. */
-export function normalizeCity(value: string): string {
+export function normalizeCity(value: string) {
   return value.replaceAll(/["'׳״]/g, "").replaceAll(/\s+/g, " ").trim();
 }
 
@@ -31,7 +31,7 @@ const CLINIC_TITLE_BOILERPLATE = [
  * "מרכז מומחים מגדל המאה - תל אביב יפו" both reduce to "מגדל המאה". Used to line the branch directory
  * up with the visits list, whose titles come from a different Clalit system and rarely match verbatim.
  */
-export function clinicNameCore(title: string): string {
+export function clinicNameCore(title: string) {
   let core = normalizeCity(title).replaceAll("-", " ");
   for (const word of CLINIC_TITLE_BOILERPLATE) {
     core = core.replaceAll(word, " ");

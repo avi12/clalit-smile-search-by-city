@@ -136,7 +136,7 @@ export default defineContentScript({
       return source !== null && !(source instanceof MessagePort) && !(source instanceof ServiceWorker);
     }
 
-    function isClalitOrigin(origin: string): boolean {
+    function isClalitOrigin(origin: string) {
       try {
         return isTargetHost(new URL(origin).hostname);
       } catch {
@@ -171,7 +171,7 @@ export default defineContentScript({
     });
 
     // ── Read the searched city out of the site's search box ────────────────────
-    function isSearchInput(elInput: HTMLInputElement): boolean {
+    function isSearchInput(elInput: HTMLInputElement) {
       if (SEARCH_CITY_SELECTORS.some(selector => elInput.matches(selector))) {
         return true;
       }
@@ -180,7 +180,7 @@ export default defineContentScript({
       return SEARCH_CITY_HINT.test(haystack);
     }
 
-    function findSearchInput(): HTMLInputElement | null {
+    function findSearchInput() {
       return [...document.querySelectorAll<HTMLInputElement>("input")].find(isSearchInput) ?? null;
     }
 

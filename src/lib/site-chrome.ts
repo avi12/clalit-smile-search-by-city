@@ -31,7 +31,7 @@ declare global {
 export async function waitForElement({ selector, exclude }: {
   selector: string;
   exclude?: Element | null;
-}): Promise<Element | null> {
+}) {
   for (let attempt = 0; attempt < 25; attempt++) {
     const elMatch = document.querySelector(selector);
     if (elMatch && elMatch !== exclude) {
@@ -45,7 +45,7 @@ export async function waitForElement({ selector, exclude }: {
 }
 
 /** The parent document, or null when this frame is the top one / the parent is cross-origin. */
-export function parentDocument(): Document | null {
+export function parentDocument() {
   try {
     const { parent } = window;
     return parent === window ? null : parent.document;
@@ -85,7 +85,7 @@ export function setSiteLoader(isVisible: boolean) {
 export function showDetailsDialog({ html, note }: {
   html: string;
   note: string;
-}): boolean {
+}) {
   const pageUi = window.z;
   if (typeof pageUi?.showDialog !== "function") {
     return false;
@@ -114,7 +114,7 @@ export function showDetailsDialog({ html, note }: {
  * online" - so a click that reaches no page says so in the page's own voice instead of leaving the user
  * looking at an unchanged list.
  */
-export function showSiteMessage(html: string): boolean {
+export function showSiteMessage(html: string) {
   const pageUi = window.z;
   if (typeof pageUi?.showMessage !== "function") {
     return false;

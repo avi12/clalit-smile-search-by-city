@@ -49,12 +49,12 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
 }) {
   let isMintInFlight = false;
 
-  function branchByCode(code: string): SmileBranch | undefined {
+  function branchByCode(code: string) {
     return SMILE_BRANCHES.find(candidate => candidate.code === code);
   }
 
   /** The branch's lightbox fragment, composed from a real row of the CURRENT search session. */
-  async function composeDetailsFragment(branch: SmileBranch): Promise<string | null> {
+  async function composeDetailsFragment(branch: SmileBranch) {
     const templateLink = detailsLinkFromRowHtml(session.state.latestTemplateRowHtml);
     if (!templateLink) {
       return null;
@@ -103,7 +103,7 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
   async function scanSearchForBranch({ specialization, navCode }: {
     specialization: string;
     navCode: string;
-  }): Promise<string | null> {
+  }) {
     const first = await session.search(specialization);
     if (session.trackEnvelopeStatus({
       json: first,
@@ -139,7 +139,7 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
       step: number;
       total: number;
     }) => void;
-  }): Promise<string | null> {
+  }) {
     const preferred = [knownSpecializationByNavCode.get(navCode), session.state.activeSearchSpecialization]
       .filter((code): code is string => code !== undefined && !session.isSpecializationEmpty(code));
     const otherCodes = session.bookableSpecializations().filter(code => !preferred.includes(code));
@@ -177,7 +177,7 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
    * clinic's name core decides the rest - preferring a Smile-titled visit when the same site hosts more
    * than one clinic (docs §12g).
    */
-  async function pastVisitGuidFor(code: string): Promise<string | null> {
+  async function pastVisitGuidFor(code: string) {
     const branch = branchByCode(code);
     if (!branch) {
       return null;

@@ -71,12 +71,12 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   };
 
   /** The city the session's result set was actually searched for, falling back to the search box. */
-  function city(): string {
+  function city() {
     return (state.activeSearchCity || state.configCity).trim();
   }
 
   /** Nothing may run when a newer generation owns the page, the toggle is off, or the session is gone. */
-  function isActive(): boolean {
+  function isActive() {
     return !state.isSuperseded && state.isEnabled && !state.isSessionLost;
   }
 
@@ -84,7 +84,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   async function fetchSessionJson({ url, body }: {
     url: string;
     body?: string;
-  }): Promise<unknown> {
+  }) {
     const headers: Record<string, string> = {
       "X-Requested-With": "XMLHttpRequest"
     };
@@ -102,7 +102,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   }
 
   /** An all-country search body for one service, in the city the session is guaranteeing. */
-  function searchBody(specialization: string): string {
+  function searchBody(specialization: string) {
     return [
       `${SMILE_SPECIALIZATION_FIELD}=${specialization}`,
       `${SMILE_CITY_FIELD}=${encodeURIComponent(city())}`,
@@ -114,7 +114,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   function trackEnvelopeStatus({ json, specialization }: {
     json: unknown;
     specialization?: string;
-  }): number | null {
+  }) {
     const status = envelopeStatus(json);
     if (status === SMILE_ENVELOPE_STATUS.authorization) {
       state.isSessionLost = true;
@@ -128,27 +128,27 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   }
 
   /** The services still worth asking - one that answered `errorType: 3` never will this session. */
-  function bookableSpecializations(): string[] {
+  function bookableSpecializations() {
     return SMILE_SPECIALIZATION_CODES.filter(code => !emptySpecializations.has(code));
   }
 
-  function isSpecializationEmpty(specialization: string): boolean {
+  function isSpecializationEmpty(specialization: string) {
     return emptySpecializations.has(specialization);
   }
 
   function pagesOf({ totalDeclared, pageRowCount }: {
     totalDeclared: number;
     pageRowCount: number;
-  }): number {
+  }) {
     return pageRowCount ? Math.min(Math.ceil(totalDeclared / pageRowCount), MAX_SCAN_PAGES) : 0;
   }
 
-  function pagingUrl(page: number): string {
+  function pagingUrl(page: number) {
     return `${SMILE_PAGING_PATH}?pageNumber=${page}`;
   }
 
   /** Run a NEW all-country search for one service and hand back its first envelope. */
-  async function search(specialization: string): Promise<unknown> {
+  async function search(specialization: string) {
     return await fetchSessionJson({
       url: SMILE_SEARCH_PATH,
       body: searchBody(specialization)
@@ -164,14 +164,14 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   async function listedNavCodes({ specialization, navCodes }: {
     specialization: string;
     navCodes: Iterable<string>;
-  }): Promise<Set<string>> {
+  }) {
     const wanted = new Set(navCodes);
     const first = await search(specialization);
     if (wanted.size === 0 || trackEnvelopeStatus({
       json: first,
       specialization
     }) !== SMILE_ENVELOPE_STATUS.success) {
-      return new Set();
+      return new Set<string>();
     }
 
     const sorted = await fetchSessionJson({

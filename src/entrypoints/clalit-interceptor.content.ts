@@ -124,7 +124,7 @@ export default defineContentScript({
 
     let renderCounter = 0;
 
-    function isSmileAggregationTrigger(url: string): boolean {
+    function isSmileAggregationTrigger(url: string) {
       return url.includes(SMILE_SEARCH_PATH) || url.includes(SMILE_SORT_PATH);
     }
 
@@ -135,7 +135,7 @@ export default defineContentScript({
       method: string;
     };
 
-    function transformSmile(json: unknown): UrlTransformResult {
+    function transformSmile(json: unknown) {
       const untouched: UrlTransformResult = {
         isTransformed: false,
         resultsCount: 0,
@@ -181,7 +181,7 @@ export default defineContentScript({
       };
     }
 
-    function transformForUrl({ json, url, method }: UrlTransformInput): UrlTransformResult {
+    function transformForUrl({ json, url, method }: UrlTransformInput) {
       return isSmileResultsUrl(url) ? transformSmile(json) : transformJson({
         json,
         url,
@@ -235,17 +235,17 @@ export default defineContentScript({
     // session) - the session's real specialization comes from the results header, matched against the
     // select's own option labels.
 
-    function domReady(): Promise<void> {
+    function domReady() {
       if (document.readyState !== "loading") {
         return Promise.resolve();
       }
 
-      return new Promise(resolve => {
+      return new Promise<void>(resolve => {
         document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
       });
     }
 
-    function restoredSessionSpecialization(): string | null {
+    function restoredSessionSpecialization() {
       const headerText = document.querySelector("#am_diaries h2")?.textContent ?? "";
       const elSelect = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
       if (!headerText || !elSelect) {
@@ -256,7 +256,7 @@ export default defineContentScript({
       return elOption?.value ?? null;
     }
 
-    function redriveSearch(specialization: string): void {
+    function redriveSearch(specialization: string) {
       const elSearchButton = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
       if (!elSearchButton) {
         return;
@@ -309,15 +309,18 @@ export default defineContentScript({
     }
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
-    function transformJson({ json, url, method }: UrlTransformInput): TransformResult {
+    function transformJson({ json, url, method }: UrlTransformInput) {
       const city = session.state.configCity;
+      // Typed here rather than on the signature: it is what makes this share ONE shape with
+      // transformSmile, so the union transformForUrl returns still carries `smile`.
+      const untouched: UrlTransformResult = {
+        isTransformed: false,
+        resultsCount: 0,
+        inCityCount: 0,
+        json
+      };
       if (!session.isActive() || !city.trim()) {
-        return {
-          isTransformed: false,
-          resultsCount: 0,
-          inCityCount: 0,
-          json
-        };
+        return untouched;
       }
 
       const rule = matchEndpointRule({
@@ -325,15 +328,10 @@ export default defineContentScript({
         method
       });
       if (!rule && !isInterestingUrl(url)) {
-        return {
-          isTransformed: false,
-          resultsCount: 0,
-          inCityCount: 0,
-          json
-        };
+        return untouched;
       }
 
-      const result = applyGuarantee(json, {
+      const result: UrlTransformResult = applyGuarantee(json, {
         city,
         guaranteeMode: GUARANTEE_MODE,
         rule
@@ -350,7 +348,7 @@ export default defineContentScript({
     }
 
     // ── fetch ────────────────────────────────────────────────────────────────
-    function requestUrl(input: RequestInfo | URL): string {
+    function requestUrl(input: RequestInfo | URL) {
       if (typeof input === "string") {
         return input;
       }

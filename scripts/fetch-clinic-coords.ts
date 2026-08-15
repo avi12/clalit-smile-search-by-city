@@ -42,7 +42,7 @@ function isDirectoryClinic(value: unknown): value is DirectoryClinic {
   return value !== null && typeof value === "object";
 }
 
-function decodeRows({ m: columnNames, u: rows }: DirectoryPayload): DirectoryClinic[] {
+function decodeRows({ m: columnNames, u: rows }: DirectoryPayload) {
   const clinics: DirectoryClinic[] = [];
   for (const values of rows) {
     const row: Record<string, unknown> = {};
@@ -58,7 +58,7 @@ function decodeRows({ m: columnNames, u: rows }: DirectoryPayload): DirectoryCli
   return clinics;
 }
 
-function quote(value: string): string {
+function quote(value: string) {
   return JSON.stringify(value.replaceAll("\n", " ").trim());
 }
 

@@ -19,12 +19,12 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     fetchedAt: number;
   } | null = null;
 
-  function currentPosition(): Promise<LatLng | null> {
+  function currentPosition() {
     if (cachedPosition && Date.now() - cachedPosition.fetchedAt < POSITION_MAX_AGE_MS) {
       return Promise.resolve(cachedPosition.coords);
     }
 
-    return new Promise(resolve => {
+    return new Promise<LatLng | null>(resolve => {
       if (!("geolocation" in navigator)) {
         resolve(null);
         return;

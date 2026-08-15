@@ -4,7 +4,7 @@ export type LatLng = readonly [number, number];
 
 const EARTH_RADIUS_KM = 6371;
 
-function toRadians(degrees: number): number {
+function toRadians(degrees: number) {
   return (degrees * Math.PI) / 180;
 }
 
@@ -12,7 +12,7 @@ function toRadians(degrees: number): number {
 export function haversineKm({ from, to }: {
   from: LatLng;
   to: LatLng;
-}): number {
+}) {
   const [fromLat, fromLng] = from;
   const [toLat, toLng] = to;
   const deltaLat = toRadians(toLat - fromLat);

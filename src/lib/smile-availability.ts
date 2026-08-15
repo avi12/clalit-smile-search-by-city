@@ -41,7 +41,7 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
     decidedAt: number;
   }>();
 
-  function verdictFor(navCode: string): boolean | null {
+  function verdictFor(navCode: string) {
     const verdict = verdicts.get(navCode);
     if (!verdict || now() - verdict.decidedAt > VERDICT_TTL_MS) {
       return null;

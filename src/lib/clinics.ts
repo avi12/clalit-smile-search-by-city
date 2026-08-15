@@ -695,7 +695,7 @@ export const CLINICS: Clinic[] = [
 
 const CODE_TO_CLINIC = new Map(CLINICS.map(clinic => [clinic.code, clinic]));
 
-export function getClinicByCode(code: string): Clinic | undefined {
+export function getClinicByCode(code: string) {
   return CODE_TO_CLINIC.get(code);
 }
 
@@ -703,7 +703,7 @@ export function getClinicByCode(code: string): Clinic | undefined {
  * Clinics whose city (or full label) matches the query, tolerant in both directions so "בית שמש"
  * finds "רמת בית שמש" and "תל אביב" finds every תל אביב branch.
  */
-export function clinicsForCity(query: string): Clinic[] {
+export function clinicsForCity(query: string) {
   const needle = normalizeCity(query);
   if (!needle) {
     return [];
@@ -716,11 +716,11 @@ export function clinicsForCity(query: string): Clinic[] {
   });
 }
 
-export function clinicCodesForCity(query: string): string[] {
+export function clinicCodesForCity(query: string) {
   return clinicsForCity(query).map(({ code }) => code);
 }
 
 /** Distinct base cities, sorted — for the popup's datalist / autocomplete. */
-export function allCities(): string[] {
+export function allCities() {
   return [...new Set(CLINICS.map(({ city }) => city))].sort((first, second) => first.localeCompare(second, "he"));
 }

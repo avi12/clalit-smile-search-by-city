@@ -31,7 +31,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function getByPath({ source, path }: {
   source: unknown;
   path: string;
-}): unknown {
+}) {
   if (!path) {
     return undefined;
   }
@@ -54,11 +54,11 @@ function isObjectArray(value: unknown): value is Record<string, unknown>[] {
  * Returned so callers can mutate it IN PLACE (splice) - the only way to affect a top-level-array
  * response, whose reference the page already holds.
  */
-function findResultsArray(root: unknown): Record<string, unknown>[] | undefined {
+function findResultsArray(root: unknown) {
   let best: Record<string, unknown>[] | undefined;
   const seen = new Set<unknown>();
 
-  function visit(node: unknown): void {
+  function visit(node: unknown) {
     if (!node || typeof node !== "object" || seen.has(node)) {
       return;
     }
@@ -88,7 +88,7 @@ function findResultsArray(root: unknown): Record<string, unknown>[] | undefined 
 function collectStrings({ row, depth = 0 }: {
   row: Record<string, unknown>;
   depth?: number;
-}): string[] {
+}) {
   if (depth > 2) {
     return [];
   }
@@ -118,7 +118,7 @@ function rowInCity(
     needle: string;
     rule?: EndpointRule;
   }
-): boolean {
+) {
   if (rule) {
     // Precise rule: trust only its named fields.
     for (const path of [rule.fields.city, rule.fields.clinicName]) {
@@ -144,7 +144,7 @@ function rowInCity(
   return collectStrings({ row }).some(text => normalizeCity(text).includes(needle));
 }
 
-export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: TransformInput): TransformResult {
+export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: TransformInput) {
   const untouched: TransformResult = {
     isTransformed: false,
     resultsCount: 0,

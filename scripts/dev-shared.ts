@@ -232,7 +232,7 @@ export type CdpTarget = {
   webSocketDebuggerUrl?: string;
 };
 
-export async function fetchCdpTargets(cdpPort: number): Promise<CdpTarget[]> {
+export async function fetchCdpTargets(cdpPort: number) {
   try {
     const response = await fetch(`http://127.0.0.1:${cdpPort}/json`);
     const targets: CdpTarget[] = await response.json();

@@ -21,13 +21,13 @@ export const SMILE_ENVELOPE_STATUS = {
 } as const;
 
 /** The status of a /Zimunet/SmileClinic/* envelope, or null when it carries none. */
-export function envelopeStatus(json: unknown): number | null {
+export function envelopeStatus(json: unknown) {
   const parsed = smileEnvelopeStatusSchema.safeParse(json);
   return parsed.success ? parsed.data.errorType : null;
 }
 
 /** The results fragment out of a /Zimunet/SmileClinic/* envelope, or null if this isn't one. */
-export function getSmileHtml(json: unknown): string | null {
+export function getSmileHtml(json: unknown) {
   const parsed = smileEnvelopeSchema.safeParse(json);
   if (!parsed.success) {
     return null;
@@ -44,7 +44,7 @@ const ADDRESS_PREFIX = "כתובת:";
  * site already renders the clinic's canonical city here - the exact same string its city autocomplete
  * produces for the search box - so it compares 1:1 against the searched city with no normalization.
  */
-export function rowCityName(elRow: Element): string {
+export function rowCityName(elRow: Element) {
   const address =
     [...elRow.querySelectorAll(".clinicDetails")]
       .map(elDetail => elDetail.textContent?.trim() ?? "")
@@ -54,7 +54,7 @@ export function rowCityName(elRow: Element): string {
 }
 
 /** Clinic display name - the stable identity for dedup (diary GUIDs change per search session). */
-export function rowClinicName(elRow: Element): string {
+export function rowClinicName(elRow: Element) {
   return elRow.querySelector("a.clinicDetails")?.textContent?.trim() ?? "";
 }
 
@@ -67,14 +67,14 @@ export function rowClinicName(elRow: Element): string {
 export function cityMatches({ rowCity, searchedCity }: {
   rowCity: string;
   searchedCity: string;
-}): boolean {
+}) {
   return rowCity.trim() !== "" && rowCity.trim() === searchedCity.trim();
 }
 
 const NAV_CODE_PATTERN = /\/nav\/(\d+)/;
 
 /** The clinic's nearme code from the row's "הצגת מפה" link - the key into CLINIC_COORDS. */
-export function rowNavCode(elRow: Element): string {
+export function rowNavCode(elRow: Element) {
   const href = elRow.querySelector("a.mapLocationLink")?.getAttribute("href") ?? "";
   return NAV_CODE_PATTERN.exec(href)?.[1] ?? "";
 }
@@ -86,7 +86,7 @@ export const LIVE_DISTANCE_SORT_LABEL = "מרחק ממיקומך";
 export function setRowDistanceLabel({ elRow, km }: {
   elRow: Element;
   km: number;
-}): void {
+}) {
   const text = `${LIVE_DISTANCE_SORT_LABEL}: ${km.toFixed(2)} ק"מ`;
   const elLabel = [...elRow.querySelectorAll(".clinicDetails")].find(elDetail => elDetail.textContent?.includes("מרחק"));
   if (elLabel) {
@@ -123,7 +123,7 @@ const CLINIC_DETAILS_BY_VISIT = "/Zimunet/ClinicDoctor/ClinicDetailsByVisit/";
 const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
 
 /** Clalit's own page for a clinic - the row's map link, and the last-resort target of "מידע נוסף". */
-export function nearmeHref(code: string): string {
+export function nearmeHref(code: string) {
   return `${NEARME_NAV}${code}`;
 }
 
@@ -161,7 +161,7 @@ const OR_CENTRAL_LINE = "או במוקד";
 export function sweepStepNote({ step, total }: {
   step: number;
   total: number;
-}): string {
+}) {
   return `בודקים אם יש יומן מקוון לסניף - שירות ${step} מתוך ${total}`;
 }
 
@@ -169,7 +169,7 @@ export function sweepStepNote({ step, total }: {
 export function setRowNote({ elRow, text }: {
   elRow: Element;
   text: string;
-}): void {
+}) {
   const elNote = elRow.querySelector(`[${NOTE_ATTR}]`);
   if (!elNote) {
     return;
@@ -210,7 +210,7 @@ export function setRowBookable({ elRow, isBookable, title }: {
   isBookable: boolean;
   /** The button's hover text while it is red - back to the site's own when it is bookable again. */
   title: string;
-}): void {
+}) {
   const elButton = elRow.querySelector<HTMLElement>(`[${MINT_CODE_ATTR}]`);
   if (!elButton) {
     return;
@@ -223,7 +223,7 @@ export function setRowBookable({ elRow, isBookable, title }: {
   elButton.setAttribute("title", isBookable ? elButton.textContent?.trim() ?? title : title);
 }
 
-function toCssProperty(camelCase: string): string {
+function toCssProperty(camelCase: string) {
   return camelCase.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
 }
 
@@ -295,7 +295,7 @@ function buildHotlineNote({ ownerDocument, text }: {
  * What the site's own message box says when the click found nothing to open: the clinic, the reason and
  * the two ways to book it by phone. Built from the branch directory, in the site's own message markup.
  */
-export function buildUnavailableMessageHtml(branch: SmileBranch): string {
+export function buildUnavailableMessageHtml(branch: SmileBranch) {
   const elMessage = document.createElement("div");
   const elTitle = document.createElement("h2");
   elTitle.textContent = branch.title;
@@ -349,7 +349,7 @@ export interface BranchRowInput {
  * site's native clinic-details lightbox when the user has a visit here (ClinicDetailsByVisit) or the
  * official nearme page otherwise, and make the phone a tel: link.
  */
-export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }: BranchRowInput): void {
+export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }: BranchRowInput) {
   const { code, title, street, city, phones } = branch;
   const { ownerDocument } = elRow;
   elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
@@ -426,7 +426,7 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }
 }
 
 /** Not asked yet reads as "this search has no diary here"; asked and answered reads as "none anywhere". */
-function rowNoteFor(isBookable: boolean | null): string {
+function rowNoteFor(isBookable: boolean | null) {
   return isBookable === null ? NO_DIARY_ROW_NOTE : NO_SERVICE_ROW_NOTE;
 }
 
@@ -439,7 +439,7 @@ function rowNoteFor(isBookable: boolean | null): string {
 export function setDialogNote({ elDialog, text }: {
   elDialog: Element;
   text: string;
-}): void {
+}) {
   for (const elStale of elDialog.querySelectorAll(`[${NOTE_ATTR}]`)) {
     elStale.remove();
   }
@@ -478,7 +478,7 @@ const LOADER_NOTE_STYLE = {
 export function setLoaderNote({ elLoader, text }: {
   elLoader: Element;
   text: string;
-}): void {
+}) {
   const elExisting = elLoader.querySelector<HTMLElement>(`[${NOTE_ATTR}]`);
   if (elExisting) {
     elExisting.textContent = text;
@@ -496,7 +496,7 @@ export function setLoaderNote({ elLoader, text }: {
 
 const RECEPTION_DAY_LETTERS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
 
-function formatMinutes(total: number): string {
+function formatMinutes(total: number) {
   const hours = String(Math.floor(total / 60)).padStart(2, "0");
   const minutes = String(total % 60).padStart(2, "0");
   return `${hours}:${minutes}`;
@@ -506,7 +506,7 @@ function formatMinutes(total: number): string {
 function setLabeledLine({ elLine, elValue }: {
   elLine: Element;
   elValue: string;
-}): void {
+}) {
   const elLabel = elLine.querySelector("span.title");
   if (!elLabel) {
     return;
@@ -521,7 +521,7 @@ function setLabeledLine({ elLine, elValue }: {
 function applyAccessibilityLine({ elLine, labels }: {
   elLine: Element;
   labels: string[];
-}): void {
+}) {
   const elItems = [...elLine.children].find(child => !child.classList.contains("clinicAccessibilty"));
   if (labels.length === 0 || !elItems) {
     elLine.remove();
@@ -544,7 +544,7 @@ const UNSOURCED_DETAIL_LINE = /פקס:|אוטובוסים:|הערות:/;
 function applyBranchToDetailLine({ elLine, branch }: {
   elLine: Element;
   branch: SmileBranch;
-}): void {
+}) {
   const { street, city, phones, accessibility } = branch;
   const text = elLine.textContent ?? "";
   if (text.includes("כתובת:")) {
@@ -584,7 +584,7 @@ function applyBranchToDetailLine({ elLine, branch }: {
 function rebuildHoursTable({ elTable, hours }: {
   elTable: Element;
   hours: SmileBranch["hours"];
-}): void {
+}) {
   const { ownerDocument } = elTable;
   const byDay = new Map(hours.map(([day, start, end]) => [
     day,
@@ -618,7 +618,7 @@ function rebuildHoursTable({ elTable, hours }: {
 }
 
 /** The ClinicDetailsByDiary action link of a real server row's HTML - the details-template source. */
-export function detailsLinkFromRowHtml(html: string): string | null {
+export function detailsLinkFromRowHtml(html: string) {
   if (!html) {
     return null;
   }
@@ -638,7 +638,7 @@ export function detailsLinkFromRowHtml(html: string): string | null {
 export function applyBranchToDetailsFragment({ template, branch }: {
   template: string;
   branch: SmileBranch;
-}): string | null {
+}) {
   const parsedDocument = new DOMParser().parseFromString(template, "text/html");
   if (!parsedDocument.querySelector(".css_Table")) {
     return null;
@@ -684,7 +684,7 @@ export function applyBranchToDetailsFragment({ template, branch }: {
 function replaceTextNode({ elTarget, text }: {
   elTarget: Element;
   text: string;
-}): void {
+}) {
   for (const node of elTarget.childNodes) {
     if (node.nodeType === 3 && node.textContent?.trim()) {
       node.textContent = text;
@@ -697,11 +697,11 @@ function replaceTextNode({ elTarget, text }: {
 export function setHeaderCount({ elHeader, count }: {
   elHeader: Element;
   count: number;
-}): void {
+}) {
   elHeader.textContent = (elHeader.textContent ?? "").replace(/נמצאו\s+\d+/, `נמצאו ${count}`);
 }
 
-function readDeclaredTotal(parsedDocument: Document): number {
+function readDeclaredTotal(parsedDocument: Document) {
   const match = parsedDocument.querySelector("h2")?.textContent?.match(/נמצאו\s+(\d+)/);
   return match ? Number(match[1]) : 0;
 }
@@ -732,7 +732,7 @@ export function filterSmileEnvelope(
     searchedCity: string;
     marker?: string;
   }
-): SmileFilterOutcome {
+) {
   const untouched: SmileFilterOutcome = {
     isChanged: false,
     json,
@@ -825,7 +825,7 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
   json: unknown;
   /** Omit to read only the page metadata (totals + template row). */
   navCode?: string;
-}): SmileEnvelopeScan {
+}) {
   const html = getSmileHtml(json);
   if (!html) {
     return {
@@ -851,7 +851,7 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
 export function navCodesInEnvelope({ json, navCodes }: {
   json: unknown;
   navCodes: Iterable<string>;
-}): Set<string> {
+}) {
   const wanted = new Set(navCodes);
   const found = new Set<string>();
   const html = getSmileHtml(json);
@@ -878,7 +878,7 @@ export function navCodesInEnvelope({ json, navCodes }: {
 export function refreshRowActionLinks({ elList, json }: {
   elList: Element;
   json: unknown;
-}): string[] {
+}) {
   const html = getSmileHtml(json);
   if (!html) {
     return [];
@@ -919,7 +919,7 @@ export interface SmileCityRow {
 export function extractCityRows({ json, searchedCity }: {
   json: unknown;
   searchedCity: string;
-}): SmileCityRow[] {
+}) {
   const html = getSmileHtml(json);
   if (!html) {
     return [];

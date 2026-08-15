@@ -84,11 +84,11 @@ export const SESSION_TIMEOUT_EXIT_HINT = /weakButton|btnMasterExit|יציאה/i;
 const INTERESTING_URL_PATTERN =
   /(appoint|schedul|tamuz|zimun|tor(?![a-z])|slot|available|availab|clinic|search|meeta|booking|calendar|shinanit|dental|dentist)/i;
 
-export function isInterestingUrl(url: string): boolean {
+export function isInterestingUrl(url: string) {
   return INTERESTING_URL_PATTERN.test(url);
 }
 
-export function isTargetHost(hostname: string): boolean {
+export function isTargetHost(hostname: string) {
   return TARGET_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`));
 }
 
@@ -118,7 +118,7 @@ export const SMILE_RESTORE_PARAM = "isRestoreSearch";
 export function isSmileRestoreLocation({ pathname, search }: {
   pathname: string;
   search: string;
-}): boolean {
+}) {
   return pathname === SMILE_CLINIC_PAGE_PATH &&
     (new URLSearchParams(search).get(SMILE_RESTORE_PARAM) ?? "").toLowerCase() === "true";
 }
@@ -178,7 +178,7 @@ export const SMILE_SPECIALIZATION_FIELD = "SelectedSpecializationCode";
 export const SMILE_SPECIALIZATION_CODES = ["92", "91", "97"] as const;
 
 /** Any /Zimunet/SmileClinic/* call whose envelope carries the results fragment. */
-export function isSmileResultsUrl(url: string): boolean {
+export function isSmileResultsUrl(url: string) {
   return [SMILE_SEARCH_PATH, SMILE_PAGING_PATH, SMILE_SORT_PATH].some(path => url.includes(path));
 }
 
@@ -213,7 +213,7 @@ export const ENDPOINT_RULES: EndpointRule[] = [];
 export function matchEndpointRule({ url, method }: {
   url: string;
   method: string;
-}): EndpointRule | undefined {
+}) {
   return ENDPOINT_RULES.find(
     rule => rule.urlPattern.test(url) && (rule.method === "*" || rule.method === method.toUpperCase())
   );

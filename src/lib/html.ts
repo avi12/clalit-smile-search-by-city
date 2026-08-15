@@ -8,6 +8,6 @@ const HTML_ESCAPES: Record<string, string> = {
   "'": "&#39;"
 };
 
-export function escapeHtml(value: string): string {
+export function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, character => HTML_ESCAPES[character] ?? character);
 }

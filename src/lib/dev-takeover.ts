@@ -31,7 +31,7 @@ export function installDevTakeover(
     script: TakeoverScript;
     onSuperseded: () => void;
   }
-): void {
+) {
   const bornAt = Date.now();
   const token = `${bornAt}-${Math.random().toString(36).slice(2)}`;
   window.addEventListener("message", ({ data }) => {

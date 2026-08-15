@@ -29,7 +29,7 @@ import type { SmileSession } from "./smile-session";
 export type MarkedSmileOutcome = SmileFilterOutcome & { marker: string };
 
 /** Parse a real row's outerHTML into a live-document element to clone (site markup, not ours). */
-function parseRowTemplate(html: string): Element | null {
+function parseRowTemplate(html: string) {
   if (!html) {
     return null;
   }
@@ -50,7 +50,7 @@ function appendMissingBranches({ elList, city, templateRowHtml, detailsByTitle, 
   templateRowHtml: string;
   detailsByTitle: Map<string, string>;
   bookabilityOf: (navCode: string) => boolean | null;
-}): number {
+}) {
   const seenCodes = new Set([...elList.querySelectorAll("li.diary")].map(rowNavCode));
   const elTemplate =
     elList.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
@@ -103,7 +103,7 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus, mar
    * the site's OWN lightbox - and its own appointments page - for a clinic the user has visited. The
    * handles rotate with every render of the visits list, so callers that navigate ask for a refresh.
    */
-  async function visitGuidsByClinicTitle({ isRefreshed = false } = {}): Promise<Map<string, string>> {
+  async function visitGuidsByClinicTitle({ isRefreshed = false } = {}) {
     if (pastVisitDetails && !isRefreshed) {
       return pastVisitDetails;
     }
@@ -156,7 +156,7 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus, mar
       return;
     }
 
-    function isStale(): boolean {
+    function isStale() {
       return !session.isActive() || run !== aggregationRun;
     }
 
