@@ -15,17 +15,23 @@ export default defineConfig({
       }
     }
   },
-  manifest: {
+  manifest: ({ mode }) => ({
     name: "Clalit Smile - Search by City",
     description:
       "Guarantees the city you searched shows appointments in Clalit dental scheduling, keeping the site's distance-vs-time sort.",
-    // The only two permissions, and both serve one feature: "distance from where you are" is the
-    // extension's own reading, not the site's. `geolocation` is that reading; `offscreen` is the only
-    // context allowed to take it (a service worker cannot). Nothing is stored, and the city still comes
-    // from the page's own search box.
-    permissions: ["geolocation", "offscreen"],
+    // The only two shipped permissions, and both serve one feature: "distance from where you are" is
+    // the extension's own reading, not the site's. `geolocation` is that reading; `offscreen` is the
+    // only context allowed to take it (a service worker cannot). Nothing is stored, and the city still
+    // comes from the page's own search box.
+    //
+    // `scripting` is DEV-ONLY and never reaches a store build: a rebuild reloads the extension, which
+    // revokes every open tab's isolated world, and only the extension itself can put a fresh one into a
+    // live tab - the dev server drives that injection through the service worker (scripts/dev-shared.ts).
+    permissions: mode === "development"
+      ? ["geolocation", "offscreen", "scripting"]
+      : ["geolocation", "offscreen"],
     host_permissions: HOST_PERMISSIONS
-  },
+  }),
   vite: () => ({
     plugins: [
       {

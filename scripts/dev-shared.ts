@@ -3,9 +3,10 @@
  * with the extension sideloaded against a CLONED copy of your real Chrome profile (so the dev browser
  * carries your Clalit login yet never touches your real session), and hot-reloads on change.
  *
- * On a change it rebuilds, reloads the extension (web-ext over CDP) and reloads the open Clalit tabs so
- * the new content scripts inject. The CDP port it launches is reused to drive the browser for
- * verification (see scripts/verify-city-filter.ts).
+ * On a change it rebuilds and reloads the extension (web-ext over CDP); a `src/` change then has the
+ * reloaded extension inject its own content scripts back into the open Clalit tabs, so the booking SPA
+ * keeps its state, while a manifest-shaping change reloads those tabs outright. The CDP port it
+ * launches is reused to drive the browser for verification (see scripts/verify-city-filter.ts).
  *
  * Must run via tsx (Node), not Bun - web-ext-run waits for the browser's debug port to start listening,
  * which depends on Node's child_process socket handling.
@@ -180,24 +181,6 @@ export const PROJECT_ROOT = resolve(import.meta.dirname, "..");
 export const USER_PROFILES_DIR = resolve(PROJECT_ROOT, "user-profiles");
 const OUTPUT_DIR_NAME = "chrome-mv3-dev";
 export const OUTPUT_DIR = resolve(PROJECT_ROOT, ".output", OUTPUT_DIR_NAME);
-/**
- * Built bundles re-injected into live pages on rebuild - interceptor first, so its patches are in
- * place before the bridge pushes config. Names follow the entrypoint file names.
- *
- * Each one goes back into the world it is declared for. The interceptor is MAIN-world by design; the
- * bridge must land in the EXTENSION's own isolated world, because it now talks to the background
- * (the position), and a copy evaluated in MAIN has no chrome.* to talk with.
- */
-const CONTENT_SCRIPT_BUNDLES = [
-  {
-    path: join(OUTPUT_DIR, "content-scripts", "clalit-interceptor.js"),
-    isMainWorld: true
-  },
-  {
-    path: join(OUTPUT_DIR, "content-scripts", "clalit-bridge.js"),
-    isMainWorld: false
-  }
-];
 // Open on the public clinic search; log in to e-services.clalit.co.il from here for the real booking flow.
 export const START_URL = "https://www.clalitsmile.co.il/search?t=clinics&k=citySearch";
 const REBUILD_DEBOUNCE_MS = 500;
@@ -254,7 +237,15 @@ export async function fetchCdpTargets(cdpPort: number) {
   }
 }
 
-/** Evaluate an expression in a page target's top-frame main world; resolves with its (by-value) result. */
+// A target listed by CDP can already be gone - a reloaded extension's service worker leaves its old
+// socket behind, and connecting to it neither answers nor closes. Every evaluation is bounded.
+const CDP_EVALUATE_TIMEOUT_MS = 3000;
+
+/**
+ * Evaluate an expression in a target's own context (a page's top-frame main world, or an extension's
+ * service worker); resolves with its (by-value) result, awaiting a promise the expression returns, and
+ * with `undefined` if the target does not answer.
+ */
 function evaluateOverCdp({ websocketUrl, expression }: {
   websocketUrl: string;
   expression: string;
@@ -268,9 +259,12 @@ function evaluateOverCdp({ websocketUrl, expression }: {
       }
 
       settled = true;
+      clearTimeout(timer);
       websocket.close();
       resolvePromise(value);
     }
+
+    const timer = setTimeout(() => settle(undefined), CDP_EVALUATE_TIMEOUT_MS);
 
     websocket.onopen = () =>
       websocket.send(
@@ -279,7 +273,8 @@ function evaluateOverCdp({ websocketUrl, expression }: {
           method: "Runtime.evaluate",
           params: {
             expression,
-            returnByValue: true
+            returnByValue: true,
+            awaitPromise: true
           }
         })
       );
@@ -373,122 +368,42 @@ export function startSessionKeepalive(cdpPort: number) {
 }
 
 /**
- * Evaluate the freshly built content-script bundles in every Clalit frame of one page target WITHOUT
- * reloading it (a reload resets the Tamuz booking SPA to its home screen, losing the search state).
- * The bundles' dev-takeover channel makes the previously injected generation stand down (see
- * src/lib/dev-takeover.ts). Both bundles are chrome-free, so evaluating them in each frame's main
- * world is equivalent to a real injection.
+ * Re-injection runs INSIDE the extension, not over CDP's Runtime.evaluate.
+ *
+ * A rebuild reloads the extension, and a reload revokes every open tab's isolated world: the world
+ * keeps running, but its `chrome.*` is gone ("Extension context invalidated"), so a bridge evaluated
+ * back into it can no longer reach the background and the position silently answers null. Only the
+ * extension itself can put a FRESH world into a live tab, so the dev server asks the reloaded service
+ * worker to inject its own content scripts. The page is never reloaded (that would reset the Tamuz
+ * booking SPA to its home screen), and the previous generation stands down over the dev-takeover
+ * channel (src/lib/dev-takeover.ts).
+ *
+ * The expression reads the MANIFEST for what to inject, into which world and which tabs - the dev
+ * server drives the injection but never restates the content-script list.
  */
-function reinjectIntoTarget({ websocketUrl, bundles, extensionName }: {
-  websocketUrl: string;
-  bundles: {
-    source: string;
-    isMainWorld: boolean;
-  }[];
-  extensionName: string;
-}) {
-  return new Promise<void>(resolvePromise => {
-    const websocket = new WebSocket(websocketUrl);
-    const mainWorldContexts: number[] = [];
-    // Latest context per frame: a frame that has been re-injected before carries stale worlds too.
-    const extensionWorldContexts = new Map<string, number>();
-    const pendingEvaluations = new Set<number>();
-    let nextId = 1;
-    let enableId = 0;
-
-    function finish() {
-      clearTimeout(timer);
-      websocket.close();
-      resolvePromise();
+function reinjectExpression(extensionName: string) {
+  return `(async () => {
+    const manifest = chrome.runtime.getManifest();
+    if (manifest.name !== ${JSON.stringify(extensionName)}) return null;
+    const isMainWorld = entry => entry.world === "MAIN";
+    // MAIN first: the interceptor's patches must be in place before the bridge pushes config at it.
+    const entries = [...manifest.content_scripts].sort((a, b) => Number(isMainWorld(b)) - Number(isMainWorld(a)));
+    const tabs = await chrome.tabs.query({ url: [...new Set(entries.flatMap(entry => entry.matches))] });
+    for (const entry of entries) {
+      for (const tab of tabs) {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id, allFrames: entry.all_frames === true },
+          files: entry.js,
+          world: isMainWorld(entry) ? "MAIN" : "ISOLATED",
+          injectImmediately: true
+        }).catch(() => {});
+      }
     }
-
-    const timer = setTimeout(finish, 5000);
-
-    function send({ method, params }: {
-      method: string;
-      params?: object;
-    }) {
-      const id = nextId++;
-      websocket.send(
-        JSON.stringify({
-          id,
-          method,
-          params
-        })
-      );
-      return id;
-    }
-
-    websocket.onopen = () => {
-      enableId = send({ method: "Runtime.enable" });
-    };
-    websocket.onmessage = ({ data }) => {
-      const { id, method, params }: {
-        id?: number;
-        method?: string;
-        params?: {
-          context?: {
-            id: number;
-            origin: string;
-            name?: string;
-            auxData?: {
-              isDefault?: boolean;
-              frameId?: string;
-            };
-          };
-        };
-      } = JSON.parse(String(data));
-      if (method === "Runtime.executionContextCreated") {
-        const context = params?.context;
-        const { auxData, name } = context ?? {};
-        if (context && auxData?.isDefault && isTargetTabUrl(context.origin)) {
-          mainWorldContexts.push(context.id);
-        } else if (context && auxData?.frameId && name === extensionName) {
-          // Highest id wins, not last replayed: a frame can carry a stale extension world whose
-          // chrome.* is already invalidated, and contexts are replayed in no guaranteed order.
-          const known = extensionWorldContexts.get(auxData.frameId) ?? 0;
-          extensionWorldContexts.set(auxData.frameId, Math.max(known, context.id));
-        }
-
-        return;
-      }
-
-      if (id === enableId) {
-        // Pre-existing contexts are replayed before the enable ack, so the lists are complete here.
-        // A frame with no extension world (the content scripts never ran there) still gets the bridge
-        // in MAIN - a badge without the position beats no bridge at all.
-        const isolatedContexts = [...extensionWorldContexts.values()];
-        for (const { source, isMainWorld } of bundles) {
-          const contexts = isMainWorld || !isolatedContexts.length ? mainWorldContexts : isolatedContexts;
-          for (const contextId of contexts) {
-            pendingEvaluations.add(
-              send({
-                method: "Runtime.evaluate",
-                params: {
-                  expression: source,
-                  contextId
-                }
-              })
-            );
-          }
-        }
-
-        if (!pendingEvaluations.size) {
-          finish();
-        }
-
-        return;
-      }
-
-      if (id !== undefined && pendingEvaluations.delete(id) && !pendingEvaluations.size) {
-        finish();
-      }
-    };
-    websocket.onerror = () => finish();
-  });
+    return tabs.length;
+  })()`;
 }
 
-/** Chrome names an extension's content-script world after the extension - the built manifest owns it. */
+/** Chrome names an extension's world after the extension, and the built manifest owns that name. */
 function builtExtensionName() {
   const manifestPath = join(OUTPUT_DIR, "manifest.json");
   if (!existsSync(manifestPath)) {
@@ -499,26 +414,33 @@ function builtExtensionName() {
   return typeof name === "string" ? name : "";
 }
 
+// The reload that precedes an injection also restarts the service worker, so the worker is asked for
+// rather than waited on with a fixed delay. Every extension's worker is asked at once - the name guard
+// makes a foreign one answer null - and the round is retried until ours is back up.
+const WORKER_WAIT_ATTEMPTS = 8;
+const WORKER_WAIT_DELAY_MS = 250;
+
 export async function reinjectContentScriptsOverCdp(cdpPort: number) {
-  const bundles = CONTENT_SCRIPT_BUNDLES.filter(({ path }) => existsSync(path)).map(({ path, isMainWorld }) => ({
-    source: readFileSync(path, "utf-8"),
-    isMainWorld
-  }));
-  if (bundles.length < CONTENT_SCRIPT_BUNDLES.length) {
-    logEvent("Re-inject: some built bundles are missing - did the build output move?");
+  const expression = reinjectExpression(builtExtensionName());
+  for (let attempt = 1; attempt <= WORKER_WAIT_ATTEMPTS; attempt++) {
+    const workers = (await fetchCdpTargets(cdpPort))
+      .filter(({ type, webSocketDebuggerUrl }) => type === "service_worker" && webSocketDebuggerUrl);
+    const answers = await Promise.all(
+      workers.map(({ webSocketDebuggerUrl }) => evaluateOverCdp({
+        websocketUrl: webSocketDebuggerUrl!,
+        expression
+      }))
+    );
+    const injectedTabCount = answers.find(answer => typeof answer === "number");
+    if (typeof injectedTabCount === "number") {
+      return injectedTabCount;
+    }
+
+    await new Promise(resolvePromise => setTimeout(resolvePromise, WORKER_WAIT_DELAY_MS));
   }
 
-  const extensionName = builtExtensionName();
-  const tabs = (await fetchCdpTargets(cdpPort))
-    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
-  await Promise.all(
-    tabs.map(({ webSocketDebuggerUrl }) => reinjectIntoTarget({
-      websocketUrl: webSocketDebuggerUrl!,
-      bundles,
-      extensionName
-    }))
-  );
-  return tabs.length;
+  logEvent("Re-inject: the extension's service worker never answered - open tabs still run the previous build");
+  return 0;
 }
 
 // ── Browser target ──────────────────────────────────────────────────────────────
