@@ -28,11 +28,9 @@ import {
   buildUnavailableMessageHtml,
   detailsLinkFromRowHtml,
   MINT_NAVIGATE_NOTE,
-  NO_DIARY_SWEEP_NOTE,
   rowNavCode,
   scanEnvelopeForNavCode,
   setRowBookable,
-  setRowNote,
   slotsLinkFromRowHtml,
   SMILE_ENVELOPE_STATUS,
   SMILE_SLOTS_PATH,
@@ -219,10 +217,6 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
         elRow,
         isBookable: false,
         title: UNAVAILABLE_BUTTON_TITLE
-      });
-      setRowNote({
-        elRow,
-        text: NO_DIARY_SWEEP_NOTE
       });
     }
 

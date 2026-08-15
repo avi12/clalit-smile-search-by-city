@@ -948,6 +948,22 @@ list now asks the question once, right after it is complete:
   list unchanged reads as a broken button, which is exactly how it was reported. No service search form
   (§12f), no lightbox standing in for a page, no watch offer (§6e).
 
+### 12j. An appended row reads as a server row (2026-08-15)
+
+Avi's rule: a row the extension adds must look like one the server sent. Measured against a real row,
+ours differed in four ways - two are now closed, one is deliberate, one is impossible:
+
+| line | server row | appended row |
+| --- | --- | --- |
+| `מרפאה:` / `כתובת:` / `טלפון:` | ✓ | ✓ (from the committed directory) |
+| distance | `מרחק מהבית שלך: 6.67 ק"מ` | `מרחק ממיקומך: 0.20 ק"מ` - the live position, the only distance we can source; no position, no line |
+| `מועד התור הפנוי הקרוב ביותר` | ✓ | absent by necessity: there is no diary to date |
+| our own note | - | **removed**: the reason lives on the button's `title` and behind "מידע נוסף" |
+| `לכל התורים` | site sprite | site sprite, red when nothing lists the branch - the one deliberate difference |
+
+The phone numbers stay `tel:` links (Avi's call): the row still reads as the site's, and the number is
+the only way to book a branch with no diary.
+
 ### 12i. A branch's own appointments page, borrowed (shipped 2026-08-15)
 
 Avi's call: clicking מגדל המאה must produce what איילון's button produces - the appointments page - only

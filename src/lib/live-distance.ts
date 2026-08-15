@@ -48,6 +48,33 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     });
   }
 
+  /**
+   * How far these branches are from the user right now, by nav code - the line an appended row needs to
+   * read like a server row, which prints a distance on every result. Best effort: a denied or missing
+   * position simply means no line, exactly as before.
+   */
+  async function distancesByNavCode(navCodes: string[]) {
+    const distances = new Map<string, number>();
+    const position = await currentPosition();
+    if (!position) {
+      return distances;
+    }
+
+    for (const navCode of navCodes) {
+      const coords = DENTAL_CLINIC_COORDS[navCode];
+      if (coords) {
+        distances.set(
+          navCode, haversineKm({
+            from: position,
+            to: coords
+          })
+        );
+      }
+    }
+
+    return distances;
+  }
+
   /** Re-rank the finished list by great-circle distance from the user's live position. */
   async function reorder({ elList, isDescending }: {
     elList: Element;
@@ -95,5 +122,8 @@ export function createLiveDistanceSort(isActive: () => boolean) {
     }
   }
 
-  return { reorder };
+  return {
+    reorder,
+    distancesByNavCode
+  };
 }

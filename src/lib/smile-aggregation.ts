@@ -57,12 +57,13 @@ function missingBranches({ elList, city }: {
   }));
 }
 
-function appendMissingBranches({ elList, branches, templateRowHtml, detailsByTitle, bookabilityOf }: {
+function appendMissingBranches({ elList, branches, templateRowHtml, detailsByTitle, bookabilityOf, distances }: {
   elList: Element;
   branches: SmileBranch[];
   templateRowHtml: string;
   detailsByTitle: Map<string, string>;
   bookabilityOf: (navCode: string) => boolean | null;
+  distances: Map<string, number>;
 }) {
   const elTemplate =
     elList.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
@@ -81,7 +82,8 @@ function appendMissingBranches({ elList, branches, templateRowHtml, detailsByTit
       elRow: elRowClone,
       branch,
       detailsVisitGuid: detailsByTitle.get(branch.title) ?? null,
-      isBookable: bookabilityOf(branch.code)
+      isBookable: bookabilityOf(branch.code),
+      distanceKm: distances.get(branch.code) ?? null
     });
     elList.appendChild(elRowClone);
     added += 1;
@@ -222,12 +224,20 @@ export function createSmileAggregation({ session, nativeFetch, reportStatus, ens
       return;
     }
 
+    // A server row always prints a distance; an appended one prints the live-location distance so the
+    // list reads as one thing. Best effort - no position, no line, exactly as before.
+    const distances = await liveDistance.distancesByNavCode(branches.map(branch => branch.code));
+    if (isStale()) {
+      return;
+    }
+
     const added = appendMissingBranches({
       elList,
       branches,
       templateRowHtml,
       detailsByTitle,
-      bookabilityOf
+      bookabilityOf,
+      distances
     });
     if (added) {
       kept += added;

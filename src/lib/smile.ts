@@ -337,6 +337,8 @@ export interface BranchRowInput {
   branch: SmileBranch;
   /** A past visit at this branch → the site's native clinic-details lightbox; null → nearme page. */
   detailsVisitGuid: string | null;
+  /** Live distance to the branch, so the row carries the same distance line every server row carries. */
+  distanceKm: number | null;
   /**
    * What the availability probe already knows about this branch (docs §12h). The row is BUILT in that
    * state - a red button and its reason are part of the markup that gets inserted, never a repaint a
@@ -352,9 +354,8 @@ export interface BranchRowInput {
  * site's native clinic-details lightbox when the user has a visit here (ClinicDetailsByVisit) or the
  * official nearme page otherwise, and make the phone a tel: link.
  */
-export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }: BranchRowInput) {
+export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable, distanceKm }: BranchRowInput) {
   const { code, title, street, city, phones } = branch;
-  const { ownerDocument } = elRow;
   elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
   const detailsHref = detailsVisitGuid ? `${CLINIC_DETAILS_BY_VISIT}${detailsVisitGuid}` : null;
   const nearme = nearmeHref(code);
@@ -388,7 +389,9 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }
     const text = elDetail.textContent?.trim() ?? "";
     if (text.startsWith(ADDRESS_PREFIX)) {
       elDetail.textContent = `${ADDRESS_PREFIX} ${address}`;
-    } else if (text.startsWith("מועד התור") || text.includes("מרחק")) {
+    } else if (text.startsWith("מועד התור") || (text.includes("מרחק") && distanceKm === null)) {
+      // The soonest-slot line has nothing to say for a branch with no diary, and neither has a distance
+      // line we cannot fill - anything left standing would be the lender row's own number.
       elDetail.remove();
     }
   }
@@ -412,14 +415,17 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }
     elDiaryButton.setAttribute(MINT_CODE_ATTR, code);
   }
 
-  // Repoint the map link at this branch, and add the "no online diary" note with the central hotline.
+  // Repoint the map link at this branch. The row carries no note of ours: it has to read like a row the
+  // server rendered, so the reason for a red button lives on the button's own title and behind
+  // "מידע נוסף" instead (Avi, 2026-08-15).
   elRow.querySelector("a.mapLocationLink")?.setAttribute("href", nearme);
-  elRow.querySelector(".pull-right")?.appendChild(
-    buildHotlineNote({
-      ownerDocument,
-      text: isBookable === true ? OTHER_SERVICE_ROW_NOTE : rowNoteFor(isBookable)
-    })
-  );
+
+  if (distanceKm !== null) {
+    setRowDistanceLabel({
+      elRow,
+      km: distanceKm
+    });
+  }
 
   // Red is a claim - "no Smile service lists this branch". Only the probe can make it; an unsettled row
   // keeps the site's own button and says the milder thing its note already says.
@@ -428,11 +434,6 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable }
     isBookable: isBookable !== false,
     title: UNAVAILABLE_BUTTON_TITLE
   });
-}
-
-/** Not asked yet reads as "this search has no diary here"; asked and answered reads as "none anywhere". */
-function rowNoteFor(isBookable: boolean | null) {
-  return isBookable === null ? NO_DIARY_ROW_NOTE : NO_SERVICE_ROW_NOTE;
 }
 
 /**
