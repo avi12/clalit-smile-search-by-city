@@ -5,8 +5,8 @@
  * It exists because that session is ONE shared, mutable thing (docs §6): every search re-mints the
  * GUIDs the visible rows carry, sort and paging operate on the last search only, a service that answers
  * `errorType: 3` has nothing to give, and enough failures in a row make the scheduler drop the session
- * altogether (docs §12a). The interceptor, the minting sweep, the watcher and the details lightbox all
- * read and write this one object rather than keeping their own copies.
+ * altogether (docs §12a). The interceptor, the availability sweep, the row actions and the details
+ * lightbox all read and write this one object rather than keeping their own copies.
  *
  * MAIN-world only and chrome-free. `fetchSessionJson` is handed the page's UNPATCHED fetch so our own
  * transforms never see these calls.

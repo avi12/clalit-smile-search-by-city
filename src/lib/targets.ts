@@ -128,9 +128,10 @@ export function isSmileRestoreLocation({ pathname, search }: {
 export const SMILE_SPECIALIZATION_SELECT_SELECTOR = "select#SelectedSpecializationCode";
 
 /**
- * The values the rendered sort links carry (`SortSmileDiaries?sortValue=X&sortDirection=Y`). The city
- * sort is what the watcher rides: it floats the searched city's own branches to the first page, so
- * "is this branch listed?" costs one search plus one page instead of the whole result set.
+ * The values the rendered sort links carry (`SortSmileDiaries?sortValue=X&sortDirection=Y`). All three
+ * of the site's own sorts, because the guarantee has to recognise each of them: the city one is
+ * rewritten away (it measures from the searched city, not from the user), and the other two are what
+ * the session's `activeSort` records so a re-rank knows whether it is allowed to reorder.
  */
 export const SMILE_SORT_VALUES = {
   cityDistance: "4",

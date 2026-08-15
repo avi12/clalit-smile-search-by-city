@@ -83,7 +83,7 @@ export function createRowActions({ session, slotsLinkFor, verdictFor }: {
       return;
     }
 
-    // Every search re-mints the session's GUIDs - ours, the watcher's, or the user's own - so a dead
+    // Every search re-mints the session's GUIDs - the sweep's, ours or the user's own - so a dead
     // template link means "stale", not "impossible": re-run the user's search once and compose again,
     // otherwise the row would open the nearme page in a new tab instead of the lightbox.
     const fragment = await composeDetailsFragment(branch) ?? await (async () => {
