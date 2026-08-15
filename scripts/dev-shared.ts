@@ -222,6 +222,7 @@ async function runBuildWithFsRetry() {
 
 // ── CDP helpers ───────────────────────────────────────────────────────────────
 export type CdpTarget = {
+  id?: string;
   type?: string;
   url?: string;
   webSocketDebuggerUrl?: string;
@@ -373,37 +374,50 @@ export function startSessionKeepalive(cdpPort: number) {
  * A rebuild reloads the extension, and a reload revokes every open tab's isolated world: the world
  * keeps running, but its `chrome.*` is gone ("Extension context invalidated"), so a bridge evaluated
  * back into it can no longer reach the background and the position silently answers null. Only the
- * extension itself can put a FRESH world into a live tab, so the dev server asks the reloaded service
- * worker to inject its own content scripts. The page is never reloaded (that would reset the Tamuz
- * booking SPA to its home screen), and the previous generation stands down over the dev-takeover
- * channel (src/lib/dev-takeover.ts).
+ * extension itself can put a FRESH world into a live tab, so the extension is asked to inject its own
+ * content scripts. The page is never reloaded (that would reset the Tamuz booking SPA to its home
+ * screen), and the previous generation stands down over the dev-takeover channel (dev-takeover.ts).
  *
  * The expression reads the MANIFEST for what to inject, into which world and which tabs - the dev
  * server drives the injection but never restates the content-script list.
  */
-function reinjectExpression(extensionName: string) {
-  return `(async () => {
-    const manifest = chrome.runtime.getManifest();
-    if (manifest.name !== ${JSON.stringify(extensionName)}) return null;
-    const isMainWorld = entry => entry.world === "MAIN";
-    // MAIN first: the interceptor's patches must be in place before the bridge pushes config at it.
-    const entries = [...manifest.content_scripts].sort((a, b) => Number(isMainWorld(b)) - Number(isMainWorld(a)));
-    const tabs = await chrome.tabs.query({ url: [...new Set(entries.flatMap(entry => entry.matches))] });
-    for (const entry of entries) {
-      for (const tab of tabs) {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id, allFrames: entry.all_frames === true },
-          files: entry.js,
-          world: isMainWorld(entry) ? "MAIN" : "ISOLATED",
-          injectImmediately: true
-        }).catch(() => {});
-      }
+const REINJECT_EXPRESSION = `(async () => {
+  const isMainWorld = entry => entry.world === "MAIN";
+  // MAIN first: the interceptor's patches must be in place before the bridge pushes config at it.
+  const entries = [...chrome.runtime.getManifest().content_scripts]
+    .sort((a, b) => Number(isMainWorld(b)) - Number(isMainWorld(a)));
+  const tabs = await chrome.tabs.query({ url: [...new Set(entries.flatMap(entry => entry.matches))] });
+  for (const entry of entries) {
+    for (const tab of tabs) {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: entry.all_frames === true },
+        files: entry.js,
+        world: isMainWorld(entry) ? "MAIN" : "ISOLATED",
+        injectImmediately: true
+      }).catch(() => {});
     }
-    return tabs.length;
-  })()`;
+  }
+  return tabs.length;
+})()`;
+
+/**
+ * Every unpacked extension's id, as the extensions manager itself knows them. `chrome.developerPrivate`
+ * exists only on `chrome://extensions`, which is why that page is opened to ask - web-ext drives its own
+ * reloads from exactly there, so the page is usually already open.
+ */
+function unpackedExtensionIdExpression(extensionName: string) {
+  return `new Promise(resolve => {
+    const developerPrivate = chrome.developerPrivate;
+    if (!developerPrivate || !developerPrivate.getExtensionsInfo) { resolve(null); return; }
+    developerPrivate.getExtensionsInfo(extensions => {
+      const own = (extensions || []).find(extension =>
+        extension.location === "UNPACKED" && extension.name === ${JSON.stringify(extensionName)});
+      resolve(own ? own.id : null);
+    });
+  })`;
 }
 
-/** Chrome names an extension's world after the extension, and the built manifest owns that name. */
+/** The extension's name, from the manifest that was just built - the id is looked up by it. */
 function builtExtensionName() {
   const manifestPath = join(OUTPUT_DIR, "manifest.json");
   if (!existsSync(manifestPath)) {
@@ -414,32 +428,158 @@ function builtExtensionName() {
   return typeof name === "string" ? name : "";
 }
 
-// The reload that precedes an injection also restarts the service worker, so the worker is asked for
-// rather than waited on with a fixed delay. Every extension's worker is asked at once - the name guard
-// makes a foreign one answer null - and the round is retried until ours is back up.
-const WORKER_WAIT_ATTEMPTS = 8;
-const WORKER_WAIT_DELAY_MS = 250;
-
-export async function reinjectContentScriptsOverCdp(cdpPort: number) {
-  const expression = reinjectExpression(builtExtensionName());
-  for (let attempt = 1; attempt <= WORKER_WAIT_ATTEMPTS; attempt++) {
-    const workers = (await fetchCdpTargets(cdpPort))
-      .filter(({ type, webSocketDebuggerUrl }) => type === "service_worker" && webSocketDebuggerUrl);
-    const answers = await Promise.all(
-      workers.map(({ webSocketDebuggerUrl }) => evaluateOverCdp({
-        websocketUrl: webSocketDebuggerUrl!,
-        expression
-      }))
-    );
-    const injectedTabCount = answers.find(answer => typeof answer === "number");
-    if (typeof injectedTabCount === "number") {
-      return injectedTabCount;
-    }
-
-    await new Promise(resolvePromise => setTimeout(resolvePromise, WORKER_WAIT_DELAY_MS));
+/** Ask the BROWSER endpoint (a page target cannot open targets) and hand back the reply's result. */
+async function sendBrowserCommand({ cdpPort, method, params }: {
+  cdpPort: number;
+  method: string;
+  params: object;
+}) {
+  const version = await fetch(`http://127.0.0.1:${cdpPort}/json/version`).then(response => response.json())
+    .catch(() => null);
+  const websocketUrl: unknown = version?.webSocketDebuggerUrl;
+  if (typeof websocketUrl !== "string") {
+    return null;
   }
 
-  logEvent("Re-inject: the extension's service worker never answered - open tabs still run the previous build");
+  return await new Promise<unknown>(resolvePromise => {
+    const websocket = new WebSocket(websocketUrl);
+    let settled = false;
+    function settle(value: unknown) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timer);
+      websocket.close();
+      resolvePromise(value);
+    }
+
+    const timer = setTimeout(() => settle(null), CDP_EVALUATE_TIMEOUT_MS);
+    websocket.onopen = () => websocket.send(
+      JSON.stringify({
+        id: 1,
+        method,
+        params
+      })
+    );
+    websocket.onmessage = ({ data }) => {
+      const message: {
+        id?: number;
+        result?: unknown;
+      } = JSON.parse(String(data));
+      if (message.id === 1) {
+        settle(message.result ?? null);
+      }
+    };
+    websocket.onerror = () => settle(null);
+    websocket.onclose = () => settle(null);
+  });
+}
+
+const TARGET_WAIT_ATTEMPTS = 20;
+const TARGET_WAIT_DELAY_MS = 150;
+
+/**
+ * The page at `url`, opened in a minimized window of its own if it is not already there - minimized so
+ * the dev browser's own window keeps focus while the injection runs behind it.
+ */
+async function targetForUrl({ cdpPort, url }: {
+  cdpPort: number;
+  url: string;
+}) {
+  async function findTarget() {
+    return (await fetchCdpTargets(cdpPort))
+      .find(target => target.url?.startsWith(url) && target.webSocketDebuggerUrl);
+  }
+
+  const existing = await findTarget();
+  if (existing) {
+    return existing;
+  }
+
+  await sendBrowserCommand({
+    cdpPort,
+    method: "Target.createTarget",
+    params: {
+      url,
+      newWindow: true,
+      windowState: "minimized"
+    }
+  });
+
+  for (let attempt = 1; attempt <= TARGET_WAIT_ATTEMPTS; attempt++) {
+    const opened = await findTarget();
+    if (opened) {
+      return opened;
+    }
+
+    await new Promise(resolvePromise => setTimeout(resolvePromise, TARGET_WAIT_DELAY_MS));
+  }
+
+  return undefined;
+}
+
+/**
+ * The extension page the injection is run from. Chrome does NOT start an MV3 service worker just
+ * because its extension reloaded - it waits for an event that never comes here - and a dormant worker
+ * has no CDP target to talk to at all. An extension PAGE has the same `chrome.*`, and this one is the
+ * extension's own offscreen document, which does nothing on load but read a position and report it.
+ */
+const EXTENSIONS_MANAGER_URL = "chrome://extensions";
+const INJECTOR_PAGE_PATH = "/offscreen.html";
+let injectorPageUrl: string | undefined;
+
+async function injectorTarget(cdpPort: number) {
+  if (!injectorPageUrl) {
+    const elManager = await targetForUrl({
+      cdpPort,
+      url: EXTENSIONS_MANAGER_URL
+    });
+    const extensionId = elManager
+      ? await evaluateOverCdp({
+        websocketUrl: elManager.webSocketDebuggerUrl!,
+        expression: unpackedExtensionIdExpression(builtExtensionName())
+      })
+      : null;
+    if (typeof extensionId !== "string") {
+      return undefined;
+    }
+
+    injectorPageUrl = `chrome-extension://${extensionId}${INJECTOR_PAGE_PATH}`;
+  }
+
+  return await targetForUrl({
+    cdpPort,
+    url: injectorPageUrl
+  });
+}
+
+export async function reinjectContentScriptsOverCdp(cdpPort: number) {
+  const target = await injectorTarget(cdpPort);
+  const injectedTabCount = target
+    ? await evaluateOverCdp({
+      websocketUrl: target.webSocketDebuggerUrl!,
+      expression: REINJECT_EXPRESSION
+    })
+    : null;
+  // The next reload would kill this page anyway; closing it keeps one minimized window from becoming
+  // one per rebuild, and the position read it does on load from happening again while it sits there.
+  if (target?.id) {
+    await sendBrowserCommand({
+      cdpPort,
+      method: "Target.closeTarget",
+      params: {
+        targetId: target.id
+      }
+    });
+  }
+
+  if (typeof injectedTabCount === "number") {
+    return injectedTabCount;
+  }
+
+  logEvent("Re-inject: the extension did not answer - open tabs still run the previous build");
   return 0;
 }
 
