@@ -152,6 +152,11 @@ export const OTHER_SERVICE_ROW_NOTE = "יש יומן מקוון לסניף בש�
 /** On a row the probe found nowhere: no service lists this branch right now, so nothing opens. */
 export const NO_SERVICE_ROW_NOTE = `אין כרגע יומן מקוון לסניף בשום שירות של כללית סמייל - ${CALL_INSTEAD}`;
 
+/** In the site's own message box, after a click found no page to open for the branch. */
+const NO_ONLINE_DIARY_MESSAGE = "בדקנו עכשיו את כל שירותי כללית סמייל ואין יומן מקוון לסניף זה, ולכן אין דף תורים לפתוח.";
+const CALL_TO_BOOK = "לקביעת תור:";
+const OR_CENTRAL_LINE = "או במוקד";
+
 /** On the loader during the sweep - the wait is one fresh search per service, so say which one. */
 export function sweepStepNote({ step, total }: {
   step: number;
@@ -284,6 +289,43 @@ function buildHotlineNote({ ownerDocument, text }: {
   elHotline.textContent = CENTRAL_BOOKING_PHONE;
   elNote.appendChild(elHotline);
   return elNote;
+}
+
+/**
+ * What the site's own message box says when the click found nothing to open: the clinic, the reason and
+ * the two ways to book it by phone. Built from the branch directory, in the site's own message markup.
+ */
+export function buildUnavailableMessageHtml(branch: SmileBranch): string {
+  const elMessage = document.createElement("div");
+  const elTitle = document.createElement("h2");
+  elTitle.textContent = branch.title;
+  elMessage.appendChild(elTitle);
+
+  const elReason = document.createElement("p");
+  elReason.textContent = NO_ONLINE_DIARY_MESSAGE;
+  elMessage.appendChild(elReason);
+
+  const elPhones = document.createElement("p");
+  elPhones.appendChild(document.createTextNode(`${CALL_TO_BOOK} `));
+  // appendPhoneLinks empties whatever it is given, so the numbers get a slot of their own.
+  const elNumbers = document.createElement("span");
+  appendPhoneLinks({
+    elContainer: elNumbers,
+    phones: branch.phones
+  });
+  elPhones.appendChild(elNumbers);
+  // A leading NBSP: the tel: link's own trailing space collapses at the element boundary, so without it
+  // the number and the next word render glued together ("03-5235676או במוקד").
+  elPhones.appendChild(document.createTextNode(` ${OR_CENTRAL_LINE} `));
+  const elHotline = document.createElement("a");
+  elHotline.className = "underline";
+  elHotline.setAttribute("href", `tel:${CENTRAL_BOOKING_PHONE}`);
+  elHotline.setAttribute("dir", "ltr");
+  elHotline.textContent = CENTRAL_BOOKING_PHONE;
+  elPhones.appendChild(elHotline);
+  elMessage.appendChild(elPhones);
+
+  return elMessage.innerHTML;
 }
 
 export interface BranchRowInput {

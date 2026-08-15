@@ -6,7 +6,8 @@
  * "לכל התורים" opens a page belonging to THAT clinic and nothing else: it mints at click time - new
  * searches until one lists the branch, then straight to its slots page - and falls back to the branch's
  * own appointments page when a past visit there keys one. When neither handle exists no such page exists
- * either (docs §12f), so the click leaves the list where it is and repaints the row to say so.
+ * either (docs §12f), so the click answers in the site's own message box and repaints the row, rather
+ * than navigating somewhere that is not this clinic's.
  *
  * "מידע נוסף" composes the site's own lightbox for a branch the server will not describe, from a REAL
  * row of the current search; a stale template just means "re-run the user's search and compose again".
@@ -14,9 +15,16 @@
 
 import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
 import { smileEnvelopeSchema } from "./schemas";
-import { captionLoader, openInNewTab, setSiteLoader, showDetailsDialog } from "./site-chrome";
+import {
+  captionLoader,
+  openInNewTab,
+  setSiteLoader,
+  showDetailsDialog,
+  showSiteMessage
+} from "./site-chrome";
 import {
   applyBranchToDetailsFragment,
+  buildUnavailableMessageHtml,
   detailsLinkFromRowHtml,
   MINT_NAVIGATE_NOTE,
   NO_DIARY_SWEEP_NOTE,
@@ -173,22 +181,29 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
     return detailsByTitle?.get(branch.title) ?? null;
   }
 
-  /** The sweep just proved there is nothing to open - repaint the row so it says so from now on. */
-  function markUnbookable(code: string) {
+  /**
+   * The sweep just proved there is nothing to open. Repaint the row so it stays said, and answer the
+   * click itself in the site's own message box - a click that changes nothing on screen reads as a
+   * broken button, which is exactly what it looked like before this.
+   */
+  function sayUnbookable(code: string) {
     const elRow = [...document.querySelectorAll("li.diary")].find(elCandidate => rowNavCode(elCandidate) === code);
-    if (!elRow) {
-      return;
+    if (elRow) {
+      setRowBookable({
+        elRow,
+        isBookable: false,
+        title: UNAVAILABLE_BUTTON_TITLE
+      });
+      setRowNote({
+        elRow,
+        text: NO_DIARY_SWEEP_NOTE
+      });
     }
 
-    setRowBookable({
-      elRow,
-      isBookable: false,
-      title: UNAVAILABLE_BUTTON_TITLE
-    });
-    setRowNote({
-      elRow,
-      text: NO_DIARY_SWEEP_NOTE
-    });
+    const branch = branchByCode(code);
+    if (branch) {
+      showSiteMessage(buildUnavailableMessageHtml(branch));
+    }
   }
 
   /** A synthetic row's "לכל התורים": the clinic's own appointments page, or nothing at all. */
@@ -223,8 +238,9 @@ export function createRowActions({ session, visitGuidsByClinicTitle, knownSpecia
       // and never the service's search form.
       const visitGuid = await pastVisitGuidFor(code);
       if (!visitGuid) {
-        markUnbookable(code);
+        // The loader covers the whole frame, so it has to go before the message box under it can show.
         setSiteLoader(false);
+        sayUnbookable(code);
         return;
       }
 

@@ -11,6 +11,8 @@ import { SITE_LOADER_SELECTOR, SMILE_DETAILS_DIALOG_SELECTOR } from "./targets";
 /** The Zimunet site bundle's own UI namespace - the MAIN world sees the page's globals. */
 interface ZimunetPageUi {
   showDialog?: (selector: string, html: string) => void;
+  /** The site's own message box: it unwraps `{ data }` into `#messageView` through `showDialog`. */
+  showMessage?: (message: { data: string }) => void;
   showLoader?: () => void;
   hideLoader?: () => void;
 }
@@ -102,6 +104,26 @@ export function showDetailsDialog({ html, note }: {
       elDialog,
       text: note
     });
+  }
+
+  return true;
+}
+
+/**
+ * The site's OWN message box (`#messageView`), which is how Zimunet answers every "this cannot be done
+ * online" - so a click that reaches no page says so in the page's own voice instead of leaving the user
+ * looking at an unchanged list.
+ */
+export function showSiteMessage(html: string): boolean {
+  const pageUi = window.z;
+  if (typeof pageUi?.showMessage !== "function") {
+    return false;
+  }
+
+  try {
+    pageUi.showMessage({ data: html });
+  } catch {
+    return false;
   }
 
   return true;

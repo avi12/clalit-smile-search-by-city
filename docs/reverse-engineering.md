@@ -935,9 +935,11 @@ list now asks the question once, right after it is complete:
 - **The click contract (Avi, 2026-08-15): the button opens a page belonging to the clinic on the row, or
   nothing.** Diary found by the click-time sweep → that branch's slots page. No diary but a past visit at
   THAT clinic → its own `AvailableVisit/Index/{visitGuid}` (§12e). Neither → no such page exists (§12f),
-  so the click does not navigate at all: the list stays where it is and the row repaints itself red with
-  "בדקנו עכשיו את כל שירותי כללית סמייל…". No service search form (§12f), no lightbox standing in for a
-  page, no watch offer (§6e) - the details lightbox is what "מידע נוסף" is for.
+  so the click does not navigate at all: the row repaints itself red and **the site's own message box
+  (`z.showMessage({ data })` → `#messageView`) answers the click** with the clinic's name, the reason and
+  its phones. Not navigating is right; not saying anything was not - a 6-second loader that ends with the
+  list unchanged reads as a broken button, which is exactly how it was reported. No service search form
+  (§12f), no lightbox standing in for a page, no watch offer (§6e).
 
 **Service hours, observed 2026-08-15 00:20:** every Smile search answered `errorType: 3` for every city
 and every service, while `Diary/GetCities` answered `errorType: 0` on the same session - the session was
