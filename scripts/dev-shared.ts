@@ -19,6 +19,7 @@ import {
   TARGET_HOSTS
 } from "../src/lib/targets";
 import chokidar from "chokidar";
+import { createHash } from "node:crypto";
 import {
   appendFileSync,
   cpSync,
@@ -369,55 +370,34 @@ export function startSessionKeepalive(cdpPort: number) {
 }
 
 /**
- * Re-injection runs INSIDE the extension, not over CDP's Runtime.evaluate.
+ * Re-injection is the dev server's own job, over CDP, and the extension knows nothing about it.
  *
- * A rebuild reloads the extension, and a reload revokes every open tab's isolated world: the world
- * keeps running, but its `chrome.*` is gone ("Extension context invalidated"), so a bridge evaluated
- * back into it can no longer reach the background and the position silently answers null. Only the
- * extension itself can put a FRESH world into a live tab, so the extension is asked to inject its own
- * content scripts. The page is never reloaded (that would reset the Tamuz booking SPA to its home
- * screen), and the previous generation stands down over the dev-takeover channel (dev-takeover.ts).
+ * The freshly built bundles are evaluated into every Clalit frame of a live page - the interceptor into
+ * the frame's MAIN world, the bridge into the EXTENSION's own isolated world, because it talks to the
+ * background for the position and a copy in MAIN has no `chrome.*` to talk with. The page is never
+ * reloaded (that would reset the Tamuz booking SPA to its home screen) and the previous generation
+ * stands down over the dev-takeover channel (src/lib/dev-takeover.ts).
  *
- * The expression reads the MANIFEST for what to inject, into which world and which tabs - the dev
- * server drives the injection but never restates the content-script list.
+ * This only works while those isolated worlds are ALIVE, which is why the extension is no longer
+ * reloaded on every rebuild: an extension reload revokes every open tab's world (`chrome.runtime.id`
+ * gone, "Extension context invalidated") and Chrome will not make a new one without a navigation. So a
+ * reload is reserved for the builds that actually need it - see `reloadFingerprint`.
  */
-const REINJECT_EXPRESSION = `(async () => {
-  const isMainWorld = entry => entry.world === "MAIN";
-  // MAIN first: the interceptor's patches must be in place before the bridge pushes config at it.
-  const entries = [...chrome.runtime.getManifest().content_scripts]
-    .sort((a, b) => Number(isMainWorld(b)) - Number(isMainWorld(a)));
-  const tabs = await chrome.tabs.query({ url: [...new Set(entries.flatMap(entry => entry.matches))] });
-  for (const entry of entries) {
-    for (const tab of tabs) {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id, allFrames: entry.all_frames === true },
-        files: entry.js,
-        world: isMainWorld(entry) ? "MAIN" : "ISOLATED",
-        injectImmediately: true
-      }).catch(() => {});
-    }
+const CONTENT_SCRIPT_BUNDLES = [
+  {
+    path: join(OUTPUT_DIR, "content-scripts", "clalit-interceptor.js"),
+    isMainWorld: true
+  },
+  {
+    path: join(OUTPUT_DIR, "content-scripts", "clalit-bridge.js"),
+    isMainWorld: false
   }
-  return tabs.length;
-})()`;
+];
 
-/**
- * Every unpacked extension's id, as the extensions manager itself knows them. `chrome.developerPrivate`
- * exists only on `chrome://extensions`, which is why that page is opened to ask - web-ext drives its own
- * reloads from exactly there, so the page is usually already open.
- */
-function unpackedExtensionIdExpression(extensionName: string) {
-  return `new Promise(resolve => {
-    const developerPrivate = chrome.developerPrivate;
-    if (!developerPrivate || !developerPrivate.getExtensionsInfo) { resolve(null); return; }
-    developerPrivate.getExtensionsInfo(extensions => {
-      const own = (extensions || []).find(extension =>
-        extension.location === "UNPACKED" && extension.name === ${JSON.stringify(extensionName)});
-      resolve(own ? own.id : null);
-    });
-  })`;
-}
+/** Stamped on a tab's MAIN world by every injection, so a tab that missed one can be spotted. */
+const BUILD_STAMP_PROPERTY = "__clalitCityDevBuild";
 
-/** The extension's name, from the manifest that was just built - the id is looked up by it. */
+/** The extension's name, which is also what Chrome names its content-script world. */
 function builtExtensionName() {
   const manifestPath = join(OUTPUT_DIR, "manifest.json");
   if (!existsSync(manifestPath)) {
@@ -428,96 +408,24 @@ function builtExtensionName() {
   return typeof name === "string" ? name : "";
 }
 
-/** Ask the BROWSER endpoint (a page target cannot open targets) and hand back the reply's result. */
-async function sendBrowserCommand({ cdpPort, method, params }: {
-  cdpPort: number;
-  method: string;
-  params: object;
-}) {
-  const version = await fetch(`http://127.0.0.1:${cdpPort}/json/version`).then(response => response.json())
-    .catch(() => null);
-  const websocketUrl: unknown = version?.webSocketDebuggerUrl;
-  if (typeof websocketUrl !== "string") {
-    return null;
-  }
-
-  return await new Promise<unknown>(resolvePromise => {
-    const websocket = new WebSocket(websocketUrl);
-    let settled = false;
-    function settle(value: unknown) {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      clearTimeout(timer);
-      websocket.close();
-      resolvePromise(value);
-    }
-
-    const timer = setTimeout(() => settle(null), CDP_EVALUATE_TIMEOUT_MS);
-    websocket.onopen = () => websocket.send(
-      JSON.stringify({
-        id: 1,
-        method,
-        params
-      })
-    );
-    websocket.onmessage = ({ data }) => {
-      const message: {
-        id?: number;
-        result?: unknown;
-      } = JSON.parse(String(data));
-      if (message.id === 1) {
-        settle(message.result ?? null);
-      }
-    };
-    websocket.onerror = () => settle(null);
-    websocket.onclose = () => settle(null);
-  });
+/**
+ * What Chrome holds a cached copy of and only a reload can refresh: the manifest, the background worker
+ * and the offscreen document. Content-script files are NOT in here - those are what the injection
+ * replaces - so an ordinary `src/` change never costs the page its state.
+ */
+function reloadFingerprint() {
+  const watched = ["manifest.json", "background.js", "offscreen.html"];
+  return watched
+    .map(name => {
+      const path = join(OUTPUT_DIR, name);
+      return existsSync(path) ? createHash("sha1").update(readFileSync(path)).digest("hex") : "";
+    })
+    .join("-");
 }
 
-const TARGET_WAIT_ATTEMPTS = 20;
-const TARGET_WAIT_DELAY_MS = 150;
-
-/**
- * The page at `url`, opened in a minimized window of its own if it is not already there - minimized so
- * the dev browser's own window keeps focus while the injection runs behind it.
- */
-async function targetForUrl({ cdpPort, url }: {
-  cdpPort: number;
-  url: string;
-}) {
-  async function findTarget() {
-    return (await fetchCdpTargets(cdpPort))
-      .find(target => target.url?.startsWith(url) && target.webSocketDebuggerUrl);
-  }
-
-  const existing = await findTarget();
-  if (existing) {
-    return existing;
-  }
-
-  await sendBrowserCommand({
-    cdpPort,
-    method: "Target.createTarget",
-    params: {
-      url,
-      newWindow: true,
-      windowState: "minimized"
-    }
-  });
-
-  for (let attempt = 1; attempt <= TARGET_WAIT_ATTEMPTS; attempt++) {
-    const opened = await findTarget();
-    if (opened) {
-      return opened;
-    }
-
-    await new Promise(resolvePromise => setTimeout(resolvePromise, TARGET_WAIT_DELAY_MS));
-  }
-
-  return undefined;
+/** A build's identity, for the stamp: two bundles' content and nothing else. */
+function bundleFingerprint(sources: string[]) {
+  return createHash("sha1").update(sources.join("\n")).digest("hex").slice(0, 12);
 }
 
 /**
@@ -526,61 +434,216 @@ async function targetForUrl({ cdpPort, url }: {
  * has no CDP target to talk to at all. An extension PAGE has the same `chrome.*`, and this one is the
  * extension's own offscreen document, which does nothing on load but read a position and report it.
  */
-const EXTENSIONS_MANAGER_URL = "chrome://extensions";
-const INJECTOR_PAGE_PATH = "/offscreen.html";
-let injectorPageUrl: string | undefined;
+/**
+ * Evaluate the built bundles in every Clalit frame of one page target, each into the world it is
+ * declared for, and stamp the tab with the build it now runs.
+ */
+function injectIntoTarget({ websocketUrl, bundles, extensionName }: {
+  websocketUrl: string;
+  bundles: {
+    source: string;
+    isMainWorld: boolean;
+  }[];
+  extensionName: string;
+}) {
+  return new Promise<void>(resolvePromise => {
+    const websocket = new WebSocket(websocketUrl);
+    const mainWorldContexts: number[] = [];
+    // Latest context per frame: a frame that has been injected into before carries stale worlds too.
+    const extensionWorldContexts = new Map<string, number>();
+    const pendingEvaluations = new Set<number>();
+    let nextId = 1;
+    let enableId = 0;
 
-async function injectorTarget(cdpPort: number) {
-  if (!injectorPageUrl) {
-    const elManager = await targetForUrl({
-      cdpPort,
-      url: EXTENSIONS_MANAGER_URL
-    });
-    const extensionId = elManager
-      ? await evaluateOverCdp({
-        websocketUrl: elManager.webSocketDebuggerUrl!,
-        expression: unpackedExtensionIdExpression(builtExtensionName())
-      })
-      : null;
-    if (typeof extensionId !== "string") {
-      return undefined;
+    function finish() {
+      clearTimeout(timer);
+      websocket.close();
+      resolvePromise();
     }
 
-    injectorPageUrl = `chrome-extension://${extensionId}${INJECTOR_PAGE_PATH}`;
-  }
+    const timer = setTimeout(finish, CDP_EVALUATE_TIMEOUT_MS);
 
-  return await targetForUrl({
-    cdpPort,
-    url: injectorPageUrl
+    function send({ method, params }: {
+      method: string;
+      params?: object;
+    }) {
+      const id = nextId++;
+      websocket.send(
+        JSON.stringify({
+          id,
+          method,
+          params
+        })
+      );
+      return id;
+    }
+
+    websocket.onopen = () => {
+      enableId = send({ method: "Runtime.enable" });
+    };
+    websocket.onmessage = ({ data }) => {
+      const { id, method, params }: {
+        id?: number;
+        method?: string;
+        params?: {
+          context?: {
+            id: number;
+            origin: string;
+            name?: string;
+            auxData?: {
+              isDefault?: boolean;
+              frameId?: string;
+            };
+          };
+        };
+      } = JSON.parse(String(data));
+      if (method === "Runtime.executionContextCreated") {
+        const context = params?.context;
+        const { auxData, name } = context ?? {};
+        if (context && auxData?.isDefault && isTargetTabUrl(context.origin)) {
+          mainWorldContexts.push(context.id);
+        } else if (context && auxData?.frameId && name === extensionName) {
+          // Highest id wins, not last replayed: contexts are replayed in no guaranteed order.
+          const known = extensionWorldContexts.get(auxData.frameId) ?? 0;
+          extensionWorldContexts.set(auxData.frameId, Math.max(known, context.id));
+        }
+
+        return;
+      }
+
+      if (id === enableId) {
+        // Pre-existing contexts are replayed before the enable ack, so the lists are complete here.
+        // A frame with no extension world (the content scripts never ran there) still gets the bridge
+        // in MAIN - a badge without the position beats no bridge at all.
+        const isolatedContexts = [...extensionWorldContexts.values()];
+        for (const { source, isMainWorld } of bundles) {
+          const contexts = isMainWorld || !isolatedContexts.length ? mainWorldContexts : isolatedContexts;
+          for (const contextId of contexts) {
+            pendingEvaluations.add(
+              send({
+                method: "Runtime.evaluate",
+                params: {
+                  expression: source,
+                  contextId
+                }
+              })
+            );
+          }
+        }
+
+        if (!pendingEvaluations.size) {
+          finish();
+        }
+
+        return;
+      }
+
+      if (id !== undefined && pendingEvaluations.delete(id) && !pendingEvaluations.size) {
+        finish();
+      }
+    };
+    websocket.onerror = () => finish();
   });
 }
 
+/**
+ * Inject, then stamp the tab with the build it now runs - through the SAME top-frame world the stamp is
+ * later read from, so "is this tab current?" is asked and answered in one place. A navigation wipes it,
+ * which is exactly what makes a reloaded tab (running Chrome's cached content scripts) detectable.
+ */
+async function injectAndStamp({ websocketUrl, bundles, extensionName, buildId }: {
+  websocketUrl: string;
+  bundles: {
+    source: string;
+    isMainWorld: boolean;
+  }[];
+  extensionName: string;
+  buildId: string;
+}) {
+  await injectIntoTarget({
+    websocketUrl,
+    bundles,
+    extensionName
+  });
+  await evaluateOverCdp({
+    websocketUrl,
+    expression: `window.${BUILD_STAMP_PROPERTY} = ${JSON.stringify(buildId)}`
+  });
+}
+
+function builtBundles() {
+  const bundles = CONTENT_SCRIPT_BUNDLES
+    .filter(({ path }) => existsSync(path))
+    .map(({ path, isMainWorld }) => ({
+      source: readFileSync(path, "utf-8"),
+      isMainWorld
+    }));
+  if (bundles.length < CONTENT_SCRIPT_BUNDLES.length) {
+    logEvent("Inject: some built bundles are missing - did the build output move?");
+  }
+
+  return bundles;
+}
+
 export async function reinjectContentScriptsOverCdp(cdpPort: number) {
-  const target = await injectorTarget(cdpPort);
-  const injectedTabCount = target
-    ? await evaluateOverCdp({
-      websocketUrl: target.webSocketDebuggerUrl!,
-      expression: REINJECT_EXPRESSION
-    })
-    : null;
-  // The next reload would kill this page anyway; closing it keeps one minimized window from becoming
-  // one per rebuild, and the position read it does on load from happening again while it sits there.
-  if (target?.id) {
-    await sendBrowserCommand({
-      cdpPort,
-      method: "Target.closeTarget",
-      params: {
-        targetId: target.id
-      }
+  const bundles = builtBundles();
+  const buildId = bundleFingerprint(bundles.map(({ source }) => source));
+  const extensionName = builtExtensionName();
+  const tabs = (await fetchCdpTargets(cdpPort))
+    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
+  await Promise.all(
+    tabs.map(({ webSocketDebuggerUrl }) => injectAndStamp({
+      websocketUrl: webSocketDebuggerUrl!,
+      bundles,
+      extensionName,
+      buildId
+    }))
+  );
+  return tabs.length;
+}
+
+// ── Keeping every tab on the current build ────────────────────────────────────
+//
+// The extension is deliberately not reloaded on a content-script change, so what Chrome injects on its
+// own - into a tab the user reloads, or a Clalit tab opened later - is the copy it cached when the
+// extension was loaded, which goes stale the moment anything is rebuilt. The dev server closes that gap
+// itself: it asks each Clalit tab which build it is stamped with, and injects into the ones that are
+// behind. A tab that just reloaded therefore runs the current code within one tick, without anyone
+// having to touch chrome://extensions.
+
+const INJECTION_RECONCILE_INTERVAL_MS = 3000;
+
+async function reconcileInjections(cdpPort: number) {
+  const bundles = builtBundles();
+  const buildId = bundleFingerprint(bundles.map(({ source }) => source));
+  const extensionName = builtExtensionName();
+  const tabs = (await fetchCdpTargets(cdpPort))
+    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
+  for (const { webSocketDebuggerUrl } of tabs) {
+    const stamp = await evaluateOverCdp({
+      websocketUrl: webSocketDebuggerUrl!,
+      expression: `window.${BUILD_STAMP_PROPERTY} ?? null`
     });
-  }
+    if (stamp === buildId) {
+      continue;
+    }
 
-  if (typeof injectedTabCount === "number") {
-    return injectedTabCount;
+    await injectAndStamp({
+      websocketUrl: webSocketDebuggerUrl!,
+      bundles,
+      extensionName,
+      buildId
+    });
+    logEvent("Injected the current build into a tab that was running Chrome's cached copy");
   }
+}
 
-  logEvent("Re-inject: the extension did not answer - open tabs still run the previous build");
-  return 0;
+export function startInjectionReconcile(cdpPort: number) {
+  const timer = setInterval(() => {
+    reconcileInjections(cdpPort).catch(() => {});
+  }, INJECTION_RECONCILE_INTERVAL_MS);
+  timer.unref();
+  return timer;
 }
 
 // ── Browser target ──────────────────────────────────────────────────────────────
@@ -620,28 +683,39 @@ export async function runDevServer(target: BrowserTarget) {
   const { runner, cdpPort } = await target.launch(profileDirectory);
   logEvent(`${target.name} launched with extension sideloaded (CDP on 127.0.0.1:${cdpPort}).`);
   startSessionKeepalive(cdpPort);
+  startInjectionReconcile(cdpPort);
   console.log("Watching for file changes...\n");
 
   let isRebuilding = false;
   let pendingChange: string | undefined;
   let debounceTimer: NodeJS.Timeout | undefined;
 
+  let loadedFingerprint = reloadFingerprint();
+
+  /**
+   * A content-script change is injected and the page keeps its state; a change to what Chrome holds a
+   * CACHED copy of - the manifest, the background worker, the offscreen document - is the only thing
+   * that costs an extension reload, and a reload costs the open tabs (it revokes their worlds, so they
+   * are reloaded too rather than left with a bridge that cannot reach the background).
+   */
   async function rebuildAndReload(filePath: string) {
     const startedAt = Date.now();
     logEvent(`Change detected: ${filePath} - rebuilding`);
     try {
       await runBuildWithFsRetry();
-      await runner.reloadAllExtensions();
+      const fingerprint = reloadFingerprint();
+      const isReloadNeeded = fingerprint !== loadedFingerprint;
+      loadedFingerprint = fingerprint;
 
-      // src changes re-inject into live pages (keeps SPA state); manifest-shaping files (wxt.config,
-      // .env) change what the browser must load fresh, so those still reload the open tabs.
-      if (filePath.startsWith("src")) {
-        const tabCount = await reinjectContentScriptsOverCdp(cdpPort);
-        logEvent(`Re-injected into ${tabCount} tab(s) (${Date.now() - startedAt}ms) - page state kept`);
-      } else {
+      if (isReloadNeeded) {
+        await runner.reloadAllExtensions();
         await reloadTargetTabsOverCdp(cdpPort);
-        logEvent(`Reloaded (${Date.now() - startedAt}ms) - extension + open Clalit tabs`);
+        logEvent(`Reloaded (${Date.now() - startedAt}ms) - manifest/background changed, so tabs reload too`);
+        return;
       }
+
+      const tabCount = await reinjectContentScriptsOverCdp(cdpPort);
+      logEvent(`Injected into ${tabCount} tab(s) (${Date.now() - startedAt}ms) - page state kept`);
     } catch (error) {
       logEvent("Rebuild failed:");
       console.error(error);
