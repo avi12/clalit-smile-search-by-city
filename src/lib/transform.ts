@@ -11,7 +11,7 @@ import type { GuaranteeMode } from "./messaging";
 import type { EndpointRule } from "./targets";
 import { normalizeCity } from "./text";
 
-export interface TransformInput {
+interface TransformInput {
   city: string;
   guaranteeMode: GuaranteeMode;
   rule?: EndpointRule;

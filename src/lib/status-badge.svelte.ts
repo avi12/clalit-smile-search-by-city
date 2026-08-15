@@ -19,7 +19,7 @@ export interface BadgeState {
   status: GuaranteeStatus | null;
 }
 
-export interface StatusBadgeHandle {
+interface StatusBadgeHandle {
   update(state: BadgeState): void;
   /** Remove the badge from the page (a superseded dev generation standing down). */
   destroy(): void;

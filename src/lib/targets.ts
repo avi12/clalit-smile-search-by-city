@@ -98,18 +98,18 @@ export function isInterestingUrl(url: string) {
  * session's LAST search. That is why the guarantee rewrites the outgoing search to all-country and
  * filters/aggregates the live responses instead of splicing rows from a second search in.
  */
-export const SMILE_CLINIC_PAGE_PATH = "/Zimunet/SmileClinic";
+const SMILE_CLINIC_PAGE_PATH = "/Zimunet/SmileClinic";
 export const SMILE_SEARCH_PATH = `${SMILE_CLINIC_PAGE_PATH}/SearchSmileClinicsDiaries`;
 export const SMILE_PAGING_PATH = `${SMILE_CLINIC_PAGE_PATH}/Paging`;
 export const SMILE_SORT_PATH = `${SMILE_CLINIC_PAGE_PATH}/SortSmileDiaries`;
 
 /**
  * "Back" from a slots page DOCUMENT-loads the clinic page with this flag, and the server re-renders the
- * session's last search RAW into it - no fetch/XHR runs, so the guarantee would never touch it. The
- * interceptor detects this document and re-drives the search through the site's own form (captured
- * 2026-08-14, docs §6d).
+ * session's last search RAW into it - no fetch/XHR runs, so the guarantee would never see it. The
+ * interceptor detects this document and runs the guarantee over the markup itself, which is the same
+ * fragment the network path carries (captured 2026-08-14, docs §6d).
  */
-export const SMILE_RESTORE_PARAM = "isRestoreSearch";
+const SMILE_RESTORE_PARAM = "isRestoreSearch";
 
 export function isSmileRestoreLocation({ pathname, search }: {
   pathname: string;
@@ -203,7 +203,7 @@ export interface EndpointRule {
  * in the page console, and add a rule. Until then the transform auto-detects the results array and
  * matches the city by name.
  */
-export const ENDPOINT_RULES: EndpointRule[] = [];
+const ENDPOINT_RULES: EndpointRule[] = [];
 
 export function matchEndpointRule({ url, method }: {
   url: string;

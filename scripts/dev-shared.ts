@@ -37,7 +37,7 @@ import { consoleStream as webExtConsoleStream } from "web-ext-run/util/logger";
 import { build } from "wxt";
 
 // ── Dev log ────────────────────────────────────────────────────────────────────
-export const DEV_LOG_DIR = resolve(import.meta.dirname, "..", ".dev-logs");
+const DEV_LOG_DIR = resolve(import.meta.dirname, "..", ".dev-logs");
 const DEV_LOG_MAX_BYTES = 1_000_000;
 const DEV_LOG_MAX_ENTRY_CHARS = 2000;
 let devLogPath: string | undefined;
@@ -161,7 +161,7 @@ export function cloneFile({ sourcePath, destinationPath }: {
 }
 
 // ── Paths & build ───────────────────────────────────────────────────────────────
-export const PROJECT_ROOT = resolve(import.meta.dirname, "..");
+const PROJECT_ROOT = resolve(import.meta.dirname, "..");
 export const USER_PROFILES_DIR = resolve(PROJECT_ROOT, "user-profiles");
 const OUTPUT_DIR_NAME = "chrome-mv3-dev";
 export const OUTPUT_DIR = resolve(PROJECT_ROOT, ".output", OUTPUT_DIR_NAME);
@@ -205,14 +205,14 @@ async function runBuildWithFsRetry() {
 }
 
 // ── CDP helpers ───────────────────────────────────────────────────────────────
-export type CdpTarget = {
+type CdpTarget = {
   id?: string;
   type?: string;
   url?: string;
   webSocketDebuggerUrl?: string;
 };
 
-export async function fetchCdpTargets(cdpPort: number) {
+async function fetchCdpTargets(cdpPort: number) {
   try {
     const response = await fetch(`http://127.0.0.1:${cdpPort}/json`);
     const targets: CdpTarget[] = await response.json();
@@ -279,11 +279,11 @@ function evaluateOverCdp({ websocketUrl, expression }: {
   });
 }
 
-export function isTargetTabUrl(url: string | undefined) {
+function isTargetTabUrl(url: string | undefined) {
   return Boolean(url) && TARGET_HOSTS.some(host => url!.includes(host));
 }
 
-export async function reloadTargetTabsOverCdp(cdpPort: number) {
+async function reloadTargetTabsOverCdp(cdpPort: number) {
   const tabs = (await fetchCdpTargets(cdpPort))
     .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
   await Promise.all(
@@ -344,7 +344,7 @@ async function pollSessionKeepalive(cdpPort: number) {
   }
 }
 
-export function startSessionKeepalive(cdpPort: number) {
+function startSessionKeepalive(cdpPort: number) {
   const timer = setInterval(() => {
     pollSessionKeepalive(cdpPort).catch(() => {});
   }, SESSION_KEEPALIVE_INTERVAL_MS);
@@ -582,7 +582,7 @@ function builtBundles() {
   return bundles;
 }
 
-export async function reinjectContentScriptsOverCdp(cdpPort: number) {
+async function reinjectContentScriptsOverCdp(cdpPort: number) {
   const bundles = builtBundles();
   const buildId = bundleFingerprint(bundles.map(({ source }) => source));
   const extensionName = builtExtensionName();
@@ -635,7 +635,7 @@ async function reconcileInjections(cdpPort: number) {
   }
 }
 
-export function startInjectionReconcile(cdpPort: number) {
+function startInjectionReconcile(cdpPort: number) {
   const timer = setInterval(() => {
     reconcileInjections(cdpPort).catch(() => {});
   }, INJECTION_RECONCILE_INTERVAL_MS);
@@ -644,7 +644,7 @@ export function startInjectionReconcile(cdpPort: number) {
 }
 
 // ── Browser target ──────────────────────────────────────────────────────────────
-export type WebExtRunner = Awaited<ReturnType<typeof webExtRun.cmd.run>>;
+type WebExtRunner = Awaited<ReturnType<typeof webExtRun.cmd.run>>;
 
 export type BrowserTarget = {
   name: string;

@@ -47,7 +47,7 @@ const SOONEST_SLOT_PREFIX = "מועד התור";
  * site already renders the clinic's canonical city here - the exact same string its city autocomplete
  * produces for the search box - so it compares 1:1 against the searched city with no normalization.
  */
-export function rowCityName(elRow: Element) {
+function rowCityName(elRow: Element) {
   const address =
     [...elRow.querySelectorAll(".clinicDetails")]
       .map(elDetail => elDetail.textContent?.trim() ?? "")
@@ -83,7 +83,7 @@ export function rowNavCode(elRow: Element) {
 }
 
 /** What the distance sort really means under the guarantee: distance from the user's LIVE location. */
-export const LIVE_DISTANCE_SORT_LABEL = "מרחק ממיקומך";
+const LIVE_DISTANCE_SORT_LABEL = "מרחק ממיקומך";
 
 /** Rewrite a live row's server-computed "מרחק מהבית שלך" line with the live-location distance. */
 export function setRowDistanceLabel({ elRow, km }: {
@@ -126,14 +126,14 @@ const CLINIC_DETAILS_BY_VISIT = "/Zimunet/ClinicDoctor/ClinicDetailsByVisit/";
 const NEARME_NAV = "https://nearme.clalit.co.il/nav/";
 
 /** Clalit's own page for a clinic - the row's map link, and the last-resort target of "מידע נוסף". */
-export function nearmeHref(code: string) {
+function nearmeHref(code: string) {
   return `${NEARME_NAV}${code}`;
 }
 
 const CENTRAL_BOOKING_PHONE = "*2700";
 
 /** Marks every note the extension adds (row, lightbox, loader) so a second one replaces it, never stacks. */
-export const NOTE_ATTR = "data-clalit-city-note";
+const NOTE_ATTR = "data-clalit-city-note";
 
 const CALL_INSTEAD = "ניתן להתקשר למרפאה או למוקד";
 
@@ -292,7 +292,7 @@ function setSoonestSlotLine({ elLine, soonestSlotDate }: {
   elLine.textContent = `${label.trim()}: ${soonestSlotDate}`;
 }
 
-export interface BranchRowInput {
+interface BranchRowInput {
   /** A cloned REAL server row (li.diary) to repurpose - never markup we authored. */
   elRow: Element;
   branch: SmileBranch;
@@ -855,7 +855,7 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
 }
 
 /** The date a row prints on the site's own soonest-slot line, or "" when it carries none. */
-export function rowSoonestSlot(elRow: Element) {
+function rowSoonestSlot(elRow: Element) {
   const elLine = [...elRow.querySelectorAll(".clinicDetails")]
     .find(elDetail => elDetail.textContent?.trim().startsWith(SOONEST_SLOT_PREFIX));
   return elLine?.textContent?.split(":").slice(1).join(":").trim() ?? "";

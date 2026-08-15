@@ -33,7 +33,7 @@ import {
 } from "./targets";
 
 /** Which order the server session currently applies to the result set. */
-export type SmileSort = "cityDistance" | "soonest" | "home";
+type SmileSort = "cityDistance" | "soonest" | "home";
 
 /** Runaway guard for the page scans (an all-country result set is ~10 pages today). */
 const MAX_SCAN_PAGES = 30;

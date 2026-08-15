@@ -65,7 +65,7 @@ export function waitForElement({ selector, exclude, isAbandoned }: {
 }
 
 /** The parent document, or null when this frame is the top one / the parent is cross-origin. */
-export function parentDocument() {
+function parentDocument() {
   try {
     const { parent } = window;
     return parent === window ? null : parent.document;
