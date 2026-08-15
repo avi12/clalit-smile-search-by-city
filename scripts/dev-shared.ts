@@ -621,7 +621,12 @@ async function reconcileInjections(cdpPort: number) {
       websocketUrl: webSocketDebuggerUrl!,
       expression: `window.${BUILD_STAMP_PROPERTY} ?? null`
     });
-    if (stamp === buildId) {
+    // `null` is a tab that has never been stamped - Chrome's cached copy, which is what this exists to
+    // replace. `undefined` is a tab that did not ANSWER, and those are not the same thing: an injection
+    // travels the same socket the question just failed on, so it would fail too and the next tick would
+    // ask again, three seconds later, forever. Every re-injection is a fresh generation in a live page,
+    // so that loop is not free - it re-patches the page and re-mounts the badge on a tab nobody touched.
+    if (stamp === buildId || stamp === undefined) {
       continue;
     }
 
