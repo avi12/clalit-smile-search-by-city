@@ -40,6 +40,8 @@ export function getSmileHtml(json: unknown) {
 const ADDRESS_PREFIX = "כתובת:";
 /** The site's own soonest-slot line ("מועד התור הפנוי הקרוב ביותר: …") - matched, never re-authored. */
 const SOONEST_SLOT_PREFIX = "מועד התור";
+/** The site's own inline-link class - the underline an anchor gets when it is meant to look like one. */
+const SITE_UNDERLINE_CLASS = "underline";
 
 /**
  * A row's city = the last comma-segment of its "כתובת: …" line (some addresses are city-only). The
@@ -266,8 +268,11 @@ export function formatPhone(raw: string) {
  * A number in a ROW is text, not an offer: the server prints its own as plain `<span>`s in the row's
  * colour, so a blue underlined link there is the one thing on an appended row that shouts "added". The
  * link stays - for these branches the phone IS the booking route - it just stops announcing itself,
- * taking the row's own colour by inheritance rather than a colour of ours. Where the number IS the
- * offer (the site's message box: "call the clinic or *2700"), it is styled as the link it is.
+ * taking the row's own colour by inheritance rather than a colour of ours. It does announce itself while
+ * you are ON it: the browser already turns the cursor into a pointer there, and an underline for exactly
+ * that moment answers it instead of leaving the cursor as an unexplained hint (Avi, 2026-08-15). Where
+ * the number IS the offer (the site's message box: "call the clinic or *2700"), it is styled as the
+ * link it is.
  */
 function appendPhoneLinks({ elContainer, phones, isCallToAction = false }: {
   elContainer: Element;
@@ -285,9 +290,15 @@ function appendPhoneLinks({ elContainer, phones, isCallToAction = false }: {
     const elLink = ownerDocument.createElement("a");
     if (isCallToAction) {
       // The site's own inline-link class (anchors already inherit its color; this adds the underline).
-      elLink.className = "underline";
+      elLink.className = SITE_UNDERLINE_CLASS;
     } else {
       elLink.style.color = "inherit";
+      // Same class, put on and taken off again: the row stays the server's until the pointer (or the
+      // keyboard) is on the number, which is when the underline is the answer rather than noise.
+      for (const [enter, leave] of [["mouseenter", "mouseleave"], ["focus", "blur"]] as const) {
+        elLink.addEventListener(enter, () => elLink.classList.add(SITE_UNDERLINE_CLASS));
+        elLink.addEventListener(leave, () => elLink.classList.remove(SITE_UNDERLINE_CLASS));
+      }
     }
 
     elLink.setAttribute("href", `tel:${formatted.dial}`);
