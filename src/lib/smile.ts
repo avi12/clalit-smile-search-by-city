@@ -11,6 +11,7 @@
 
 import type { SmileBranch } from "./clinic-directory";
 import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "./schemas";
+import { SMILE_SPECIALIZATION_SELECT_SELECTOR } from "./targets";
 
 /** The envelope's `errorType` values, from the site's own `z.ErrorType` (docs 12a). */
 export const SMILE_ENVELOPE_STATUS = {
@@ -38,6 +39,8 @@ export function getSmileHtml(json: unknown) {
 }
 
 const ADDRESS_PREFIX = "כתובת:";
+/** The site's own soonest-slot line ("מועד התור הפנוי הקרוב ביותר: …") - matched, never re-authored. */
+const SOONEST_SLOT_PREFIX = "מועד התור";
 
 /**
  * A row's city = the last comma-segment of its "כתובת: …" line (some addresses are city-only). The
@@ -347,6 +350,40 @@ export function buildUnavailableMessageHtml(branch: SmileBranch) {
   return elMessage.innerHTML;
 }
 
+/**
+ * Fill the row's soonest-slot line, or remove it. The LABEL is the lender row's own - the site is the
+ * one that decides how that line reads - with the service appended, because this branch's date comes
+ * from a different diary than the one the user searched.
+ */
+function setSoonestSlotLine({ elLine, soonestSlot }: {
+  elLine: Element;
+  soonestSlot: {
+    date: string;
+    service: string;
+  } | null;
+}) {
+  if (!soonestSlot) {
+    elLine.remove();
+    return;
+  }
+
+  const [label] = (elLine.textContent ?? "").split(":");
+  const { date, service } = soonestSlot;
+  elLine.textContent = service ? `${label.trim()} (${service}): ${date}` : `${label.trim()}: ${date}`;
+}
+
+/** A service's own name, read off the site's specialization select - the site owns those words. */
+export function specializationLabel({ ownerDocument, specialization }: {
+  ownerDocument: Document;
+  specialization: string;
+}) {
+  const elSelect = ownerDocument.querySelector(SMILE_SPECIALIZATION_SELECT_SELECTOR);
+  const elOption = elSelect instanceof HTMLSelectElement
+    ? [...elSelect.options].find(option => option.value === specialization)
+    : undefined;
+  return elOption?.textContent?.trim() ?? "";
+}
+
 export interface BranchRowInput {
   /** A cloned REAL server row (li.diary) to repurpose - never markup we authored. */
   elRow: Element;
@@ -361,16 +398,32 @@ export interface BranchRowInput {
    * frame later. `null` = not asked yet, which for a row the search omitted means "not bookable yet".
    */
   isBookable: boolean | null;
+  /**
+   * The soonest slot the probe saw for this branch, named by the service whose diary it belongs to.
+   * This row exists because the SEARCHED service has no diary here, so an unnamed date would promise an
+   * appointment this search cannot book - the service is part of the claim, not a footnote.
+   */
+  soonestSlot: {
+    date: string;
+    service: string;
+  } | null;
 }
 
 /**
  * Turn a CLONED server row into a synthetic branch row (a branch the search has no diary for). We edit
  * the site's own element structure rather than build markup: rewrite clinic name / address / phones /
- * map, drop the slot date and the booking button (there is nothing to book), point "מידע נוסף" at the
- * site's native clinic-details lightbox when the user has a visit here (ClinicDetailsByVisit) or the
- * official nearme page otherwise, and make the phone a tel: link.
+ * map, fill or drop the slot date, drop the booking button when there is nothing to book, point
+ * "מידע נוסף" at the site's native clinic-details lightbox when the user has a visit here
+ * (ClinicDetailsByVisit) or the official nearme page otherwise, and make the phone a tel: link.
  */
-export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable, distanceKm }: BranchRowInput) {
+export function applyBranchToRow({
+  elRow,
+  branch,
+  detailsVisitGuid,
+  isBookable,
+  distanceKm,
+  soonestSlot
+}: BranchRowInput) {
   const { code, title, street, city, phones } = branch;
   elRow.setAttribute(SYNTHETIC_ROW_ATTR, "1");
   const detailsHref = detailsVisitGuid ? `${CLINIC_DETAILS_BY_VISIT}${detailsVisitGuid}` : null;
@@ -405,9 +458,15 @@ export function applyBranchToRow({ elRow, branch, detailsVisitGuid, isBookable, 
     const text = elDetail.textContent?.trim() ?? "";
     if (text.startsWith(ADDRESS_PREFIX)) {
       elDetail.textContent = `${ADDRESS_PREFIX} ${address}`;
-    } else if (text.startsWith("מועד התור") || (text.includes("מרחק") && distanceKm === null)) {
-      // The soonest-slot line has nothing to say for a branch with no diary, and neither has a distance
-      // line we cannot fill - anything left standing would be the lender row's own number.
+    } else if (text.startsWith(SOONEST_SLOT_PREFIX)) {
+      // The site's own label, kept verbatim and told which service the date belongs to. With no date to
+      // put there the line goes, rather than standing with the lender row's own.
+      setSoonestSlotLine({
+        elLine: elDetail,
+        soonestSlot
+      });
+    } else if (text.includes("מרחק") && distanceKm === null) {
+      // A distance line we cannot fill would leave the lender row's own number standing.
       elDetail.remove();
     }
   }
@@ -886,13 +945,24 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
   };
 }
 
-/** Which of these branches one results envelope lists - the batch question the single scan cannot answer. */
-export function navCodesInEnvelope({ json, navCodes }: {
+/** The date a row prints on the site's own soonest-slot line, or "" when it carries none. */
+export function rowSoonestSlot(elRow: Element) {
+  const elLine = [...elRow.querySelectorAll(".clinicDetails")]
+    .find(elDetail => elDetail.textContent?.trim().startsWith(SOONEST_SLOT_PREFIX));
+  return elLine?.textContent?.split(":").slice(1).join(":").trim() ?? "";
+}
+
+/**
+ * Which of these branches one results envelope lists, and the soonest slot each one showed - the batch
+ * question the single scan cannot answer. The date comes back with the verdict because the row that
+ * proves a branch IS bookable is the only place that date exists.
+ */
+export function listedRowsInEnvelope({ json, navCodes }: {
   json: unknown;
   navCodes: Iterable<string>;
 }) {
   const wanted = new Set(navCodes);
-  const found = new Set<string>();
+  const found = new Map<string, string>();
   const html = getSmileHtml(json);
   if (!html || wanted.size === 0) {
     return found;
@@ -902,7 +972,7 @@ export function navCodesInEnvelope({ json, navCodes }: {
   for (const elRow of parsedDocument.querySelectorAll("li.diary")) {
     const code = rowNavCode(elRow);
     if (wanted.has(code)) {
-      found.add(code);
+      found.set(code, rowSoonestSlot(elRow));
     }
   }
 

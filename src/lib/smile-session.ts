@@ -14,7 +14,7 @@
 
 import {
   envelopeStatus,
-  navCodesInEnvelope,
+  listedRowsInEnvelope,
   refreshRowActionLinks,
   rowNavCode,
   scanEnvelopeForNavCode,
@@ -161,7 +161,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
    * this (the click-time watch and the availability probe) want the same cheap answer, and both must
    * restore the user's search afterwards: the search this runs is what the session now holds.
    */
-  async function listedNavCodes({ specialization, navCodes }: {
+  async function listedBranches({ specialization, navCodes }: {
     specialization: string;
     navCodes: Iterable<string>;
   }) {
@@ -171,13 +171,13 @@ export function createSmileSession(nativeFetch: typeof fetch) {
       json: first,
       specialization
     }) !== SMILE_ENVELOPE_STATUS.success) {
-      return new Set<string>();
+      return new Map<string, string>();
     }
 
     const sorted = await fetchSessionJson({
       url: `${SMILE_SORT_PATH}?sortValue=${SMILE_SORT_VALUES.cityDistance}&sortDirection=1`
     });
-    const found = navCodesInEnvelope({
+    const found = listedRowsInEnvelope({
       json: sorted,
       navCodes: wanted
     });
@@ -186,11 +186,11 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     }
 
     // The city's own branches sit first, but a dense city can push them past page 1 - check one more.
-    for (const code of navCodesInEnvelope({
+    for (const [code, soonest] of listedRowsInEnvelope({
       json: await fetchSessionJson({ url: pagingUrl(2) }),
       navCodes: wanted
     })) {
-      found.add(code);
+      found.set(code, soonest);
     }
 
     return found;
@@ -251,7 +251,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     isSpecializationEmpty,
     pagesOf,
     pagingUrl,
-    listedNavCodes,
+    listedBranches,
     restoreUserSearch
   };
 }

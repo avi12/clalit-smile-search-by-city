@@ -32,23 +32,38 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
   const verdicts = new Map<string, {
     isBookable: boolean;
     decidedAt: number;
+    /** The row that proved it bookable, and what it said - the only place that date exists for us. */
+    soonest: {
+      date: string;
+      specialization: string;
+    } | null;
   }>();
 
-  function verdictFor(navCode: string) {
+  function liveVerdict(navCode: string) {
     const verdict = verdicts.get(navCode);
-    if (!verdict || now() - verdict.decidedAt > VERDICT_TTL_MS) {
-      return null;
-    }
-
-    return verdict.isBookable;
+    return verdict && now() - verdict.decidedAt <= VERDICT_TTL_MS ? verdict : null;
   }
 
-  function remember({ navCode, isBookable }: {
+  function verdictFor(navCode: string) {
+    return liveVerdict(navCode)?.isBookable ?? null;
+  }
+
+  /** The soonest slot the probe saw for a branch, with the service whose diary it belongs to. */
+  function soonestFor(navCode: string) {
+    return liveVerdict(navCode)?.soonest ?? null;
+  }
+
+  function remember({ navCode, isBookable, soonest = null }: {
     navCode: string;
     isBookable: boolean;
+    soonest?: {
+      date: string;
+      specialization: string;
+    } | null;
   }) {
     verdicts.set(navCode, {
       isBookable,
+      soonest,
       decidedAt: now()
     });
   }
@@ -67,15 +82,19 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
         break;
       }
 
-      const listed = await session.listedNavCodes({
+      const listed = await session.listedBranches({
         specialization,
         navCodes: pending
-      }).catch(() => new Set<string>());
-      for (const navCode of listed) {
+      }).catch(() => new Map<string, string>());
+      for (const [navCode, date] of listed) {
         pending.delete(navCode);
         remember({
           navCode,
-          isBookable: true
+          isBookable: true,
+          soonest: date ? {
+            date,
+            specialization
+          } : null
         });
         onDiaryFound({
           navCode,
@@ -109,6 +128,7 @@ export function createAvailabilityProbe({ session, isMintInFlight, onDiaryFound,
 
   return {
     ensureVerdicts,
-    verdictFor
+    verdictFor,
+    soonestFor
   };
 }
