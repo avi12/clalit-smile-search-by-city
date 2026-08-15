@@ -530,6 +530,32 @@ DOCUMENT-navigates the Zimunet iframe there. What the server renders into that d
   submission algorithm, so before the handler is bound they navigate the frame to a raw search response;
   `form.submit()` skips handlers entirely and can only ever produce that navigation.
 
+- **Why the event at all - the search function is not reachable** (read 2026-08-15 from
+  `$._data(form, "events").submit[0].handler.toString()`). The whole search is one closure:
+
+  ```js
+  function s(i) {
+    i.preventDefault();
+    if (t.searchButtonCtrl.hasClass("disabled")) return;       // the site's own guard
+    var f = parseInt(t.selectedSpecializationCode.val(), 10);
+    if (o(f) === false) return;                                // closure-private validation
+    var e = { SelectedSpecializationCode: …, SelectedCityName: …, IsShowClinicsFromAreaCity: … };
+    n.Ajax.send({ action: t.form.attr("action"), data: e, options: { type: "post",
+      success: function (i) { if (i && i.errorType === n.ErrorType.Success) t.container.html(i.data); },
+      error: function (n) { t.container.empty(); r(n); } } });
+  }
+  ```
+
+  `t` (the element cache), `n` (the Ajax + ErrorType namespace), `o` (validation) and `r` (error render)
+  are all closure-private - `Object.keys(window)` matching `/search|diar|smile|clinic/i` returns only
+  the DOM's own `onsearch`. So the submit event is the ONLY handle the page exposes on its search: there
+  is no function to call.
+
+  Doing it ourselves instead would mean re-implementing four things the handler does for free - the
+  disabled-button guard, `o()`'s validation, `n.Ajax.send` (which fires the `SyncSession.aspx` keepalive
+  of §5b before every call - visible in the network log immediately before each search POST), and the
+  render, which is just `container.html(envelope.data)`.
+
 **Shipped fix** (interceptor, `isSmileRestoreLocation` in `targets.ts`): on a restore document, read the
 session's specialization from the `#am_diaries` header by matching the select's own option labels, then
 **re-drive the site's own search form** (set the select, fire the form's submit event). The resulting XHR is
