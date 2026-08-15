@@ -272,11 +272,26 @@ export default defineContentScript({
       return elOption?.value ?? null;
     }
 
+    /**
+     * Re-run the restored search through the site's own form. Answers whether the site took it.
+     *
+     * The search IS the site's submit handler - it binds one on the form and nothing on the button
+     * (docs §6d) - so the event is what has to reach it. FIRING that event is not the same as submitting
+     * the form: the native POST lives at the end of the form-submission algorithm, and dispatching an
+     * event does not start that algorithm. So there is no default here to suppress. The site's own
+     * behaviour is left exactly as it is and simply never comes into play, which is why nothing of ours
+     * cancels anything - the form cannot navigate this frame no matter when we fire.
+     *
+     * `dispatchEvent` reporting false is the site's handler saying it took the event (it cancels, then
+     * issues the XHR). That is the honest answer to "was anything listening yet", so a fire before the
+     * bundle bound its handler costs nothing and the caller simply waits for the next change and asks
+     * again - where a real submit would have navigated away and taken the session view with it.
+     */
     function redriveSearch(specialization: string) {
       const elSearchButton = document.querySelector<HTMLInputElement>(SMILE_SEARCH_BUTTON_SELECTOR);
       const elForm = elSearchButton?.closest("form");
       if (!elSearchButton || !elForm) {
-        return;
+        return false;
       }
 
       const elSelect = document.querySelector<HTMLSelectElement>(SMILE_SPECIALIZATION_SELECT_SELECTOR);
@@ -285,17 +300,13 @@ export default defineContentScript({
         elSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
-      // Belt, and the only thing standing between a too-early submit and a document POST: the site's
-      // own handler is what calls preventDefault, so until it is bound the form's action would navigate
-      // this frame to a raw search response. Ours runs after the site's - registered later, and
-      // preventDefault does not stop other listeners - so when the site IS bound this is a no-op on top
-      // of what it already did.
-      elForm.addEventListener("submit", e => e.preventDefault(), { once: true });
-      // The search the site listens for IS the form's submit event - it binds one handler on the form
-      // and nothing at all on the button (docs §6d), so this asks for the search rather than miming the
-      // gesture that would produce it. `requestSubmit` and not `submit()`: the latter skips handlers
-      // entirely and would leave the native POST as the only thing that happened.
-      elForm.requestSubmit(elSearchButton);
+      return !elForm.dispatchEvent(
+        new SubmitEvent("submit", {
+          bubbles: true,
+          cancelable: true,
+          submitter: elSearchButton
+        })
+      );
     }
 
     /** A search has run in this document: ours landing (the marked render), the user's own
@@ -305,17 +316,21 @@ export default defineContentScript({
         Boolean(session.state.activeSearchCity) || Boolean(document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`));
     }
 
-    /** Re-drive only once BOTH are true: the city is known (the bridge has read it out of the restored
-     * search box - searching before that would re-run the same unfiltered search we are here to
-     * replace), and the site's bundle is up (before that the button is not an XHR search). */
+    /** Re-drive only once the city is known - the bridge has read it out of the restored search box, and
+     * searching before that would re-run the same unfiltered search we are here to replace. Whether the
+     * site is ready to take the search is not guessed at: `redriveSearch` fires and reports back. */
     function isRestoreReady() {
-      return Boolean(session.city()) && document.readyState === "complete" && Boolean(window.z);
+      return Boolean(session.city());
     }
 
     /**
-     * Each condition says when to look again for itself: the page's own load event and every DOM change
-     * the bundle makes on its way in for `window.z`, and the bridge's config message for the city - the
-     * bridge runs at `document_idle`, which can be after both of the other two have already fired.
+     * Each thing waited on says when to look again for itself: the page's own load event and every DOM
+     * change the bundle makes on its way in, and the bridge's config message for the city - the bridge
+     * runs at `document_idle`, which can be after both of the other two have already fired.
+     *
+     * The site's readiness is the one thing not waited on, because it does not have to be: a fire that
+     * lands before its handler is bound is a no-op that says so, so this stops on the search being TAKEN
+     * rather than on having tried once.
      */
     function redriveWhenReady(specialization: string) {
       return new Promise<void>(resolve => {
@@ -334,8 +349,7 @@ export default defineContentScript({
             return;
           }
 
-          if (isRestoreReady()) {
-            redriveSearch(specialization);
+          if (isRestoreReady() && redriveSearch(specialization)) {
             stop();
           }
         }

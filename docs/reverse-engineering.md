@@ -513,12 +513,26 @@ DOCUMENT-navigates the Zimunet iframe there. What the server renders into that d
   So before that handler is bound, a click would NATIVE-submit the form as a document POST.
   **Re-confirmed 2026-08-15** on a live restore document: `$._data(form, "events")` → `{submit: 1}`,
   `$._data(button, "events")` → `null`, and the button carries no `onclick` attribute. The search is the
-  form's submit event and nothing else, so the re-drive asks for it with `form.requestSubmit(button)` -
-  NOT `form.submit()`, which skips every handler and would leave the native POST as all that happened.
+  form's submit event and nothing else.
+
+  **So the re-drive FIRES that event rather than submitting the form** (2026-08-15):
+  `form.dispatchEvent(new SubmitEvent("submit", {bubbles: true, cancelable: true, submitter: button}))`.
+  Dispatching an event does not start the form-submission algorithm, and the native POST only exists at
+  the end of that algorithm - so the site's handler runs exactly as it does for a real click, and the
+  document POST is unreachable no matter how early we fire. Nothing has to cancel anything, and the
+  site's own default behaviour is left untouched. Measured on the live restore document:
+  `dispatchEvent` returned **false** (the site's handler cancelled), `location.href` unchanged, and one
+  `POST SearchSmileClinicsDiaries` with `x-requested-with: XMLHttpRequest` carrying the serialized form.
+  The return value doubles as "was anything listening yet", so firing before the bundle binds costs
+  nothing and the caller just waits for the next DOM change and asks again.
+
+  The two alternatives are both worse: `button.click()` and `form.requestSubmit()` DO start the
+  submission algorithm, so before the handler is bound they navigate the frame to a raw search response;
+  `form.submit()` skips handlers entirely and can only ever produce that navigation.
 
 **Shipped fix** (interceptor, `isSmileRestoreLocation` in `targets.ts`): on a restore document, read the
 session's specialization from the `#am_diaries` header by matching the select's own option labels, then
-**re-drive the site's own search form** (set the select, submit the form). The resulting XHR is
+**re-drive the site's own search form** (set the select, fire the form's submit event). The resulting XHR is
 an ordinary search that flows through the whole existing pipeline - area→all-country rewrite, city
 filter, page aggregation, synthetic branch rows, live-location re-rank - so the restored page ends up
 identical to a fresh guaranteed search, with working GUIDs. Guards, each one earned from a live failure
