@@ -291,6 +291,26 @@ inside the ~2 min countdown.
 ## 6. The real Tamuz "Clalit Smile" clinic-search API
 
 The booking UI lives in an **iframe** (`#ifrmMainTamuz` → `/Zimunet/…`) inside `TamuzTransfer.aspx`.
+
+### 6.0 The frame tree of `TamuzTransfer.aspx` (captured 2026-08-15, logged-in CDP session)
+
+`TamuzTransfer.aspx` is **four frames deep in siblings**, not one - which matters because every frame on
+a matching host runs its own copy of a content script. Read with
+`[...document.querySelectorAll("iframe")].map(el => ({id: el.id, src: el.getAttribute("src")}))` in the
+top frame (`window.length` reports 4):
+
+| frame | src | same host? |
+| --- | --- | --- |
+| `#ifrmMainTamuz` | `TamuzTransferContentByService.aspx?MethodName=TransferWithAuth&LinkType=4&OpenProfessionType=10` | yes |
+| ↳ (nested) | `/Zimunet/SmileClinic` - **the search box and the results list live here** | yes |
+| `#frmRefreshSession` | `/OnlineWeb/ServicesForAll/RefreshSession.aspx` (the keepalive of §5b) | yes |
+| `#frmRefreshOTP` | `""` (stays `about:blank`) | n/a |
+| `#u1st-ActivationFrame` | `https://accessibility.clalit.co.il/CommFrame/Activation?ver=2.1.18.4#…` | **no** |
+
+So on `e-services.clalit.co.il` **three** documents match and run the extension - the booking iframe, the
+scheduler nested inside it, and the session-refresh frame - and only the innermost one has a search box.
+Anything a content script relays "up" therefore arrives from several senders, most of them with nothing
+to say. The accessibility widget is a different host and is never injected into.
 The Smile clinic search is an **XHR** to `/Zimunet/SmileClinic/SearchSmileClinicsDiaries`, and - this is
 the crux - **the response is not JSON data, it's a JSON envelope wrapping a server-rendered HTML
 fragment**:
