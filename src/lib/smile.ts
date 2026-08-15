@@ -40,8 +40,6 @@ export function getSmileHtml(json: unknown) {
 const ADDRESS_PREFIX = "כתובת:";
 /** The site's own soonest-slot line ("מועד התור הפנוי הקרוב ביותר: …") - matched, never re-authored. */
 const SOONEST_SLOT_PREFIX = "מועד התור";
-/** The site's own inline-link class - the underline an anchor gets when it is meant to look like one. */
-const SITE_UNDERLINE_CLASS = "underline";
 
 /**
  * A row's city = the last comma-segment of its "כתובת: …" line (some addresses are city-only). The
@@ -265,19 +263,16 @@ export function formatPhone(raw: string) {
  * Render directory phones as tel: links into a telephone slot (the row, the lightbox and the message
  * box share this).
  *
- * A number in a ROW is text, not an offer: the server prints its own as plain `<span>`s in the row's
- * colour, so a blue underlined link there is the one thing on an appended row that shouts "added". The
- * link stays - for these branches the phone IS the booking route - it just stops announcing itself,
- * taking the row's own colour by inheritance rather than a colour of ours. It does announce itself while
- * you are ON it: the browser already turns the cursor into a pointer there, and an underline for exactly
- * that moment answers it instead of leaving the cursor as an unexplained hint (Avi, 2026-08-15). Where
- * the number IS the offer (the site's message box: "call the clinic or *2700"), it is styled as the
- * link it is.
+ * A number here IS a link - tapping it dials, and for a branch with no online diary the phone is the
+ * booking route - so it looks like one everywhere: the site's own link blue, underlined (Avi,
+ * 2026-08-15). Nothing sets the colour: not overriding it is what leaves the site's own
+ * `a { color: rgb(15,130,209) }` showing, so the number matches every other link on the page. The
+ * underline has to be inline, because that same rule set carries `text-decoration: none` and the site's
+ * `.underline` class loses to it in this document.
  */
-function appendPhoneLinks({ elContainer, phones, isCallToAction = false }: {
+function appendPhoneLinks({ elContainer, phones }: {
   elContainer: Element;
   phones: string[];
-  isCallToAction?: boolean;
 }) {
   const { ownerDocument } = elContainer;
   elContainer.textContent = "";
@@ -288,21 +283,7 @@ function appendPhoneLinks({ elContainer, phones, isCallToAction = false }: {
     }
 
     const elLink = ownerDocument.createElement("a");
-    if (isCallToAction) {
-      // The site's own inline-link class (anchors already inherit its color; this adds the underline).
-      elLink.className = SITE_UNDERLINE_CLASS;
-    } else {
-      elLink.style.color = "inherit";
-      // Put on and taken off again: the row stays the server's until the pointer (or the keyboard) is on
-      // the number, which is when the underline is the answer rather than noise. Inline rather than the
-      // site's own class, because `a, a:visited, a:hover { text-decoration: none }` is live in this
-      // document and the class loses to it - only an inline rule reliably wins.
-      for (const [enter, leave] of [["mouseenter", "mouseleave"], ["focus", "blur"]] as const) {
-        elLink.addEventListener(enter, () => elLink.style.setProperty("text-decoration", "underline"));
-        elLink.addEventListener(leave, () => elLink.style.removeProperty("text-decoration"));
-      }
-    }
-
+    elLink.style.setProperty("text-decoration", "underline");
     elLink.setAttribute("href", `tel:${formatted.dial}`);
     // dir=ltr keeps digits and a "(1)" hint in reading order inside the RTL layout.
     elLink.setAttribute("dir", "ltr");
@@ -350,8 +331,7 @@ export function buildUnavailableMessageHtml(branch: SmileBranch) {
   const elNumbers = document.createElement("span");
   appendPhoneLinks({
     elContainer: elNumbers,
-    phones: branch.phones,
-    isCallToAction: true
+    phones: branch.phones
   });
   elPhones.appendChild(elNumbers);
   // A leading NBSP: the tel: link's own trailing space collapses at the element boundary, so without it
