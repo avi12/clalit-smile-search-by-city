@@ -16,6 +16,9 @@ user-profiles/
 .env.*
 !.env.example
 
+# CRX signing key - the extension's identity, never committed
+keys/
+
 # Claude Code (local-only settings)
 .claude/settings.local.json
 
@@ -23,3 +26,8 @@ user-profiles/
 .DS_Store
 Thumbs.db
 *.log
+.idea/
+.vscode/
+
+# Claude Code session handoffs (local scratch)
+continue-*.md
