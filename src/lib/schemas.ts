@@ -35,11 +35,13 @@ export const positionAnswerSchema = z.tuple([
 
 /**
  * The relay envelope, and all the channel itself knows: an unrecognised `type` simply finds no handler,
- * and the payload is parsed by whichever handler owns that type.
+ * and the payload is parsed by whichever handler owns that type. `data` is OPTIONAL because a message
+ * can carry nothing at all (`Hello` does) - zod counts a bare `z.unknown()` as a required key, so
+ * without this a payload-free broadcast would be dropped as malformed.
  */
 export const frameMessageSchema = z.object({
   type: z.string(),
-  data: z.unknown()
+  data: z.unknown().optional()
 });
 
 export const frameStateSchema = z.object({
