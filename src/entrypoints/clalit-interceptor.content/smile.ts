@@ -499,10 +499,17 @@ export function setLoaderNote({ elLoader, text }: {
 
 const RECEPTION_DAY_LETTERS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
 
+/**
+ * The directory's minutes-from-midnight as the clock prints them ("08:00"). The platform's `Date` does
+ * the padding and the carry - no date library, and not the page's `moment` either, which is loaded here
+ * but would make a pure transform depend on a page global (audit, 16.08.2026).
+ *
+ * Read as UTC, never local: `total` is an offset from midnight, not an instant, so the runtime's
+ * timezone must not shift it. Every hour in the committed directory is inside one day (420-1380), so
+ * the ISO string's time part is the whole answer.
+ */
 function formatMinutes(total: number) {
-  const hours = String(Math.floor(total / 60)).padStart(2, "0");
-  const minutes = String(total % 60).padStart(2, "0");
-  return `${hours}:${minutes}`;
+  return new Date(total * 60_000).toISOString().slice(11, 16);
 }
 
 /** Rewrite a `<span class="title">label</span> value` line's value, keeping the label span. */
