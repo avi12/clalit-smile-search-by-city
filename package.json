@@ -1,6 +1,6 @@
 {
   "name": "clalit-smile-search-by-city",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "Chrome extension (WXT) that guarantees a city's appointments show up when searching Clalit Smile / Clalit dental scheduling, respecting the site's own distance-vs-time sort.",
   "repository": "https://github.com/avi12/clalit-smile-search-by-city",
