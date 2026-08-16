@@ -32,6 +32,17 @@ export default defineConfig({
     },
     homepage_url: "https://avi12.com"
   },
+  zip: {
+    artifactTemplate: "clalit-smile-search-by-city-{{version}}-{{browser}}.zip",
+    excludeSources: [
+      "user-profiles/**",
+      ".dev-logs/**",
+      ".output/**",
+      ".wxt/**",
+      "keys/**",
+      "scripts/**"
+    ]
+  },
   vite: () => ({
     plugins: [
       {

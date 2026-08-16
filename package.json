@@ -15,6 +15,7 @@
     "ext:build": "wxt build",
     "ext:zip": "wxt zip",
     "clinics:fetch": "tsx scripts/fetch-clinic-coords.ts",
+    "release": "tsx scripts/release.ts",
     "lint": "oxlint --type-aware --fix -c .oxlintrc.fix.json && eslint --fix && oxlint --type-aware",
     "typecheck": "tsc --noEmit",
     "postinstall": "wxt prepare"
