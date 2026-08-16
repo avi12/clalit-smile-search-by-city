@@ -3,7 +3,7 @@
  * HTML fragment inside a JSON envelope (shape captured in targets.ts). The interceptor rewrites the
  * outgoing search to all-country, and these transforms then keep ONLY the searched city's rows in each
  * response - order preserved, so the site's chosen sort is respected - while the interceptor aggregates
- * the remaining server pages into the same list (see clalit-interceptor.content.ts).
+ * the remaining server pages into the same list (see index.ts).
  *
  * Runs in the page's MAIN world, so DOMParser is available. Pure string→string: nothing here touches
  * the live document.
@@ -11,7 +11,7 @@
 
 import type { SmileBranch } from "./clinic-directory";
 import { renderPhoneLinks } from "./phone-links";
-import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "@/lib/schemas";
+import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "./schemas";
 
 /** The envelope's `errorType` values, from the site's own `z.ErrorType` (docs 12a). */
 export const SMILE_ENVELOPE_STATUS = {

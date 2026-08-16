@@ -14,6 +14,7 @@
  */
 
 import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
+import { smileEnvelopeSchema } from "./schemas";
 import {
   captionLoader,
   openInNewTab,
@@ -39,7 +40,6 @@ import {
 } from "./smile";
 import { TAILORED_BRANCH_HASH } from "./smile-clinic-page";
 import type { SmileSession } from "./smile-session";
-import { smileEnvelopeSchema } from "@/lib/schemas";
 
 export function createRowActions({ session, slotsLinkFor, verdictFor }: {
   session: SmileSession;

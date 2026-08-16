@@ -54,7 +54,7 @@ findings are reproduced here.
 Every section of this document was produced the same way:
 
 1. **Watch the real flow.** Dev builds log interesting requests to the page console (`[clalit-city] …`
-   in `clalit-interceptor.content.ts`) - method, URL, status and the parsed envelope. That log is the
+   in the interceptor's `index.ts`) - method, URL, status and the parsed envelope. That log is the
    discovery mode: an endpoint that shows up there is a candidate, and what it answers is the shape.
 2. **Name the question in one sentence** ("does the area search list every branch in the city?",
    "where does a row's GUID come from?", "can a branch with no diary be booked at all?").
@@ -91,15 +91,15 @@ Each finding has exactly one home in the code; nothing is re-derived elsewhere.
 | Finding | Where it lives |
 |---|---|
 | Hosts, matches, search-box selectors, Smile endpoint paths | `src/lib/targets.ts` (also feeds `wxt.config.ts`) |
-| The response is a JSON envelope wrapping server-rendered `li.diary` HTML (§6) | `src/smile/smile.ts` (string → string), `src/smile/transform.ts` for the generic case |
-| Sort/`Paging`/GUIDs are server-session state (§6b) | `src/smile/smile-session.ts` - the one shared session |
-| "Area" is a subset, and Tamuz omits diary-less branches (§6a) | `src/smile/smile-aggregation.ts` + `SMILE_BRANCHES` |
-| A GUID is minted inside the row markup at search time (§6c) | `src/smile/smile-row-actions.ts` (click-time mint) |
+| The response is a JSON envelope wrapping server-rendered `li.diary` HTML (§6) | `src/entrypoints/clalit-interceptor.content/smile.ts` (string → string), `src/entrypoints/clalit-interceptor.content/transform.ts` for the generic case |
+| Sort/`Paging`/GUIDs are server-session state (§6b) | `src/entrypoints/clalit-interceptor.content/smile-session.ts` - the one shared session |
+| "Area" is a subset, and Tamuz omits diary-less branches (§6a) | `src/entrypoints/clalit-interceptor.content/smile-aggregation.ts` + `SMILE_BRANCHES` |
+| A GUID is minted inside the row markup at search time (§6c) | `src/entrypoints/clalit-interceptor.content/smile-row-actions.ts` (click-time mint) |
 | A slots page belongs to a (clinic, **service**) pair (§12k) | `smile-availability.ts`, `smile-row-actions.ts` |
-| A no-GUID branch can still show its own page (§12i) | `src/smile/smile-clinic-page.ts` |
+| A no-GUID branch can still show its own page (§12i) | `src/entrypoints/clalit-interceptor.content/smile-clinic-page.ts` |
 | The "back" restore document bypasses the patches (§6d) | the interceptor's restore re-drive |
 | Clinic coordinates, and the few Clalit gets wrong (§8, §14) | `clinic-directory.ts` (generated) + `clinic-coord-fixes.ts` |
-| `window.z` loader/lightbox are reusable (§12) | `src/smile/site-chrome.ts` |
+| `window.z` loader/lightbox are reusable (§12) | `src/entrypoints/clalit-interceptor.content/site-chrome.ts` |
 
 ### 2e. Probing our own plumbing, in the live page (2026-08-15)
 
@@ -606,9 +606,9 @@ the session actually holds, with ירמיהו as the real row. Switching back to
 The extension patches `fetch`/`XMLHttpRequest` in the page's **MAIN world** at `document_start`, in
 **all frames** (the booking UI is an iframe). The ISOLATED bridge reads the city from the search box and
 the badge; both talk over a window channel (`@webext-core/messaging/page`). See
-[`clalit-interceptor.content.ts`](../src/entrypoints/clalit-interceptor.content.ts),
-[`clalit-bridge.content.ts`](../src/entrypoints/clalit-bridge.content.ts),
-[`smile.ts`](../src/smile/smile.ts).
+[`clalit-interceptor.content/`](../src/entrypoints/clalit-interceptor.content),
+[`clalit-bridge.content/`](../src/entrypoints/clalit-bridge.content),
+[`smile.ts`](../src/entrypoints/clalit-interceptor.content/smile.ts).
 
 ```mermaid
 flowchart TD
@@ -648,7 +648,7 @@ flowchart TD
      re-ranked from the committed coordinates, synthetic rows included: 0.01 → 2.77 → 3.13 → 5.42 →
      5.76 km, each relabelled "מרחק ממיקומך", with the direction toggle mirroring the site's own.
 
-3. **All external input is validated** ([`schemas.ts`](../src/lib/schemas.ts), zod): the window-channel
+3. **All external input is validated** ([`schemas.ts`](../src/entrypoints/clalit-interceptor.content/schemas.ts), zod): the window-channel
    config/status, the forgeable frame-relay + dev-takeover `postMessage`s, and the Smile envelope are
    parsed at the boundary; a malformed message is ignored, never thrown on.
 
@@ -659,7 +659,7 @@ flowchart TD
 Clalit's **public** clinic directory at `https://nearme.clalit.co.il/c.json` (the dataset behind every
 row's "הצגת מפה" `/nav/<code>` link) packs ~6,900 clinics as positional rows with a column map `m`.
 [`scripts/fetch-clinic-coords.ts`](../scripts/fetch-clinic-coords.ts) decodes it and generates
-[`src/smile/clinic-directory.ts`](../src/smile/clinic-directory.ts):
+[`src/entrypoints/clalit-interceptor.content/clinic-directory.ts`](../src/entrypoints/clalit-interceptor.content/clinic-directory.ts):
 
 - `SMILE_BRANCHES` - every Clalit Smile branch (title/city/street/phones/lat/lng), the source for
   listing a city's branches Tamuz has no diary for.
@@ -782,7 +782,7 @@ automatically with the server's diary state, in both directions.
 ### 10a. Synthetic branch rows (how completeness is rendered)
 
 For each searched-city branch the search omits (`SMILE_BRANCHES`, from the nearme directory), the
-interceptor **clones a real server row** (never hand-authored markup - [`applyBranchToRow`](../src/smile/smile.ts))
+interceptor **clones a real server row** (never hand-authored markup - [`applyBranchToRow`](../src/entrypoints/clalit-interceptor.content/smile.ts))
 and rewrites it: clinic name / address / phones / map, drop the slot date, re-arm the booking button
 for click-time GUID minting (§6c), make the phone a `tel:` link, and point **"מידע נוסף"** at the
 site's **own** clinic-details lightbox

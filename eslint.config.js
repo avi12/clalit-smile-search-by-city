@@ -254,7 +254,7 @@ export default [
     ".wxt/",
     ".dev-logs/",
     "user-profiles/",
-    "src/smile/clinic-directory.ts"
+    "src/entrypoints/clalit-interceptor.content/clinic-directory.ts"
   ]),
   {
     files: ["**/*.{ts,js,mjs}"],

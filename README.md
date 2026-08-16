@@ -35,43 +35,46 @@ MV3 content scripts do all the work, with **no storage and nothing persisted**. 
 are `geolocation` + `offscreen`, and they serve one feature between them: the position is read in the
 EXTENSION's own offscreen document, so it never depends on what the site was granted.
 
-- **MAIN-world interceptor** ([`clalit-interceptor.content.ts`](src/entrypoints/clalit-interceptor.content.ts))
+- **MAIN-world interceptor** ([`clalit-interceptor.content/`](src/entrypoints/clalit-interceptor.content))
   patches `fetch`/`XMLHttpRequest` at `document_start` in **all frames** (the booking UI is an
   iframe). The Smile search responses are **server-rendered HTML fragments inside a JSON envelope**;
   the interceptor rewrites the outgoing search from "area" to "all country", filters each fragment to
-  the city ([`smile.ts`](src/smile/smile.ts)), fetches the remaining server pages, and applies the
-  live-distance re-rank ([`geo.ts`](src/lib/geo.ts)).
-- **ISOLATED bridge** ([`clalit-bridge.content.ts`](src/entrypoints/clalit-bridge.content.ts)) reads
+  the city ([`smile.ts`](src/entrypoints/clalit-interceptor.content/smile.ts)), fetches the remaining
+  server pages, and applies the live-distance re-rank ([`geo.ts`](src/lib/geo.ts)).
+- **ISOLATED bridge** ([`clalit-bridge.content/`](src/entrypoints/clalit-bridge.content)) reads
   the city from the page's search box, renders the status badge in the top frame, and shares state
   with the tab's other frames.
 - The two talk over a **window channel** (`@webext-core/messaging/page`); the bridges of a tab talk to
   each other over a **BroadcastChannel** named for that tab
-  ([`messaging-frames.ts`](src/lib/messaging-frames.ts)). **Every external input** - channel payloads,
-  frame broadcasts, the network envelope - is validated with **zod** at the boundary
-  ([`schemas.ts`](src/lib/schemas.ts)); malformed input is ignored, never thrown on.
+  ([`messaging-frames.ts`](src/entrypoints/clalit-bridge.content/messaging-frames.ts)). **Every
+  external input** - channel payloads, frame broadcasts, the network envelope - is validated with
+  **zod** at the boundary, in the `schemas.ts` of whichever entrypoint *receives* it; malformed input
+  is ignored, never thrown on.
 
-Each entrypoint's private modules live with it; `lib/` holds only what genuinely crosses one, and the
-dependency runs one way - nothing in `lib/` imports from `smile/` or `badge/`.
+An entrypoint that owns private modules is a folder holding them; one that owns none is a single
+file. `lib/` keeps only what genuinely crosses an entrypoint, and the dependency runs one way -
+nothing in `lib/` imports from an entrypoint.
 
 ```
 src/
   entrypoints/
-    clalit-interceptor.content.ts  # MAIN world: patch fetch/XHR, rewrite/filter/aggregate, live-distance rank
-    clalit-bridge.content.ts       # ISOLATED: read the search box, feed MAIN, badge + the tab's frame channel
-    clalit-dom-ready.content.ts    # MAIN, document_end: tells the interceptor the DOM is parsed
-    background.ts / offscreen/     # one job: read the position under the EXTENSION's own permission
-  lib/                     # shared by more than one entrypoint - and nothing else
+    clalit-interceptor.content/  # MAIN world: patch fetch/XHR, rewrite/filter/aggregate, live-distance rank
+      index.ts                   # the patches and the wiring; each behaviour is its own module beside it
+      smile.ts                   # the city guarantee over the HTML-fragment envelope (order-preserving)
+      smile-session.ts / smile-aggregation.ts / smile-availability.ts / smile-row-actions.ts
+      live-distance.ts / clinic-directory.ts   # GENERATED coords (from nearme c.json) + the ranking
+      site-chrome.ts / phone-links.ts / transform.ts / text.ts / schemas.ts
+    clalit-bridge.content/       # ISOLATED: read the search box, feed MAIN, badge + the tab's frame channel
+      index.ts
+      messaging-frames.ts        # the BroadcastChannel - only an ISOLATED world can open one
+      status-badge.svelte.ts / StatusBadge.svelte / schemas.ts
+    clalit-dom-ready.content.ts  # MAIN, document_end: tells the interceptor the DOM is parsed
+    background.ts / offscreen/   # one job: read the position under the EXTENSION's own permission
+  lib/                     # reached by three entrypoints or more - and nothing else
     targets.ts             # SSOT: hosts, search-box selectors, Smile endpoint paths
-    messaging.ts / messaging-page.ts / messaging-runtime.ts / messaging-frames.ts   # all three channels' contracts
-    schemas.ts             # zod validation for everything crossing a trust boundary
+    messaging.ts           # the contracts for all three channels
+    messaging-page.ts / messaging-runtime.ts   # the two transports more than one entrypoint speaks
     geo.ts                 # great-circle distance + the LatLng the channels carry
-  smile/                   # the guarantee - private to the interceptor
-    smile.ts               # the city guarantee over the HTML-fragment envelope (order-preserving)
-    smile-session.ts / smile-aggregation.ts / smile-availability.ts / smile-row-actions.ts
-    live-distance.ts / clinic-directory.ts   # GENERATED coords (from nearme c.json) + the ranking
-    site-chrome.ts / phone-links.ts / transform.ts / text.ts
-  badge/                   # the in-page badge (shadow-DOM UI) - private to the bridge
-    status-badge.svelte.ts / StatusBadge.svelte
 scripts/                   # dev launcher (cloned-profile Chrome) + clinic-directory generator
 docs/reverse-engineering.md
 ```
@@ -82,7 +85,7 @@ Coordinates and the full branch list come from Clalit's **public** clinic direct
 `nearme.clalit.co.il/c.json` - the same dataset behind each result row's "הצגת מפה" map link:
 
 ```bash
-pnpm clinics:fetch   # regenerates src/smile/clinic-directory.ts
+pnpm clinics:fetch   # regenerates src/entrypoints/clalit-interceptor.content/clinic-directory.ts
 ```
 
 The generated file is committed, so the data is **baked into the build**: no runtime network calls,

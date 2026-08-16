@@ -15,9 +15,28 @@
  * dev build it logs interesting requests to the page console (Discovery).
  */
 
+import { searchConfigSchema, smileEnvelopeSchema } from "./schemas";
+import { openInNewTab } from "./site-chrome";
+import {
+  DETAILS_CODE_ATTR,
+  filterSmileEnvelope,
+  MINT_CODE_ATTR,
+  NO_DIARY_ROW_NOTE,
+  SMILE_MARKER_ATTR
+} from "./smile";
+import { createSmileAggregation, type MarkedSmileOutcome } from "./smile-aggregation";
+import { createAvailabilityProbe } from "./smile-availability";
+import {
+  createTailoredClinicPage,
+  emptyAvailabilityEnvelope,
+  isAvailabilityUrl,
+  tailoredBranchCode
+} from "./smile-clinic-page";
+import { createRowActions } from "./smile-row-actions";
+import { createSmileSession } from "./smile-session";
+import { applyGuarantee, type TransformResult } from "./transform";
 import { type GuaranteeStatus, PageMsg } from "@/lib/messaging";
 import { onPageMessage, sendPageMessage } from "@/lib/messaging-page";
-import { searchConfigSchema, smileEnvelopeSchema } from "@/lib/schemas";
 import {
   ALL_COUNTRY_AREA_VALUE,
   CITY_AREA_VALUE,
@@ -35,25 +54,6 @@ import {
   SMILE_SPECIALIZATION_FIELD,
   SMILE_SPECIALIZATION_SELECT_SELECTOR
 } from "@/lib/targets";
-import { openInNewTab } from "@/smile/site-chrome";
-import {
-  DETAILS_CODE_ATTR,
-  filterSmileEnvelope,
-  MINT_CODE_ATTR,
-  NO_DIARY_ROW_NOTE,
-  SMILE_MARKER_ATTR
-} from "@/smile/smile";
-import { createSmileAggregation, type MarkedSmileOutcome } from "@/smile/smile-aggregation";
-import { createAvailabilityProbe } from "@/smile/smile-availability";
-import {
-  createTailoredClinicPage,
-  emptyAvailabilityEnvelope,
-  isAvailabilityUrl,
-  tailoredBranchCode
-} from "@/smile/smile-clinic-page";
-import { createRowActions } from "@/smile/smile-row-actions";
-import { createSmileSession } from "@/smile/smile-session";
-import { applyGuarantee, type TransformResult } from "@/smile/transform";
 import { ContentScriptContext, defineContentScript } from "#imports";
 
 export default defineContentScript({

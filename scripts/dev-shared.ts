@@ -392,7 +392,7 @@ const BUILD_STAMP_PROPERTY = "__clalitCityDevBuild";
 // own invention either: WXT's ContentScriptContext already announces every content script that starts
 // and aborts the older one of the same name (`wxt:content-script-started`). The content scripts hang
 // their listeners, their patches and their UI on that ctx, so evaluating a fresh bundle here is all the
-// handoff there is - see src/entrypoints/*.content.ts.
+// handoff there is - see the content-script entrypoints under src/entrypoints.
 
 /** The extension's name, which is also what Chrome names its content-script world. */
 function builtExtensionName() {

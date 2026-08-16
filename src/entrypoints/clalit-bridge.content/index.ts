@@ -9,7 +9,9 @@
  * scopes the frame channel to one tab.
  */
 
-import { mountStatusBadge } from "@/badge/status-badge.svelte";
+import { openFrameChannel } from "./messaging-frames";
+import { frameStateSchema, guaranteeStatusSchema } from "./schemas";
+import { mountStatusBadge } from "./status-badge.svelte";
 import {
   FrameMsg,
   type GuaranteeStatus,
@@ -17,10 +19,8 @@ import {
   RuntimeMsg,
   type SearchConfig
 } from "@/lib/messaging";
-import { openFrameChannel } from "@/lib/messaging-frames";
 import { onPageMessage, sendPageMessage } from "@/lib/messaging-page";
 import { sendRuntimeMessage } from "@/lib/messaging-runtime";
-import { frameStateSchema, guaranteeStatusSchema } from "@/lib/schemas";
 import { CONTENT_MATCHES, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "@/lib/targets";
 import { defineContentScript } from "#imports";
 

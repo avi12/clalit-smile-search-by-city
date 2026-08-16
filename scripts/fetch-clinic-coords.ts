@@ -1,5 +1,5 @@
 /**
- * Regenerates src/smile/clinic-directory.ts from Clalit's own public clinic directory
+ * Regenerates the interceptor's clinic-directory.ts from Clalit's own public clinic directory
  * (https://nearme.clalit.co.il/c.json - the dataset behind every result row's "הצגת מפה" link,
  * which points at nearme.clalit.co.il/nav/<code>).
  *
@@ -15,7 +15,9 @@ import { resolve } from "node:path";
 const SOURCE_URL = "https://nearme.clalit.co.il/c.json";
 const DENTAL_CATEGORY = 111; // "מרפאת שיניים"
 const SMILE_TITLE_MARKER = "סמייל";
-const OUTPUT_PATH = resolve(import.meta.dirname, "..", "src", "smile", "clinic-directory.ts");
+const OUTPUT_PATH = resolve(
+  import.meta.dirname, "..", "src", "entrypoints", "clalit-interceptor.content", "clinic-directory.ts"
+);
 
 /** Wire shape of c.json: `m` = column names, `u` = rows as positional arrays zipped with `m`. */
 type DirectoryPayload = {
