@@ -52,13 +52,12 @@ configure, nothing stored.
 
 ## Install
 
-Not on the Chrome Web Store - grab the latest build from
-[**Releases**](https://github.com/avi12/clalit-smile-search-by-city/releases/latest):
+Not on the Chrome Web Store - grab the `.crx` or the `.zip` from
+[**Releases**](https://github.com/avi12/clalit-smile-search-by-city/releases/latest), then:
 
-- **`.crx`** - drag it onto `chrome://extensions` with **Developer mode** on. Chrome may refuse a
-  drag-installed CRX on some builds; use the zip below if it does.
-- **`.zip`** - unzip it, then `chrome://extensions` → **Developer mode** → **Load unpacked** → pick the
-  unzipped folder.
+1. Open `chrome://extensions`.
+2. Turn on **Developer mode** (top right).
+3. **Drag the downloaded file onto the page.** Either one installs - no unzipping.
 
 Then open Clalit's appointment booking, go to **כללית סמייל**, and search a city as usual. Chrome will
 ask for location the first time the distance sort runs - decline it and everything else still works, the
