@@ -10,6 +10,25 @@ Clalit Smile hygienist booking actually runs on Clalit's **Tamuz** scheduler at
 [`docs/reverse-engineering.md`](docs/reverse-engineering.md) for the full teardown of how the system
 is put together and exactly where the extension hooks in.
 
+## Before / after
+
+**Before** - the site's own "מרפאות מאזור היישוב" search for בת ים. The header says **באזור** (in the
+*area*), 21 results, and the list mixes in clinics from other cities - חולון here. Each row measures
+**"מרחק מהבית שלך"**: the distance from your registered home address, wherever you happen to be.
+
+![The unmodified Clalit Smile results for Bat Yam: 21 results "in the area", with Holon clinics in the list and distances measured from your registered home address](assets/before.png)
+
+**After** - the same city with the extension on. The header says **בעיר** (in the *city*), every row is
+בת ים, and the badge in the corner names the guarded city with its count (**3/89** - three in the city out
+of the 89 the rewritten all-country search returned). Distances are now **"מרחק ממיקומך"**, measured from
+where you actually are, and the red **לכל התורים** marks a branch that has no online slot for the service
+you searched.
+
+![The same city with the extension on: 3 results "in the city", all Bat Yam, distances from your live position, a red button on the branch with no online slot, and the status badge reading 3/89](assets/after.png)
+
+> The two shots are different services (שיננית before, בדיקת רופא after) - what they show is the shape of
+> the change: area → city, other cities gone, home-distance → live distance.
+
 ## What you get
 
 Three guarantees, applied live to the site's own results:
