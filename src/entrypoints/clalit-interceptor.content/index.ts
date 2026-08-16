@@ -16,7 +16,7 @@
  */
 
 import { searchConfigSchema, smileEnvelopeSchema } from "./schemas";
-import { openInNewTab } from "./site-chrome";
+import { openInNewTab, waitForElement } from "./site-chrome";
 import {
   DETAILS_CODE_ATTR,
   filterSmileEnvelope,
@@ -230,11 +230,10 @@ export default defineContentScript({
         return;
       }
 
-      const code = elAnchor.getAttribute(DETAILS_CODE_ATTR) ?? "";
       const fallbackHref = elAnchor.getAttribute("href") ?? "";
       e.preventDefault();
       rowActions.openDetails({
-        code,
+        code: elAnchor.getAttribute(DETAILS_CODE_ATTR) ?? "",
         fallbackHref,
         note: NO_DIARY_ROW_NOTE
       }).catch(() => openInNewTab(fallbackHref));
@@ -253,17 +252,6 @@ export default defineContentScript({
     //
     // The restored specialization select is UNRELIABLE (observed 91 above a 92 session) - the session's
     // real specialization comes from the results header, matched against the select's own option labels.
-
-    /**
-     * The document is parsed - announced by the `document_end` script of the same extension, running in
-     * this same MAIN world (`clalit-dom-ready.content.ts`). This file starts at `document_start` and has
-     * to, so it cannot read the DOM when it starts; asking the browser to say when is the alternative to
-     * working it out from `readyState`, and it holds for a dev re-injection too, where the event this
-     * used to wait for has already been and gone.
-     */
-    const domReady = new Promise<void>(resolve => {
-      onPageMessage(PageMsg.DomReady, () => resolve());
-    });
 
     function restoredSessionSpecialization() {
       const headerText = document.querySelector("#am_diaries h2")?.textContent ?? "";
@@ -339,8 +327,18 @@ export default defineContentScript({
       });
     }
 
+    /**
+     * This script starts at `document_start` and has to - that is the only moment it can patch fetch and
+     * XHR before the site's own code captures references to them - so the restored list it exists to
+     * transform is not in the DOM yet. It waits for THAT rather than for a lifecycle milestone:
+     * `waitForElement` returns at once when the element is already there (a dev re-injection, a late
+     * evaluation) and otherwise on the mutation that adds it, so there is no readiness to track.
+     *
+     * The specialization select sits above the list in the same server-rendered document, so it is
+     * parsed by the time this resolves.
+     */
     async function recoverRestoredSearch() {
-      await domReady;
+      await waitForElement({ selector: "#am_diaries" });
       // The session's own specialization, before anything asks it a question: the aggregation's sweep
       // and every appended row answer for the service the restored search was FOR, and the select on
       // this page is not that (docs §6d).
@@ -367,16 +365,8 @@ export default defineContentScript({
     // "לכל התורים" on a branch Tamuz has no handle for lands on a REAL diary's slots page carrying the
     // branch's code in the hash. Here that page becomes the branch's: retitled, and its availability
     // calls answered with the site's own empty month, so nothing of the lender's is left to book.
-    const tailoredClinicPage = createTailoredClinicPage(tailoredBranchCode(window.location.hash));
-
-    async function tailorClinicPage() {
-      await domReady;
-      tailoredClinicPage.apply();
-      tailoredClinicPage.watchDatepicker();
-    }
-
-    if (tailoredClinicPage.isTailored) {
-      tailorClinicPage().catch(() => { });
+    const tailoredClinicPage = createTailoredClinicPage(tailoredBranchCode(window.location.hash));    if (tailoredClinicPage.isTailored) {
+      tailoredClinicPage.tailor().catch(() => { });
     }
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────

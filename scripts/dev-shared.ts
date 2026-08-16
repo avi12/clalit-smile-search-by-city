@@ -374,14 +374,6 @@ const CONTENT_SCRIPT_BUNDLES = [
   {
     path: join(OUTPUT_DIR, "content-scripts", "clalit-bridge.js"),
     isMainWorld: false
-  },
-  // ORDER MATTERS, and only here: this one announces that the document is parsed, and the interceptor
-  // above is what listens for it. Evaluated in array order over the one CDP session, so the listener is
-  // registered before the announcement - which is also how the browser orders them, document_start
-  // before document_end.
-  {
-    path: join(OUTPUT_DIR, "content-scripts", "clalit-dom-ready.js"),
-    isMainWorld: true
   }
 ];
 

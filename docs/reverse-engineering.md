@@ -570,8 +570,9 @@ no simulated interaction, no round trip for the part the server already sent.
 
 Order of operations (interceptor, guarded by `isSmileRestoreLocation` in `targets.ts`):
 
-1. Wait for the document, which now comes from `runAt` - a `document_end` script announces it on the
-   window channel (§7) rather than the interceptor reading `readyState`.
+1. Wait for `#am_diaries` itself - the list this exists to transform - through `waitForElement`, which
+   returns at once when it is already there and otherwise on the mutation that adds it. There is no
+   document-lifecycle gate: the element IS the condition.
 2. Read the session's specialization from the `#am_diaries` header by matching the select's own option
    labels, and put it on the session: the appended rows and the availability sweep answer for the
    service the restored search was FOR, and the select on the page is not it (see above).

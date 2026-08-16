@@ -68,7 +68,6 @@ src/
       index.ts
       messaging-frames.ts        # the BroadcastChannel - only an ISOLATED world can open one
       status-badge.svelte.ts / StatusBadge.svelte / schemas.ts
-    clalit-dom-ready.content.ts  # MAIN, document_end: tells the interceptor the DOM is parsed
     background.ts / offscreen/   # one job: read the position under the EXTENSION's own permission
   lib/                     # reached by three entrypoints or more - and nothing else
     targets.ts             # SSOT: hosts, search-box selectors, Smile endpoint paths

@@ -16,7 +16,7 @@
 import { SMILE_BRANCHES } from "./clinic-directory";
 import type { SmileBranch } from "./clinic-directory";
 import { formatPhone } from "./phone-links";
-import { setSiteLoader } from "./site-chrome";
+import { setSiteLoader, waitForElement } from "./site-chrome";
 import { buildHotlineNote, NO_SERVICE_ROW_NOTE, SMILE_ENVELOPE_STATUS } from "./smile";
 
 declare global {
@@ -83,6 +83,21 @@ export function emptyAvailabilityEnvelope() {
     errorType: SMILE_ENVELOPE_STATUS.information,
     message: null
   };
+}
+
+/**
+ * The page has finished loading - already, which is what a dev re-injection lands on, or when it says
+ * so. The page's own event, never a timer, and the only place a lifecycle is consulted at all: it is the
+ * floor under a wait for markup that a dead borrowed GUID never renders.
+ */
+function pageRendered() {
+  if (document.readyState === "complete") {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>(resolve => {
+    window.addEventListener("load", () => resolve(), { once: true });
+  });
 }
 
 export function createTailoredClinicPage(code: string) {
@@ -210,6 +225,22 @@ export function createTailoredClinicPage(code: string) {
     setSiteLoader(false);
   }
 
+  /**
+   * The clinic line is both what this page is renamed by and the only proof the borrowed GUID resolved
+   * to a slots page at all, so it is what the work waits for. The wait is bounded by the page having
+   * rendered because that line may never come: after `load` it is either here or not coming, and `apply`
+   * is what says which - and takes the site's loader down either way, since the click that navigated
+   * here left it up and only this page can lower it.
+   */
+  async function tailor() {
+    await Promise.race([
+      waitForElement({ selector: CLINIC_TITLE_SELECTOR }),
+      pageRendered()
+    ]);
+    apply();
+    watchDatepicker();
+  }
+
   /** The datepicker re-renders on every month change, so each new month is disabled the same way. */
   function watchDatepicker() {
     const elDatepicker = document.querySelector(DATEPICKER_SELECTOR);
@@ -225,7 +256,6 @@ export function createTailoredClinicPage(code: string) {
 
   return {
     isTailored: branch !== undefined,
-    apply,
-    watchDatepicker
+    tailor
   };
 }

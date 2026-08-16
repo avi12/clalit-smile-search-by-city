@@ -41,19 +41,13 @@ export enum PageMsg {
   /** MAIN → bridge: the outcome of the last guarantee. */
   Status = "status",
   /** MAIN → bridge: where the user is, or null when there is no fix to be had. */
-  Position = "position",
-  /**
-   * The document is parsed. Sent by the `document_end` script in the same MAIN world, because the
-   * interceptor starts at `document_start` and cannot read a DOM that does not exist yet.
-   */
-  DomReady = "dom-ready"
+  Position = "position"
 }
 
 export type PageProtocol = {
   [PageMsg.Config]: (config: SearchConfig) => void;
   [PageMsg.Status]: (status: GuaranteeStatus) => void;
   [PageMsg.Position]: () => LatLng | null;
-  [PageMsg.DomReady]: () => void;
 };
 
 /** What a frame tells the other frames of its tab about its own search, to drive the single badge. */
