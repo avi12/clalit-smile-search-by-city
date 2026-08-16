@@ -24,14 +24,21 @@ export function openFrameChannel(tabId: number) {
   const channel = new BroadcastChannel(`${PAGE_NAMESPACE}/frames/${tabId}`);
   const handlers = new Map<string, (data: unknown) => void>();
 
-  channel.addEventListener("message", ({ data }) => {
+  /**
+   * `onmessage`, and it has to be: in a content script's ISOLATED world a BroadcastChannel registered
+   * with `addEventListener("message", …)` never fires - not even for a message posted by a second
+   * channel of the same script, in the same world, in the same tick - while the same object's
+   * `postMessage` is delivered normally. Verified live 16.08.2026 (docs "Gotchas"), and the reason
+   * this is not the usual `ctx.addEventListener`: the event never arrives to hang off a context.
+   */
+  channel.onmessage = ({ data }) => {
     const parsed = frameMessageSchema.safeParse(data);
     if (!parsed.success) {
       return;
     }
 
     handlers.get(parsed.data.type)?.(parsed.data.data);
-  });
+  };
 
   return {
     /** To every other frame of this tab. Nothing answers a broadcast, so there is nothing to await. */
