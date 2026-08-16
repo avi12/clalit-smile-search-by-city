@@ -15,9 +15,9 @@
  * dev build it logs interesting requests to the page console (Discovery).
  */
 
-import { type GuaranteeStatus, PageMsg } from "../lib/messaging";
-import { onPageMessage, sendPageMessage } from "../lib/messaging-page";
-import { searchConfigSchema, smileEnvelopeSchema } from "../lib/schemas";
+import { type GuaranteeStatus, PageMsg } from "@/lib/messaging";
+import { onPageMessage, sendPageMessage } from "@/lib/messaging-page";
+import { searchConfigSchema, smileEnvelopeSchema } from "@/lib/schemas";
 import {
   ALL_COUNTRY_AREA_VALUE,
   CITY_AREA_VALUE,
@@ -34,26 +34,26 @@ import {
   SMILE_SORT_VALUES,
   SMILE_SPECIALIZATION_FIELD,
   SMILE_SPECIALIZATION_SELECT_SELECTOR
-} from "../lib/targets";
-import { openInNewTab } from "../smile/site-chrome";
+} from "@/lib/targets";
+import { openInNewTab } from "@/smile/site-chrome";
 import {
   DETAILS_CODE_ATTR,
   filterSmileEnvelope,
   MINT_CODE_ATTR,
   NO_DIARY_ROW_NOTE,
   SMILE_MARKER_ATTR
-} from "../smile/smile";
-import { createSmileAggregation, type MarkedSmileOutcome } from "../smile/smile-aggregation";
-import { createAvailabilityProbe } from "../smile/smile-availability";
+} from "@/smile/smile";
+import { createSmileAggregation, type MarkedSmileOutcome } from "@/smile/smile-aggregation";
+import { createAvailabilityProbe } from "@/smile/smile-availability";
 import {
   createTailoredClinicPage,
   emptyAvailabilityEnvelope,
   isAvailabilityUrl,
   tailoredBranchCode
-} from "../smile/smile-clinic-page";
-import { createRowActions } from "../smile/smile-row-actions";
-import { createSmileSession } from "../smile/smile-session";
-import { applyGuarantee, type TransformResult } from "../smile/transform";
+} from "@/smile/smile-clinic-page";
+import { createRowActions } from "@/smile/smile-row-actions";
+import { createSmileSession } from "@/smile/smile-session";
+import { applyGuarantee, type TransformResult } from "@/smile/transform";
 import { ContentScriptContext, defineContentScript } from "#imports";
 
 export default defineContentScript({

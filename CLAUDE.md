@@ -55,6 +55,7 @@ Key modules - the interceptor owns only the patches and the wiring, each behavio
 - Gate: `pnpm lint` AND `pnpm typecheck` must both pass after every change. `pnpm lint` runs oxlint --fix (relaxed `.oxlintrc.fix.json`) → eslint --fix (strips dead imports) → plain oxlint as the final check
 
 # Code style
+- Imports across folders go through the `@/` alias (WXT's own, `@/*` → `src/*`) - `@/lib/messaging`, never `../lib/messaging`. A path says WHAT it imports rather than how far up the tree it sits, so it survives a file moving. `./sibling` inside a folder stays relative; there are no `..` climbs left in `src/`
 - Function declarations, not arrow-consts (`func-style`); early returns; `for-of` over `.forEach`
 - Prefer destructuring for variables that point to object props when it improves readability - `const { city, street } = branch` over repeated `branch.city` / `branch.street`, `({ data }) => …` over `msg => msg.data`, and `const { ownerDocument } = container` over `const doc = container.ownerDocument` (prefer the prop's own name to an invented alias when the name is clear). Judgment call, not mechanical: a truly single-use prop read once stays as-is; reach for it when the value is used more than once or destructuring names it more clearly
 - No comments unless necessary - descriptive names first; no em dashes, use hyphens

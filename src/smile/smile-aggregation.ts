@@ -8,7 +8,6 @@
  * directory (docs §10a), and a "distance" sort is re-ranked by the user's live position.
  */
 
-import type { GuaranteeStatus } from "../lib/messaging";
 import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
 import { createLiveDistanceSort } from "./live-distance";
 import { holdSiteLoader, waitForElement } from "./site-chrome";
@@ -26,6 +25,7 @@ import {
   SYNTHETIC_ROW_ATTR
 } from "./smile";
 import type { SmileSession } from "./smile-session";
+import type { GuaranteeStatus } from "@/lib/messaging";
 
 /** A filtered render of ours, tagged so the aggregator can find that exact list in the live document. */
 export type MarkedSmileOutcome = SmileFilterOutcome & { marker: string };

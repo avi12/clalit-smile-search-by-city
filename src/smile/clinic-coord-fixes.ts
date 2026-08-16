@@ -10,8 +10,8 @@
  * entry the moment Clalit fixes it upstream (docs §14).
  */
 
-import type { LatLng } from "../lib/geo";
 import { DENTAL_CLINIC_COORDS } from "./clinic-directory";
+import type { LatLng } from "@/lib/geo";
 
 const CLINIC_COORD_FIXES: Record<string, LatLng> = {
   /**

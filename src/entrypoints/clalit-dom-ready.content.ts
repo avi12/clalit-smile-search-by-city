@@ -16,9 +16,9 @@
  * superseded generation to stand down.
  */
 
-import { PageMsg } from "../lib/messaging";
-import { sendPageMessage } from "../lib/messaging-page";
-import { CONTENT_MATCHES } from "../lib/targets";
+import { PageMsg } from "@/lib/messaging";
+import { sendPageMessage } from "@/lib/messaging-page";
+import { CONTENT_MATCHES } from "@/lib/targets";
 import { defineContentScript } from "#imports";
 
 export default defineContentScript({

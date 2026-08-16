@@ -7,9 +7,9 @@
  * holds no state and is never asked anything, so it can never be messaged before it is listening.
  */
 
-import { type LatLng, POSITION_MAX_AGE_MS, POSITION_TIMEOUT_MS } from "../../lib/geo";
-import { RuntimeMsg } from "../../lib/messaging";
-import { sendRuntimeMessage } from "../../lib/messaging-runtime";
+import { type LatLng, POSITION_MAX_AGE_MS, POSITION_TIMEOUT_MS } from "@/lib/geo";
+import { RuntimeMsg } from "@/lib/messaging";
+import { sendRuntimeMessage } from "@/lib/messaging-runtime";
 
 /** Always settles: a refusal, an unavailable provider and the call's own timeout all come back null. */
 function currentPosition() {
