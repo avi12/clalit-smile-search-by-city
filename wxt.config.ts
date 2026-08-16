@@ -26,7 +26,11 @@ export default defineConfig({
     // Nothing is stored, and the city still comes from the page's own search box. The dev loop needs
     // no permission of its own - it drives everything over CDP (scripts/dev-shared.ts).
     permissions: ["geolocation", "offscreen"],
-    host_permissions: HOST_PERMISSIONS
+    host_permissions: HOST_PERMISSIONS,
+    author: {
+      email: "avi6106@gmail.com"
+    },
+    homepage_url: "https://avi12.com"
   },
   vite: () => ({
     plugins: [
