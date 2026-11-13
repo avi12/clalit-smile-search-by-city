@@ -3,16 +3,23 @@
 
   const { state, onToggle }: {
     state: BadgeState;
-    onToggle: () => void 
+    onToggle: () => void
   } = $props();
 
   const isOn = $derived(state.isEnabled && state.city.trim().length > 0);
+  const titleText = $derived.by(() => {
+    if (state.isEnabled) {
+      return "אחריות עיר פעילה";
+    }
+
+    return "אחריות עיר כבויה";
+  });
 </script>
 
 <div class="badge" class:on={isOn}>
   <button class="dot" aria-label="toggle" onclick={onToggle} title="הפעל/כבה אחריות עיר"></button>
   <div class="text">
-    <div class="title">{state.isEnabled ? "אחריות עיר פעילה" : "אחריות עיר כבויה"}</div>
+    <div class="title">{titleText}</div>
     <div class="sub">
       {state.city || "הקלד עיר בתיבת החיפוש"}
       {#if state.status}
@@ -33,7 +40,9 @@
     gap: 10px;
     align-items: center;
     max-width: 300px;
-    padding: 8px 14px 8px 10px;
+    padding-right: 14px;
+    padding-left: 10px;
+    padding-block: 8px;
     border: 1px solid var(--outline);
     border-radius: 20px;
     background: var(--surface);
@@ -51,7 +60,7 @@
     border-radius: 999px;
     background: var(--outline);
     cursor: pointer;
-    transition: background 0.2s cubic-bezier(0.2, 0, 0, 1);
+    transition: background 200ms cubic-bezier(0.2, 0, 0, 1);
   }
 
   .badge.on .dot {
