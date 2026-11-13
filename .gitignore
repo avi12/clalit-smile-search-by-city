@@ -31,3 +31,7 @@ Thumbs.db
 
 # Claude Code session handoffs (local scratch)
 continue-*.md
+
+# Lint cache
+.verify/
+.fallow/
