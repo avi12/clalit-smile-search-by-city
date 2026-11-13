@@ -119,7 +119,8 @@ export function createSmileSession(nativeFetch: typeof fetch) {
       state.isSessionLost = true;
     }
 
-    if (status === SMILE_ENVELOPE_STATUS.APPLICATION && specialization) {
+    const isApplicationWithSpecialization = status === SMILE_ENVELOPE_STATUS.APPLICATION && specialization;
+    if (isApplicationWithSpecialization) {
       emptySpecializations.add(specialization);
     }
 

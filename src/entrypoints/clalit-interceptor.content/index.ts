@@ -527,7 +527,8 @@ export default defineContentScript({
     }
 
     function computeXhr({ xhr, state }: XhrContext) {
-      if (state.computed || xhr.readyState !== XMLHttpRequest.DONE) {
+      const isReusable = state.computed || xhr.readyState !== XMLHttpRequest.DONE;
+      if (isReusable) {
         return state.computed;
       }
 
@@ -644,9 +645,8 @@ export default defineContentScript({
             xhr: this,
             state
           });
-          return computed && this.readyState === XMLHttpRequest.DONE
-            ? computed.text
-            : String(nativeText?.get?.call(this) ?? "");
+          const isDone = computed && this.readyState === XMLHttpRequest.DONE;
+          return isDone ? computed.text : String(nativeText?.get?.call(this) ?? "");
         }
       });
 
@@ -661,7 +661,8 @@ export default defineContentScript({
             xhr: this,
             state
           });
-          if (!computed || this.readyState !== XMLHttpRequest.DONE) {
+          const isPending = !computed || this.readyState !== XMLHttpRequest.DONE;
+          if (isPending) {
             return nativeResponse?.get?.call(this);
           }
 
