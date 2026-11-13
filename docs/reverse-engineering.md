@@ -88,18 +88,18 @@ Every section of this document was produced the same way:
 
 Each finding has exactly one home in the code; nothing is re-derived elsewhere.
 
-| Finding | Where it lives |
-|---|---|
-| Hosts, matches, search-box selectors, Smile endpoint paths | `src/lib/targets.ts` (also feeds `wxt.config.ts`) |
+| Finding                                                                       | Where it lives                                                                                                                                          |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hosts, matches, search-box selectors, Smile endpoint paths                    | `src/lib/targets.ts` (also feeds `wxt.config.ts`)                                                                                                       |
 | The response is a JSON envelope wrapping server-rendered `li.diary` HTML (§6) | `src/entrypoints/clalit-interceptor.content/smile.ts` (string → string), `src/entrypoints/clalit-interceptor.content/transform.ts` for the generic case |
-| Sort/`Paging`/GUIDs are server-session state (§6b) | `src/entrypoints/clalit-interceptor.content/smile-session.ts` - the one shared session |
-| "Area" is a subset, and Tamuz omits diary-less branches (§6a) | `src/entrypoints/clalit-interceptor.content/smile-aggregation.ts` + `SMILE_BRANCHES` |
-| A GUID is minted inside the row markup at search time (§6c) | `src/entrypoints/clalit-interceptor.content/smile-row-actions.ts` (click-time mint) |
-| A slots page belongs to a (clinic, **service**) pair (§12k) | `smile-availability.ts`, `smile-row-actions.ts` |
-| A no-GUID branch can still show its own page (§12i) | `src/entrypoints/clalit-interceptor.content/smile-clinic-page.ts` |
-| The "back" restore document bypasses the patches (§6d) | the interceptor's restore re-drive |
-| Clinic coordinates, and the few Clalit gets wrong (§8, §14) | `clinic-directory.ts` (generated) + `clinic-coord-fixes.ts` |
-| `window.z` loader/lightbox are reusable (§12) | `src/entrypoints/clalit-interceptor.content/site-chrome.ts` |
+| Sort/`Paging`/GUIDs are server-session state (§6b)                            | `src/entrypoints/clalit-interceptor.content/smile-session.ts` - the one shared session                                                                  |
+| "Area" is a subset, and Tamuz omits diary-less branches (§6a)                 | `src/entrypoints/clalit-interceptor.content/smile-aggregation.ts` + `SMILE_BRANCHES`                                                                    |
+| A GUID is minted inside the row markup at search time (§6c)                   | `src/entrypoints/clalit-interceptor.content/smile-row-actions.ts` (click-time mint)                                                                     |
+| A slots page belongs to a (clinic, **service**) pair (§12k)                   | `smile-availability.ts`, `smile-row-actions.ts`                                                                                                         |
+| A no-GUID branch can still show its own page (§12i)                           | `src/entrypoints/clalit-interceptor.content/smile-clinic-page.ts`                                                                                       |
+| The "back" restore document bypasses the patches (§6d)                        | the interceptor's restore re-drive                                                                                                                      |
+| Clinic coordinates, and the few Clalit gets wrong (§8, §14)                   | `clinic-directory.ts` (generated) + `clinic-coord-fixes.ts`                                                                                             |
+| `window.z` loader/lightbox are reusable (§12)                                 | `src/entrypoints/clalit-interceptor.content/site-chrome.ts`                                                                                             |
 
 ### 2e. Probing our own plumbing, in the live page (2026-08-15)
 
@@ -198,17 +198,17 @@ kept as a secondary/optional host.
 
 ## 4. Evidence log (HTTP probes)
 
-| Request | Result | Reading |
-|---|---|---|
-| `GET www.clalitsmile.co.il/` | `200` | Next.js marketing site is public |
-| `GET www.clalitsmile.co.il/קביעת-תור` | `200`, `__NEXT_DATA__` present | booking = treatment picker + DynamicForm |
-| `GET .../search?t=clinics&k=citySearch&q=תל אביב` | `200`, `searchQuery:"תל אביב"` | client-side directory search, param `q` |
-| `GET e-services.clalit.co.il/onlineweb/general/login.aspx` | `200` | portal login page (ASP.NET WebForms) |
-| `GET .../Services/Tamuz/TamuzTransfer.aspx?LinkType=4&OpenProfessionType=10` | `302 → Login.aspx?ReturnUrl=…` | booking flow is auth-gated |
-| `GET .../Services/Tamuz/` (and any `TamuzMakeAppointment.aspx`, etc.) | `302 → Login.aspx` | **every** Tamuz path needs login |
-| `GET .../OnlineWeb/api/Tamuz/…` , `…/Services/Tamuz/js/*.js` | `302 → Login.aspx` | even the JS + API are behind login |
-| `GET .../wp-json/` on clalitsmile | `308` | headless WordPress REST root exists |
-| `GET .../graphql` on clalitsmile | `404` | WPGraphQL endpoint not public at that path |
+| Request                                                                      | Result                         | Reading                                    |
+| ---------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------ |
+| `GET www.clalitsmile.co.il/`                                                 | `200`                          | Next.js marketing site is public           |
+| `GET www.clalitsmile.co.il/קביעת-תור`                                        | `200`, `__NEXT_DATA__` present | booking = treatment picker + DynamicForm   |
+| `GET .../search?t=clinics&k=citySearch&q=תל אביב`                            | `200`, `searchQuery:"תל אביב"` | client-side directory search, param `q`    |
+| `GET e-services.clalit.co.il/onlineweb/general/login.aspx`                   | `200`                          | portal login page (ASP.NET WebForms)       |
+| `GET .../Services/Tamuz/TamuzTransfer.aspx?LinkType=4&OpenProfessionType=10` | `302 → Login.aspx?ReturnUrl=…` | booking flow is auth-gated                 |
+| `GET .../Services/Tamuz/` (and any `TamuzMakeAppointment.aspx`, etc.)        | `302 → Login.aspx`             | **every** Tamuz path needs login           |
+| `GET .../OnlineWeb/api/Tamuz/…` , `…/Services/Tamuz/js/*.js`                 | `302 → Login.aspx`             | even the JS + API are behind login         |
+| `GET .../wp-json/` on clalitsmile                                            | `308`                          | headless WordPress REST root exists        |
+| `GET .../graphql` on clalitsmile                                             | `404`                          | WPGraphQL endpoint not public at that path |
 
 ---
 
@@ -299,13 +299,13 @@ a matching host runs its own copy of a content script. Read with
 `[...document.querySelectorAll("iframe")].map(el => ({id: el.id, src: el.getAttribute("src")}))` in the
 top frame (`window.length` reports 4):
 
-| frame | src | same host? |
-| --- | --- | --- |
-| `#ifrmMainTamuz` | `TamuzTransferContentByService.aspx?MethodName=TransferWithAuth&LinkType=4&OpenProfessionType=10` | yes |
-| ↳ (nested) | `/Zimunet/SmileClinic` - **the search box and the results list live here** | yes |
-| `#frmRefreshSession` | `/OnlineWeb/ServicesForAll/RefreshSession.aspx` (the keepalive of §5b) | yes |
-| `#frmRefreshOTP` | `""` (stays `about:blank`) | n/a |
-| `#u1st-ActivationFrame` | `https://accessibility.clalit.co.il/CommFrame/Activation?ver=2.1.18.4#…` | **no** |
+| frame                   | src                                                                                               | same host? |
+| ----------------------- | ------------------------------------------------------------------------------------------------- | ---------- |
+| `#ifrmMainTamuz`        | `TamuzTransferContentByService.aspx?MethodName=TransferWithAuth&LinkType=4&OpenProfessionType=10` | yes        |
+| ↳ (nested)              | `/Zimunet/SmileClinic` - **the search box and the results list live here**                        | yes        |
+| `#frmRefreshSession`    | `/OnlineWeb/ServicesForAll/RefreshSession.aspx` (the keepalive of §5b)                            | yes        |
+| `#frmRefreshOTP`        | `""` (stays `about:blank`)                                                                        | n/a        |
+| `#u1st-ActivationFrame` | `https://accessibility.clalit.co.il/CommFrame/Activation?ver=2.1.18.4#…`                          | **no**     |
 
 So on `e-services.clalit.co.il` **three** documents match and run the extension - the booking iframe, the
 scheduler nested inside it, and the session-refresh frame - and only the innermost one has a search box.
@@ -339,12 +339,12 @@ Inside `data`:
   the interceptor's `sortDescending` reads off the outgoing URL.
 - A **`nav#pager`** - paging is server-session state via `/Zimunet/SmileClinic/Paging?pageNumber=N`.
 
-**Session-bound result set.** Sort and paging operate on the server session's *last* search, and each
+**Session-bound result set.** Sort and paging operate on the server session's _last_ search, and each
 row's diary GUID is only valid for that session's search - you cannot mix rows from a second search in.
 
 ### 6a. "Area" is a subset - the completeness problem
 
-`IsShowClinicsFromAreaCity=1` returns only the searched city's *area*, and its city rows are a **subset**
+`IsShowClinicsFromAreaCity=1` returns only the searched city's _area_, and its city rows are a **subset**
 of what exists: an all-country search (`=0`) for "תל אביב יפו" declared **68-69** total results, of
 which the address-parsed city "תל אביב יפו" appeared on more rows than the area search surfaced. And
 Tamuz only lists clinics that currently have a **bookable diary** - a branch with no open diary is
@@ -352,10 +352,10 @@ absent entirely, even though it exists.
 
 The field is the form's own radio pair, and the guarantee is scoped to ONE of them (Avi, 2026-08-15):
 
-| radio | field | what the extension does |
-| --- | --- | --- |
-| מרפאות מאזור היישוב | `=1` | rewritten to `=0`, filtered to the city, aggregated, completed with missing branches, re-ranked |
-| מרפאות מכל הארץ | `=0` | nothing at all - the response is passed through as it came |
+| radio               | field | what the extension does                                                                         |
+| ------------------- | ----- | ----------------------------------------------------------------------------------------------- |
+| מרפאות מאזור היישוב | `=1`  | rewritten to `=0`, filtered to the city, aggregated, completed with missing branches, re-ranked |
+| מרפאות מכל הארץ     | `=0`  | nothing at all - the response is passed through as it came                                      |
 
 Measured live on a שיננית search in תל אביב יפו: `=1` renders "נמצאו 5 תוצאות … בעיר: תל אביב יפו" (1
 server row + 4 appended), `=0` renders the site's own "נמצאו 70 תוצאות … באזור: כל הארץ" with 7 rows from
@@ -446,12 +446,12 @@ make it possible to speak through the site's own chrome instead of drawing our o
 - **`StandbyScreenShow()` is `StandbyScreenShowHide(true, true)`**, whose body is
   `if(!$('.loader.lottie').length>0 && ShowScreen){ $('body').append('<div class="loader lottie"><lottie-player …></div>') } else { $('.loader.lottie').remove() }`
   - so the loader is a div **created on demand in the TOP frame's body**, not a hidden node toggled.
-  Two consequences: a caption appended into that div dies with it (no cleanup path to get wrong), and
-  the call is a **toggle by presence** - a second `showLoader()` while one is up REMOVES it (the
-  interceptor calls it once per sweep and its own page fetches bypass `z.Ajax`, which is what shows the
-  site's loader). The div is `position:fixed; inset:0; display:flex; align-items/justify-content:center;
-  background:rgba(255,255,255,.7); z-index:99999999` holding one 130×130 `lottie-player`, so the caption
-  is absolutely positioned 85px under the centre and the site's own layout is never touched.
+    Two consequences: a caption appended into that div dies with it (no cleanup path to get wrong), and
+    the call is a **toggle by presence** - a second `showLoader()` while one is up REMOVES it (the
+    interceptor calls it once per sweep and its own page fetches bypass `z.Ajax`, which is what shows the
+    site's loader). The div is `position:fixed; inset:0; display:flex; align-items/justify-content:center;
+    background:rgba(255,255,255,.7); z-index:99999999` holding one 130×130 `lottie-player`, so the caption
+    is absolutely positioned 85px under the centre and the site's own layout is never touched.
 - **`z.showDialog(id, html)` prepends `<div id="{id}" role="dialog">{html}</div>` into `#messagesContainer`**
   (then shows `#overlay` / `#messagesOverlay`, sizes them against the top frame's `ifrmMainTamuz` offset,
   and binds close on `.close` / ESC / overlay click; `z.closeDialog` empties `#messagesContainer`).
@@ -625,13 +625,13 @@ flowchart TD
 
 1. **Only the searched city, and ALL of it (completeness).**
    - The outgoing search body is rewritten `IsShowClinicsFromAreaCity=1 → 0`, so the server session
-     holds the *whole country* (every row link stays valid) - then each response is **filtered to the
+     holds the _whole country_ (every row link stays valid) - then each response is **filtered to the
      city** (`li.diary` whose address's last segment matches, order preserved).
    - The remaining server pages are **aggregated**: the interceptor fetches
      `Paging?pageNumber=2..ceil(total/7)` with the page's own session and appends the city's rows,
      deduped by clinic name (diary GUIDs churn per search).
    - Branches Tamuz has **no diary** for are added as synthetic rows from a committed directory (§8), so
-     a city search shows *every* branch - e.g. Tel Aviv's איילון / מגדל המאה / ירמיהו / רמת אביב /
+     a city search shows _every_ branch - e.g. Tel Aviv's איילון / מגדל המאה / ירמיהו / רמת אביב /
      אוניברסיטה, not just the one bookable diary.
 
 2. **A "distance" sort references the USER's live location.**
@@ -668,7 +668,7 @@ row's "הצגת מפה" `/nav/<code>` link) packs ~6,900 clinics as positional r
   live-location ranking is a static lookup with **zero runtime network, no background, no extra
   permissions**. Re-run `pnpm clinics:fetch` when Clalit opens/moves clinics.
 
-> The older `clalitsmile` DynamicForm dataset (111 `9xxx` specialty clinics) is a *different* code space
+> The older `clalitsmile` DynamicForm dataset (111 `9xxx` specialty clinics) is a _different_ code space
 > from Tamuz's nav codes - the `/nav/<code>` codes are what the booking flow actually uses. It used to
 > ship as `src/lib/clinics.ts`, imported by nothing; deleted 2026-08-15, and recoverable from git if the
 > 9xxx space ever matters again.
@@ -699,7 +699,7 @@ booking is reachable per branch while never reserving anything. See the dry-run 
 ## 10. Can a branch the search omits be booked? (captured 2026-08-14)
 
 The city-completeness guarantee lists **every** branch, including ones with no diary in the clinic
-search (e.g. Tel Aviv's רמת אביב, מגדל המאה, אוניברסיטה). Whether those can be *booked* was chased
+search (e.g. Tel Aviv's רמת אביב, מגדל המאה, אוניברסיטה). Whether those can be _booked_ was chased
 exhaustively; the answer is **no online path for a hygienist**, and here is the full evidence so it is
 never re-investigated from scratch.
 
@@ -716,7 +716,7 @@ flowchart TD
     style dental fill:#12241d,color:#e3f1ea
 ```
 
-- **Provider re-book is general-medicine only.** A past *general* visit (family doctor, ENT,
+- **Provider re-book is general-medicine only.** A past _general_ visit (family doctor, ENT,
   ophthalmology) shows a "הזמן תור" button → `GET /Zimunet/Visit/CanCreateVisit/{visitGuid}` →
   `{data:{isRedirect,redirectTo:"/Zimunet/AvailableVisit/Index/{visitGuid}", canCreateVisit:true}}` →
   the provider's live diary (verified: a real re-book returned 8 slots, earliest next-day). **Dental
@@ -857,10 +857,11 @@ same wall §9-§10 reached, now confirmed from the source list rather than infer
 
 **The waiting list is not a no-diary lever (checked this session).** `RegisterToNewVisitWaitingList`
 reads `#WaitingListCellPhoneNumber` inside `#diaryPanel_{diaryID}` and posts `{diaryID, cellPhoneNumber}`
+
 - it is **keyed to an existing diary ID** (register interest against a diary that exists), lives in the
-general **`z.Diary`** module (`initNewVisitWaitingList` / `bindPublicActions`), and the Smile module
-(`z.SmileClinic`) renders no waiting-list panel at all. So a branch with no diary has no `diaryID` to
-register against - the waiting list dead-ends exactly where booking does.
+  general **`z.Diary`** module (`initNewVisitWaitingList` / `bindPublicActions`), and the Smile module
+  (`z.SmileClinic`) renders no waiting-list panel at all. So a branch with no diary has no `diaryID` to
+  register against - the waiting list dead-ends exactly where booking does.
 
 **`window.z` public API** (reusable from the MAIN world; the extension already uses `showDialog` for the
 composed lightbox): UI - `showDialog/closeDialog`, `showMessage/showMessageWithCallback/closeMessage`,
@@ -881,7 +882,7 @@ Probed from the top frame with the guarantee toggled OFF.
   `z.init({ … AvailableVisits: { availableDays: ['11.1.2027', …], visitId: '{the same guid}',
   isUpdateVisit: 'False', professionType: 'ClalitSmile', getMonthlyAvailableVisitUrl, getDailyAvailableVisitUrl,
   createVisitUrl, isCanSelectDate: 'True', datePickerMinDate: '01.01.2027' } })`. **No clinic code, no
-  specialization, no city appears anywhere on that page** - the GUID *is* the clinic + diary + service, and
+  specialization, no city appears anywhere on that page** - the GUID _is_ the clinic + diary + service, and
   every downstream call (monthly, daily, create) carries only it. So "mimic the bookable clinics for the
   rest" has no parameter to fill in: the only minting machine is a search that lists the branch, which is
   exactly what §6c already automates.
@@ -943,7 +944,7 @@ were bookable anywhere, it would be here. It isn't - and the page says so itself
 - **`clalitsmile.co.il/קביעת-תור/` sends doctor/hygienist booking back to Tamuz**, with a deep link worth
   keeping: `https://e-services.clalit.co.il/onlineweb/general/login.aspx?CustomUrlRiderect=/Services/Tamuz/TamuzTransfer.aspx?LinkType=4&**OpenProfessionType=10**`
   - the first sighting of `OpenProfessionType`, alongside the known `LinkType=4`, i.e. the portal can be
-  entered straight into a chosen service. (`CustomUrlRiderect` is Clalit's own spelling.)
+    entered straight into a chosen service. (`CustomUrlRiderect` is Clalit's own spelling.)
 - **Its own forms are marketing leads, not appointments.** `__NEXT_DATA__ → pageProps.forms.dynamicForm`
   holds 6 private-treatment campaigns (ציפויי שיניים · Invisalign · חריקת שיניים · אסתטיקה של הפנים ·
   הלבנת שיניים), each with a `campaignCode` and its own clinic list (21-102 clinics, marketing 9xxx
@@ -958,26 +959,27 @@ were bookable anywhere, it would be here. It isn't - and the page says so itself
 
 Full membership, collected page by page with the guarantee OFF, straight after the session recovery:
 
-| specialization | declared | collected | rows WITHOUT a soonest-slot date | Tel Aviv branches |
-| --- | --- | --- | --- | --- |
-| 92 שיננית | 70 | 70 | **0** | איילון (865012) |
-| 91 בדיקת רופא | 88 | 88 | **0** | ירמיהו (865016) |
-| 97 סתימה | - | - | - | `errorType: 3`, nothing nationwide |
+| specialization | declared | collected | rows WITHOUT a soonest-slot date | Tel Aviv branches                  |
+| -------------- | -------- | --------- | -------------------------------- | ---------------------------------- |
+| 92 שיננית      | 70       | 70        | **0**                            | איילון (865012)                    |
+| 91 בדיקת רופא  | 88       | 88        | **0**                            | ירמיהו (865016)                    |
+| 97 סתימה       | -        | -         | -                                | `errorType: 3`, nothing nationwide |
 
 **Every single listed row carries "מועד התור הפנוי הקרוב ביותר".** Not one clinic in 158 rows appears
-without a free slot, which pins down what the result set IS: *clinics that currently have a bookable slot*
+without a free slot, which pins down what the result set IS: _clinics that currently have a bookable slot_
+
 - not "clinics that have a diary", and certainly not "clinics that exist". That is why nothing on the
-clinic side (code, service list, opening hours, past visits) predicts membership: the criterion is
-availability, and availability moves during the day.
+  clinic side (code, service list, opening hours, past visits) predicts membership: the criterion is
+  availability, and availability moves during the day.
 
 **Click-through, same session, live** (each button clicked for real, timed from the click):
 
-| branch | row | outcome | time | slots offered |
-| --- | --- | --- | --- | --- |
-| איילון 865012 | real | **booking page** | 0.5 s | 2 |
-| ירמיהו 865016 | synthetic → minted (91) | **booking page** | 3.5 s | 2 |
-| מגדל המאה 865014 | synthetic | details dialog | 5.0 s | - |
-| רמת אביב 865073 | synthetic | details dialog | 5.5 s | - |
+| branch           | row                     | outcome          | time  | slots offered |
+| ---------------- | ----------------------- | ---------------- | ----- | ------------- |
+| איילון 865012    | real                    | **booking page** | 0.5 s | 2             |
+| ירמיהו 865016    | synthetic → minted (91) | **booking page** | 3.5 s | 2             |
+| מגדל המאה 865014 | synthetic               | details dialog   | 5.0 s | -             |
+| רמת אביב 865073  | synthetic               | details dialog   | 5.5 s | -             |
 
 So the answer to "how do I book any clinic": **every clinic that has a bookable slot is one click away -
 including the ones the site's own search hides from the city (ירמיהו was listed only under a different
@@ -995,17 +997,17 @@ every past visit renders a `div.historyVisitCreateVisit` labelled "הזמן תו
 doctor is `wideButtonEnabled` carrying `data-action-link="/Zimunet/Visit/CanCreateVisit/{visitGuid}"` -
 a booking path keyed to the visit, not to a search. Read across this account's history:
 
-| clinic | profession | repeat-booking button |
-| --- | --- | --- |
-| למד - תל אביב | א.א.ג. | **enabled** → `CanCreateVisit/{guid}` |
-| מרכז מומחים מגדל המאה | עיניים | **enabled** → `CanCreateVisit/{guid}` |
-| איילון - כללית סמייל | שיננות | disabled |
-| ירמיהו - כללית סמייל (×2) | שיננות / רופא שיניים | disabled |
-| רמת אביב - כללית סמייל | רופא שיניים | disabled |
+| clinic                    | profession           | repeat-booking button                 |
+| ------------------------- | -------------------- | ------------------------------------- |
+| למד - תל אביב             | א.א.ג.               | **enabled** → `CanCreateVisit/{guid}` |
+| מרכז מומחים מגדל המאה     | עיניים               | **enabled** → `CanCreateVisit/{guid}` |
+| איילון - כללית סמייל      | שיננות               | disabled                              |
+| ירמיהו - כללית סמייל (×2) | שיננות / רופא שיניים | disabled                              |
+| רמת אביב - כללית סמייל    | רופא שיניים          | disabled                              |
 
 Every Smile row carries the same `title`:
 **"לא ניתן להזמין תור לרופא הזה דרך האתר. פנה למרפאה שלך בטלפון"** - including איילון and ירמיהו, which
-ARE bookable this minute through the Smile search. So the repeat-visit path is a *personal-diary* feature
+ARE bookable this minute through the Smile search. So the repeat-visit path is a _personal-diary_ feature
 that Smile never participates in; it is not a second door, and its disabled state is not evidence about
 availability. (Note the near-miss in the same list: "מרכז מומחים מגדל המאה" is the specialists centre in
 that building - a different clinic entity from "מגדל המאה - כללית סמייל", and its enabled button books an
@@ -1084,10 +1086,10 @@ visit GUID (needs a past visit at that branch) and a clinic code (opens nothing)
 The visits list (`GET /Zimunet/`, 7 `a.clinicDetails[data-action-link*=ClinicDetailsByVisit]` anchors)
 answers it outright:
 
-| visits-list title | Smile branch title (committed directory) | match |
-| --- | --- | --- |
-| `רמת אביב - כללית סמייל - ת''א` | `רמת אביב - כללית סמייל - ת''א` | **exact** → visit GUID → its own appointments page |
-| `מרכז מומחים מגדל המאה - תל אביב יפו` | `מגדל המאה - כללית סמייל - תל אביב יפו` | no match |
+| visits-list title                     | Smile branch title (committed directory) | match                                              |
+| ------------------------------------- | ---------------------------------------- | -------------------------------------------------- |
+| `רמת אביב - כללית סמייל - ת''א`       | `רמת אביב - כללית סמייל - ת''א`          | **exact** → visit GUID → its own appointments page |
+| `מרכז מומחים מגדל המאה - תל אביב יפו` | `מגדל המאה - כללית סמייל - תל אביב יפו`  | no match                                           |
 
 The tempting read is that our title-exact lookup is too strict. It is not - **the מגדל המאה visit is a
 different clinic that happens to share the address.** `Visit/CanCreateVisit/{guid}` answers
@@ -1158,13 +1160,13 @@ list now asks the question once, right after it is complete:
 Avi asked why "לכל התורים" on an appended row sits under a loader before the page opens. Timed in the
 page itself (`performance.getEntriesByType("resource")`, one real click on ירמיהו / שיננית / תל אביב יפו):
 
-| phase | calls | ms |
-|---|---|---|
-| the hunt: a new all-country search in the searched service | 1 | 1382 |
-| its pages, scanned for the branch | 9 × `Paging` | 383 |
-| `restoreUserSearch`: the user's own search, put back | 1 | 1352 |
-| navigate | - | ~150 |
-| **total** | **11** | **3273** |
+| phase                                                      | calls        | ms       |
+| ---------------------------------------------------------- | ------------ | -------- |
+| the hunt: a new all-country search in the searched service | 1            | 1382     |
+| its pages, scanned for the branch                          | 9 × `Paging` | 383      |
+| `restoreUserSearch`: the user's own search, put back       | 1            | 1352     |
+| navigate                                                   | -            | ~150     |
+| **total**                                                  | **11**       | **3273** |
 
 Two searches are 94% of it. A server row skips all of it: its button is the site's own link, already
 carrying a live GUID.
@@ -1179,9 +1181,9 @@ carrying a live GUID.
   2. it heals every displayed real row's slots/details links from those same envelopes
      (`refreshRowActionLinks`, the mechanism `restoreUserSearch` already used), and
   3. it takes the **slots link** out of each row that proves a branch bookable.
-  Its search then simply stays the session's search - it asks exactly what the user's rewritten search
-  asks (this city, this service, all-country) - so there is nothing to restore and nothing on screen is
-  stale.
+     Its search then simply stays the session's search - it asks exactly what the user's rewritten search
+     asks (this city, this service, all-country) - so there is nothing to restore and nothing on screen is
+     stale.
 - **What a click costs now.** A bookable appended branch carries a plain `data-action-link` and the
   site's own delegated handler opens it; a branch the sweep did not list borrows a live row's page
   (§12i) straight away. Measured on the same row: **194 ms, zero server calls** (down from 3273 ms and
@@ -1196,10 +1198,10 @@ carrying a live GUID.
 Measured, after Avi caught a hygienist search offering a dentist's calendar. The page a diary GUID opens
 names its own service in the first line under the title:
 
-| searched | row | GUID minted under | page opened | first line |
-| --- | --- | --- | --- | --- |
-| שיננית (92) | ירמיהו (appended) | בדיקת רופא (91) - the probe's find | `AvailableVisit/Smile/c567d949…` | `תור לבדיקת רופא שיניים` |
-| שיננית (92) | ירמיהו (appended) | none - borrowed page (§12i) | `AvailableVisit/Smile/aa6faeea…#clalit-city-clinic=865016` | `תור לשיננות` |
+| searched    | row               | GUID minted under                  | page opened                                                | first line               |
+| ----------- | ----------------- | ---------------------------------- | ---------------------------------------------------------- | ------------------------ |
+| שיננית (92) | ירמיהו (appended) | בדיקת רופא (91) - the probe's find | `AvailableVisit/Smile/c567d949…`                           | `תור לבדיקת רופא שיניים` |
+| שיננית (92) | ירמיהו (appended) | none - borrowed page (§12i)        | `AvailableVisit/Smile/aa6faeea…#clalit-city-clinic=865016` | `תור לשיננות`            |
 
 So "the button opens a page belonging to the clinic on the row" (§12h) was not enough: a GUID from another
 specialization opens that specialization's booking page, with the branch's own name on it. Under a
@@ -1226,10 +1228,10 @@ hygienist search it reads as a hygienist appointment and books a dentist check-u
 Avi's rule: a row the extension adds must look like one the server sent. Measured against a real row,
 ours differed in four ways - two are now closed, one is deliberate, one is impossible:
 
-| line | server row | appended row |
-| --- | --- | --- |
-| `מרפאה:` / `כתובת:` / `טלפון:` | ✓ | ✓ (from the committed directory) |
-| distance | `מרחק מהבית שלך: 6.67 ק"מ` | `מרחק ממיקומך: 0.20 ק"מ` - the live position, the only distance we can source; no position, no line |
+| line                           | server row                 | appended row                                                                                        |
+| ------------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `מרפאה:` / `כתובת:` / `טלפון:` | ✓                          | ✓ (from the committed directory)                                                                    |
+| distance                       | `מרחק מהבית שלך: 6.67 ק"מ` | `מרחק ממיקומך: 0.20 ק"מ` - the live position, the only distance we can source; no position, no line |
 
 **One origin for the whole list (Avi, 2026-08-15).** Leaving the server's rows alone meant a list with two
 different numbers under one heading: its rows measured from the address Clalit has on file, ours from

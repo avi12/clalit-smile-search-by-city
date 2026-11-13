@@ -44,11 +44,11 @@ export enum PageMsg {
   Position = "position"
 }
 
-export type PageProtocol = {
+export interface PageProtocol {
   [PageMsg.Config]: (config: SearchConfig) => void;
   [PageMsg.Status]: (status: GuaranteeStatus) => void;
   [PageMsg.Position]: () => LatLng | null;
-};
+}
 
 /** What a frame tells the other frames of its tab about its own search, to drive the single badge. */
 export interface FrameState {
@@ -72,11 +72,11 @@ export enum FrameMsg {
   Hello = "hello"
 }
 
-export type FrameProtocol = {
+export interface FrameProtocol {
   [FrameMsg.State]: FrameState;
   [FrameMsg.Toggle]: boolean;
   [FrameMsg.Hello]: undefined;
-};
+}
 
 export enum RuntimeMsg {
   /** bridge → background: the user's position, read in the extension's own context. */
@@ -87,8 +87,8 @@ export enum RuntimeMsg {
   TabId = "tab-id"
 }
 
-export type RuntimeProtocol = {
+export interface RuntimeProtocol {
   [RuntimeMsg.Position]: () => LatLng | null;
   [RuntimeMsg.ReportPosition]: (position: LatLng | null) => void;
   [RuntimeMsg.TabId]: () => number | null;
-};
+}

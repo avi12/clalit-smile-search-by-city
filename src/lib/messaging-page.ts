@@ -7,10 +7,10 @@
  * and every send has someone to answer it. Frame ⇄ frame is the frame channel (messaging-frames.ts).
  */
 
-import { PAGE_NAMESPACE, type PageProtocol } from "./messaging";
 import { defineWindowMessaging } from "@webext-core/messaging/page";
 
-export const {
-  sendMessage: sendPageMessage,
-  onMessage: onPageMessage
-} = defineWindowMessaging<PageProtocol>({ namespace: PAGE_NAMESPACE });
+import { PAGE_NAMESPACE, type PageProtocol } from "./messaging";
+
+export const { sendMessage: sendPageMessage, onMessage: onPageMessage } = defineWindowMessaging<PageProtocol>({
+  namespace: PAGE_NAMESPACE
+});

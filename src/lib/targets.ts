@@ -111,12 +111,11 @@ export const SMILE_SORT_PATH = `${SMILE_CLINIC_PAGE_PATH}/SortSmileDiaries`;
  */
 const SMILE_RESTORE_PARAM = "isRestoreSearch";
 
-export function isSmileRestoreLocation({ pathname, search }: {
-  pathname: string;
-  search: string;
-}) {
-  return pathname === SMILE_CLINIC_PAGE_PATH &&
-    (new URLSearchParams(search).get(SMILE_RESTORE_PARAM) ?? "").toLowerCase() === "true";
+export function isSmileRestoreLocation({ pathname, search }: { pathname: string; search: string }) {
+  return (
+    pathname === SMILE_CLINIC_PAGE_PATH &&
+    (new URLSearchParams(search).get(SMILE_RESTORE_PARAM) ?? "").toLowerCase() === "true"
+  );
 }
 
 /**
@@ -206,10 +205,7 @@ export interface EndpointRule {
  */
 const ENDPOINT_RULES: EndpointRule[] = [];
 
-export function matchEndpointRule({ url, method }: {
-  url: string;
-  method: string;
-}) {
+export function matchEndpointRule({ url, method }: { url: string; method: string }) {
   return ENDPOINT_RULES.find(
     rule => rule.urlPattern.test(url) && (rule.method === "*" || rule.method === method.toUpperCase())
   );

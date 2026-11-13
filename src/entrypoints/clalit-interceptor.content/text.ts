@@ -5,5 +5,8 @@
 
 /** Normalize a Hebrew place string for tolerant matching: drop geresh/quotes, collapse whitespace. */
 export function normalizeCity(value: string) {
-  return value.replaceAll(/["'׳״]/g, "").replaceAll(/\s+/g, " ").trim();
+  return value
+    .replaceAll(/["'׳״]/g, "")
+    .replaceAll(/\s+/g, " ")
+    .trim();
 }

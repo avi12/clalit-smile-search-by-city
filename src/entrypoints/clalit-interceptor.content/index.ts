@@ -15,26 +15,7 @@
  * dev build it logs interesting requests to the page console (Discovery).
  */
 
-import { searchConfigSchema, smileEnvelopeSchema } from "./schemas";
-import { openInNewTab, waitForElement } from "./site-chrome";
-import {
-  DETAILS_CODE_ATTR,
-  filterSmileEnvelope,
-  MINT_CODE_ATTR,
-  NO_DIARY_ROW_NOTE,
-  SMILE_MARKER_ATTR
-} from "./smile";
-import { createSmileAggregation, type MarkedSmileOutcome } from "./smile-aggregation";
-import { createAvailabilityProbe } from "./smile-availability";
-import {
-  createTailoredClinicPage,
-  emptyAvailabilityEnvelope,
-  isAvailabilityUrl,
-  tailoredBranchCode
-} from "./smile-clinic-page";
-import { createRowActions } from "./smile-row-actions";
-import { createSmileSession } from "./smile-session";
-import { applyGuarantee, type TransformResult } from "./transform";
+import { ContentScriptContext, defineContentScript } from "#imports";
 import { type GuaranteeStatus, PageMsg } from "@/lib/messaging";
 import { onPageMessage, sendPageMessage } from "@/lib/messaging-page";
 import {
@@ -54,7 +35,21 @@ import {
   SMILE_SPECIALIZATION_FIELD,
   SMILE_SPECIALIZATION_SELECT_SELECTOR
 } from "@/lib/targets";
-import { ContentScriptContext, defineContentScript } from "#imports";
+
+import { searchConfigSchema, smileEnvelopeSchema } from "./schemas";
+import { openInNewTab, waitForElement } from "./site-chrome";
+import { DETAILS_CODE_ATTR, filterSmileEnvelope, MINT_CODE_ATTR, NO_DIARY_ROW_NOTE, SMILE_MARKER_ATTR } from "./smile";
+import { createSmileAggregation, type MarkedSmileOutcome } from "./smile-aggregation";
+import { createAvailabilityProbe } from "./smile-availability";
+import {
+  createTailoredClinicPage,
+  emptyAvailabilityEnvelope,
+  isAvailabilityUrl,
+  tailoredBranchCode
+} from "./smile-clinic-page";
+import { createRowActions } from "./smile-row-actions";
+import { createSmileSession } from "./smile-session";
+import { applyGuarantee, type TransformResult } from "./transform";
 
 export default defineContentScript({
   matches: [...CONTENT_MATCHES],
@@ -118,17 +113,20 @@ export default defineContentScript({
         city,
         resultsCount,
         inCityCount
-      }).catch(() => { });
+      }).catch(() => {});
     }
 
-    function logDiscovery(
-      { method, url, status, json }: {
-        method: string;
-        url: string;
-        status: number;
-        json: unknown;
-      }
-    ) {
+    function logDiscovery({
+      method,
+      url,
+      status,
+      json
+    }: {
+      method: string;
+      url: string;
+      status: number;
+      json: unknown;
+    }) {
       if (import.meta.env.DEV && isInterestingUrl(url)) {
         console.log(`[clalit-city] ${method} ${url} → ${status}`, json);
       }
@@ -141,11 +139,11 @@ export default defineContentScript({
     }
 
     type UrlTransformResult = TransformResult & { smile?: MarkedSmileOutcome };
-    type UrlTransformInput = {
+    interface UrlTransformInput {
       json: unknown;
       url: string;
       method: string;
-    };
+    }
 
     function transformSmile(json: unknown) {
       const untouched: UrlTransformResult = {
@@ -196,48 +194,57 @@ export default defineContentScript({
     }
 
     function transformForUrl({ json, url, method }: UrlTransformInput) {
-      return isSmileResultsUrl(url) ? transformSmile(json) : transformJson({
-        json,
-        url,
-        method
-      });
+      return isSmileResultsUrl(url)
+        ? transformSmile(json)
+        : transformJson({
+            json,
+            url,
+            method
+          });
     }
 
-    ctx.addEventListener(document, "click", e => {
-      const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
-      if (!session.state.isEnabled || e.defaultPrevented || isModified) {
-        return;
-      }
+    ctx.addEventListener(
+      document,
+      "click",
+      e => {
+        const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
+        if (!session.state.isEnabled || e.defaultPrevented || isModified) {
+          return;
+        }
 
-      const { target } = e;
-      if (!(target instanceof Element)) {
-        return;
-      }
+        const { target } = e;
+        if (!(target instanceof Element)) {
+          return;
+        }
 
-      const elMintButton = target.closest(`a[${MINT_CODE_ATTR}]`);
-      if (elMintButton) {
-        // The site's delegated handler binds by class/id, NOT by data-action-link - left alone it reads
-        // the stripped attribute as undefined and navigates the iframe to /Zimunet/undefined (observed
-        // live). Capture-phase + stopPropagation keeps the click ours alone.
+        const elMintButton = target.closest(`a[${MINT_CODE_ATTR}]`);
+        if (elMintButton) {
+          // The site's delegated handler binds by class/id, NOT by data-action-link - left alone it reads
+          // the stripped attribute as undefined and navigates the iframe to /Zimunet/undefined (observed
+          // live). Capture-phase + stopPropagation keeps the click ours alone.
+          e.preventDefault();
+          e.stopPropagation();
+          rowActions.openDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => {});
+          return;
+        }
+
+        const elAnchor = target.closest(`a[${DETAILS_CODE_ATTR}]`);
+        if (!elAnchor) {
+          return;
+        }
+
+        const fallbackHref = elAnchor.getAttribute("href") ?? "";
         e.preventDefault();
-        e.stopPropagation();
-        rowActions.openDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => { });
-        return;
-      }
-
-      const elAnchor = target.closest(`a[${DETAILS_CODE_ATTR}]`);
-      if (!elAnchor) {
-        return;
-      }
-
-      const fallbackHref = elAnchor.getAttribute("href") ?? "";
-      e.preventDefault();
-      rowActions.openDetails({
-        code: elAnchor.getAttribute(DETAILS_CODE_ATTR) ?? "",
-        fallbackHref,
-        note: NO_DIARY_ROW_NOTE
-      }).catch(() => openInNewTab(fallbackHref));
-    }, { capture: true });
+        rowActions
+          .openDetails({
+            code: elAnchor.getAttribute(DETAILS_CODE_ATTR) ?? "",
+            fallbackHref,
+            note: NO_DIARY_ROW_NOTE
+          })
+          .catch(() => openInNewTab(fallbackHref));
+      },
+      { capture: true }
+    );
 
     // ── Restore-document recovery (the "back" hole, docs §6d) ─────────────────
     // "Back" from a slots page is a DOCUMENT load (SmileClinic?isRestoreSearch=True): the server
@@ -267,8 +274,11 @@ export default defineContentScript({
     /** A search has run in this document: ours landing (the marked render), the user's own
      * (activeSearchCity is set at send time), or a prior generation's before a dev re-inject. */
     function isRestoreSettled() {
-      return !session.state.isEnabled ||
-        Boolean(session.state.activeSearchCity) || Boolean(document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`));
+      return (
+        !session.state.isEnabled ||
+        Boolean(session.state.activeSearchCity) ||
+        Boolean(document.querySelector(`#am_diaries[${SMILE_MARKER_ATTR}]`))
+      );
     }
 
     /**
@@ -301,7 +311,7 @@ export default defineContentScript({
       }
 
       elContainer.innerHTML = parsed.data.data;
-      aggregation.finalize(outcome.smile).catch(() => { });
+      aggregation.finalize(outcome.smile).catch(() => {});
     }
 
     /**
@@ -358,15 +368,16 @@ export default defineContentScript({
     }
 
     if (isSmileRestoreLocation(window.location)) {
-      recoverRestoredSearch().catch(() => { });
+      recoverRestoredSearch().catch(() => {});
     }
 
     // ── A branch's own appointments page, borrowed (docs §12i) ─────────────────
     // "לכל התורים" on a branch Tamuz has no handle for lands on a REAL diary's slots page carrying the
     // branch's code in the hash. Here that page becomes the branch's: retitled, and its availability
     // calls answered with the site's own empty month, so nothing of the lender's is left to book.
-    const tailoredClinicPage = createTailoredClinicPage(tailoredBranchCode(window.location.hash));    if (tailoredClinicPage.isTailored) {
-      tailoredClinicPage.tailor().catch(() => { });
+    const tailoredClinicPage = createTailoredClinicPage(tailoredBranchCode(window.location.hash));
+    if (tailoredClinicPage.isTailored) {
+      tailoredClinicPage.tailor().catch(() => {});
     }
 
     // ── Generic JSON transform (non-Smile endpoints) ───────────────────────────
@@ -444,22 +455,25 @@ export default defineContentScript({
         status: response.status,
         json
       });
-      const outcome = tailoredClinicPage.isTailored && isAvailabilityUrl(url) ? {
-        isTransformed: true,
-        resultsCount: 0,
-        inCityCount: 0,
-        json: emptyAvailabilityEnvelope()
-      } : transformForUrl({
-        json,
-        url,
-        method
-      });
+      const outcome =
+        tailoredClinicPage.isTailored && isAvailabilityUrl(url)
+          ? {
+              isTransformed: true,
+              resultsCount: 0,
+              inCityCount: 0,
+              json: emptyAvailabilityEnvelope()
+            }
+          : transformForUrl({
+              json,
+              url,
+              method
+            });
       if (!outcome.isTransformed) {
         return response;
       }
 
       if (outcome.smile && isSmileAggregationTrigger(url)) {
-        aggregation.finalize(outcome.smile).catch(() => { });
+        aggregation.finalize(outcome.smile).catch(() => {});
       }
 
       // Rebuild from the original headers but drop content-encoding/length: the body is now plain
@@ -481,13 +495,12 @@ export default defineContentScript({
     const XHR = XMLHttpRequest.prototype;
     // Widened to a rest-args signature (open's first overload satisfies it) so the patch below can
     // forward the page's EXACT argument list - open(m, u) and open(m, u, undefined) differ natively.
-    const nativeOpen: (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) => void =
-      XHR.open;
+    const nativeOpen: (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) => void = XHR.open;
     const nativeSend = XHR.send;
     const nativeText = Object.getOwnPropertyDescriptor(XHR, "responseText");
     const nativeResponse = Object.getOwnPropertyDescriptor(XHR, "response");
 
-    type XhrState = {
+    interface XhrState {
       method: string;
       url: string;
       computed?: {
@@ -496,12 +509,12 @@ export default defineContentScript({
         isChanged: boolean;
         smile?: MarkedSmileOutcome;
       };
-    };
+    }
     const xhrStates = new WeakMap<XMLHttpRequest, XhrState>();
-    type XhrContext = {
+    interface XhrContext {
       xhr: XMLHttpRequest;
       state: XhrState;
-    };
+    }
 
     function computeXhr({ xhr, state }: XhrContext) {
       if (state.computed || xhr.readyState !== 4) {
@@ -544,16 +557,19 @@ export default defineContentScript({
         status: xhr.status,
         json
       });
-      const outcome = tailoredClinicPage.isTailored && isAvailabilityUrl(url) ? {
-        isTransformed: true,
-        resultsCount: 0,
-        inCityCount: 0,
-        json: emptyAvailabilityEnvelope()
-      } : transformForUrl({
-        json,
-        url,
-        method
-      });
+      const outcome =
+        tailoredClinicPage.isTailored && isAvailabilityUrl(url)
+          ? {
+              isTransformed: true,
+              resultsCount: 0,
+              inCityCount: 0,
+              json: emptyAvailabilityEnvelope()
+            }
+          : transformForUrl({
+              json,
+              url,
+              method
+            });
       state.computed = {
         text: outcome.isTransformed ? JSON.stringify(outcome.json) : rawText,
         json: outcome.isTransformed ? outcome.json : json,
@@ -577,7 +593,9 @@ export default defineContentScript({
           `sortValue=${SMILE_SORT_VALUES.cityDistance}`,
           `sortValue=${SMILE_SORT_VALUES.homeDistance}`
         );
-        session.state.activeSort = targetUrl.includes(`sortValue=${SMILE_SORT_VALUES.homeDistance}`) ? "home" : "soonest";
+        session.state.activeSort = targetUrl.includes(`sortValue=${SMILE_SORT_VALUES.homeDistance}`)
+          ? "home"
+          : "soonest";
         session.state.isSortDescending = targetUrl.includes("sortDirection=2");
       }
 
@@ -686,7 +704,7 @@ export default defineContentScript({
             state
           });
           if (computed?.smile) {
-            aggregation.finalize(computed.smile).catch(() => { });
+            aggregation.finalize(computed.smile).catch(() => {});
           }
         });
       }

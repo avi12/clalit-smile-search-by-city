@@ -1,7 +1,10 @@
 <script lang="ts">
   import type { BadgeState } from "./status-badge.svelte";
 
-  const { state, onToggle }: { state: BadgeState; onToggle: () => void } = $props();
+  const { state, onToggle }: {
+     state: BadgeState;
+     onToggle: () => void 
+  } = $props();
 
   const isOn = $derived(state.isEnabled && state.city.trim().length > 0);
 </script>
@@ -25,29 +28,30 @@
     --surface: #f3faf6;
     --on-surface: #12241d;
     --outline: #c3d9cf;
+
     display: flex;
-    align-items: center;
     gap: 10px;
-    direction: rtl;
-    font-family: "Segoe UI", Roboto, system-ui, sans-serif;
-    background: var(--surface);
-    color: var(--on-surface);
+    align-items: center;
+    max-width: 300px;
+    padding: 8px 14px 8px 10px;
     border: 1px solid var(--outline);
     border-radius: 20px;
-    padding: 8px 14px 8px 10px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
-    max-width: 300px;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.16);
+    direction: rtl;
   }
 
   .dot {
+    flex: 0 0 auto;
     width: 20px;
     height: 20px;
-    border-radius: 999px;
     border: none;
-    cursor: pointer;
+    border-radius: 999px;
     background: var(--outline);
+    cursor: pointer;
     transition: background 0.2s cubic-bezier(0.2, 0, 0, 1);
-    flex: 0 0 auto;
   }
 
   .badge.on .dot {
@@ -55,14 +59,14 @@
   }
 
   .title {
-    font-size: 13px;
     font-weight: 650;
+    font-size: 13px;
   }
 
   .sub {
+    margin-top: 1px;
     font-size: 11px;
     opacity: 0.75;
-    margin-top: 1px;
   }
 
   .stat {

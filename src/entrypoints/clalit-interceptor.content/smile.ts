@@ -67,10 +67,7 @@ export function rowClinicName(elRow: Element) {
  * same canonical string the server rendered into the row, so equality is authoritative. No fuzzy
  * normalization: the site is the single source of truth for what a city is called.
  */
-export function cityMatches({ rowCity, searchedCity }: {
-  rowCity: string;
-  searchedCity: string;
-}) {
+export function cityMatches({ rowCity, searchedCity }: { rowCity: string; searchedCity: string }) {
   return rowCity.trim() !== "" && rowCity.trim() === searchedCity.trim();
 }
 
@@ -86,12 +83,11 @@ export function rowNavCode(elRow: Element) {
 const LIVE_DISTANCE_SORT_LABEL = "מרחק ממיקומך";
 
 /** Rewrite a live row's server-computed "מרחק מהבית שלך" line with the live-location distance. */
-export function setRowDistanceLabel({ elRow, km }: {
-  elRow: Element;
-  km: number;
-}) {
+export function setRowDistanceLabel({ elRow, km }: { elRow: Element; km: number }) {
   const text = `${LIVE_DISTANCE_SORT_LABEL}: ${km.toFixed(2)} ק"מ`;
-  const elLabel = [...elRow.querySelectorAll(".clinicDetails")].find(elDetail => elDetail.textContent?.includes("מרחק"));
+  const elLabel = [...elRow.querySelectorAll(".clinicDetails")].find(elDetail =>
+    elDetail.textContent?.includes("מרחק")
+  );
   if (elLabel) {
     elLabel.textContent = text;
     return;
@@ -150,8 +146,7 @@ export const BRANCH_PAGE_NOTE = "פותחים את דף התורים של הסנ
 export const NO_SERVICE_ROW_NOTE = `אין כרגע יומן מקוון לשירות שביקשתם בסניף זה - ${CALL_INSTEAD}`;
 
 /** In the site's own message box, after a click found no page to open for the branch. */
-const NO_ONLINE_DIARY_MESSAGE =
-  "בדקנו עכשיו ואין יומן מקוון לשירות שביקשתם בסניף זה, ולכן אין דף תורים לפתוח.";
+const NO_ONLINE_DIARY_MESSAGE = "בדקנו עכשיו ואין יומן מקוון לשירות שביקשתם בסניף זה, ולכן אין דף תורים לפתוח.";
 const CALL_TO_BOOK = "לקביעת תור:";
 const OR_CENTRAL_LINE = "או במוקד";
 
@@ -170,10 +165,7 @@ export const MINT_CHECK_NOTE = "בודקים אם נפתח יומן מקוון �
  * pages of other cities). How many clinics were found is the list's job and the header's, both of which
  * update live; the only thing this number was ever for is how much longer.
  */
-export function completingListNote({ step, total }: {
-  step: number;
-  total: number;
-}) {
+export function completingListNote({ step, total }: { step: number; total: number }) {
   return `משלימים את רשימת המרפאות בעיר - שלב ${step} מתוך ${total}`;
 }
 
@@ -202,7 +194,11 @@ const UNAVAILABLE_BUTTON_STYLE = {
 export const UNAVAILABLE_BUTTON_TITLE = "אין כרגע תור מקוון לשירות שביקשתם בסניף זה";
 
 /** Tint (or clear) a synthetic row's "לכל התורים" button by whether anything can be opened for it. */
-export function setRowBookable({ elRow, isBookable, title }: {
+export function setRowBookable({
+  elRow,
+  isBookable,
+  title
+}: {
   elRow: Element;
   isBookable: boolean;
   /** The button's hover text while it is red - back to the site's own when it is bookable again. */
@@ -217,7 +213,7 @@ export function setRowBookable({ elRow, isBookable, title }: {
     elButton.style.setProperty(toCssProperty(property), isBookable ? "" : value);
   }
 
-  elButton.setAttribute("title", isBookable ? elButton.textContent?.trim() ?? title : title);
+  elButton.setAttribute("title", isBookable ? (elButton.textContent?.trim() ?? title) : title);
 }
 
 function toCssProperty(camelCase: string) {
@@ -225,10 +221,7 @@ function toCssProperty(camelCase: string) {
 }
 
 /** The "no online diary" note, in the site's own row/details text style, ending in the *2700 hotline. */
-export function buildHotlineNote({ ownerDocument, text }: {
-  ownerDocument: Document;
-  text: string;
-}) {
+export function buildHotlineNote({ ownerDocument, text }: { ownerDocument: Document; text: string }) {
   const elNote = ownerDocument.createElement("div");
   elNote.className = "clinicDetails";
   elNote.setAttribute(NOTE_ATTR, "1");
@@ -285,10 +278,7 @@ export function buildUnavailableMessageHtml(branch: SmileBranch) {
  * how that line reads - and the date is always the SEARCHED service's, so it needs no qualifier: a row
  * that cannot be booked for what the user asked for shows no date at all.
  */
-function setSoonestSlotLine({ elLine, soonestSlotDate }: {
-  elLine: Element;
-  soonestSlotDate: string | null;
-}) {
+function setSoonestSlotLine({ elLine, soonestSlotDate }: { elLine: Element; soonestSlotDate: string | null }) {
   if (!soonestSlotDate) {
     elLine.remove();
     return;
@@ -439,16 +429,14 @@ export function applyBranchToRow({
  * on the site's native ClinicDetailsByVisit view and on our composed fragment alike: both are the same
  * container (targets.ts SMILE_DETAILS_DIALOG_SELECTOR).
  */
-export function setDialogNote({ elDialog, text }: {
-  elDialog: Element;
-  text: string;
-}) {
+export function setDialogNote({ elDialog, text }: { elDialog: Element; text: string }) {
   for (const elStale of elDialog.querySelectorAll(`[${NOTE_ATTR}]`)) {
     elStale.remove();
   }
 
   const { ownerDocument } = elDialog;
-  const elNoteHost = elDialog.querySelector(".css_NoPaddingCell.clinicDetails") ?? elDialog.querySelector("div.content") ?? elDialog;
+  const elNoteHost =
+    elDialog.querySelector(".css_NoPaddingCell.clinicDetails") ?? elDialog.querySelector("div.content") ?? elDialog;
   elNoteHost.prepend(
     buildHotlineNote({
       ownerDocument,
@@ -478,10 +466,7 @@ const LOADER_NOTE_STYLE = {
 };
 
 /** Caption the site's own loader so the sweep's multi-second wait says what it is doing. */
-export function setLoaderNote({ elLoader, text }: {
-  elLoader: Element;
-  text: string;
-}) {
+export function setLoaderNote({ elLoader, text }: { elLoader: Element; text: string }) {
   const elExisting = elLoader.querySelector<HTMLElement>(`[${NOTE_ATTR}]`);
   if (elExisting) {
     elExisting.textContent = text;
@@ -513,10 +498,7 @@ function formatMinutes(total: number) {
 }
 
 /** Rewrite a `<span class="title">label</span> value` line's value, keeping the label span. */
-function setLabeledLine({ elLine, elValue }: {
-  elLine: Element;
-  elValue: string;
-}) {
+function setLabeledLine({ elLine, elValue }: { elLine: Element; elValue: string }) {
   const elLabel = elLine.querySelector("span.title");
   if (!elLabel) {
     return;
@@ -528,10 +510,7 @@ function setLabeledLine({ elLine, elValue }: {
 }
 
 /** The accessibility list: the directory's labels, or drop the line when the branch has none. */
-function applyAccessibilityLine({ elLine, labels }: {
-  elLine: Element;
-  labels: string[];
-}) {
+function applyAccessibilityLine({ elLine, labels }: { elLine: Element; labels: string[] }) {
   const elItems = [...elLine.children].find(child => !child.classList.contains("clinicAccessibilty"));
   if (labels.length === 0 || !elItems) {
     elLine.remove();
@@ -551,10 +530,7 @@ function applyAccessibilityLine({ elLine, labels }: {
 const UNSOURCED_DETAIL_LINE = /פקס:|אוטובוסים:|הערות:/;
 
 /** One `<div>` line of the details cell, rewritten for the branch (or removed). */
-function applyBranchToDetailLine({ elLine, branch }: {
-  elLine: Element;
-  branch: SmileBranch;
-}) {
+function applyBranchToDetailLine({ elLine, branch }: { elLine: Element; branch: SmileBranch }) {
   const { street, city, phones, accessibility } = branch;
   const text = elLine.textContent ?? "";
   if (text.includes("כתובת:")) {
@@ -591,15 +567,9 @@ function applyBranchToDetailLine({ elLine, branch }: {
 }
 
 /** Rebuild the reception-hours table from the directory's [day, start, end] triples. */
-function rebuildHoursTable({ elTable, hours }: {
-  elTable: Element;
-  hours: SmileBranch["hours"];
-}) {
+function rebuildHoursTable({ elTable, hours }: { elTable: Element; hours: SmileBranch["hours"] }) {
   const { ownerDocument } = elTable;
-  const byDay = new Map(hours.map(([day, start, end]) => [
-    day,
-    `מ ${formatMinutes(start)} עד ${formatMinutes(end)}`
-  ]));
+  const byDay = new Map(hours.map(([day, start, end]) => [day, `מ ${formatMinutes(start)} עד ${formatMinutes(end)}`]));
   elTable.textContent = "";
   for (const [day, letter] of RECEPTION_DAY_LETTERS.entries()) {
     const elSeparatorRow = ownerDocument.createElement("tr");
@@ -634,7 +604,10 @@ export function detailsLinkFromRowHtml(html: string) {
   }
 
   const parsedDocument = new DOMParser().parseFromString(html, "text/html");
-  return parsedDocument.querySelector("a[data-action-link*=\"ClinicDetailsByDiary\"]")?.getAttribute("data-action-link") ?? null;
+  return (
+    parsedDocument.querySelector('a[data-action-link*="ClinicDetailsByDiary"]')?.getAttribute("data-action-link") ??
+    null
+  );
 }
 
 /**
@@ -659,17 +632,16 @@ export function slotsLinkFromRowHtml(html: string) {
  * honestly (fax, buses, notes, per-clinic remarks). Returns null when the template isn't a details
  * fragment (e.g. a stale-GUID empty envelope).
  */
-export function applyBranchToDetailsFragment({ template, branch }: {
-  template: string;
-  branch: SmileBranch;
-}) {
+export function applyBranchToDetailsFragment({ template, branch }: { template: string; branch: SmileBranch }) {
   const parsedDocument = new DOMParser().parseFromString(template, "text/html");
   if (!parsedDocument.querySelector(".css_Table")) {
     return null;
   }
 
   const { title, code, hours } = branch;
-  const elNameLabel = [...parsedDocument.querySelectorAll(".css_Cell span.title")].find(span => span.textContent?.includes("מרפאה"));
+  const elNameLabel = [...parsedDocument.querySelectorAll(".css_Cell span.title")].find(span =>
+    span.textContent?.includes("מרפאה")
+  );
   if (elNameLabel?.parentElement) {
     setLabeledLine({
       elLine: elNameLabel.parentElement,
@@ -679,7 +651,9 @@ export function applyBranchToDetailsFragment({ template, branch }: {
 
   parsedDocument.querySelector("a.mapLocationLink")?.setAttribute("href", `${NEARME_NAV}${code}`);
 
-  for (const elLine of parsedDocument.querySelector(".css_NoPaddingCell.clinicDetails")?.querySelectorAll(":scope > div") ?? []) {
+  for (const elLine of parsedDocument
+    .querySelector(".css_NoPaddingCell.clinicDetails")
+    ?.querySelectorAll(":scope > div") ?? []) {
     applyBranchToDetailLine({
       elLine,
       branch
@@ -705,10 +679,7 @@ export function applyBranchToDetailsFragment({ template, branch }: {
 }
 
 /** Replace an element's text while keeping child elements (the sort links carry an icon <i>). */
-function replaceTextNode({ elTarget, text }: {
-  elTarget: Element;
-  text: string;
-}) {
+function replaceTextNode({ elTarget, text }: { elTarget: Element; text: string }) {
   for (const node of elTarget.childNodes) {
     if (node.nodeType === 3 && node.textContent?.trim()) {
       node.textContent = text;
@@ -718,10 +689,7 @@ function replaceTextNode({ elTarget, text }: {
 }
 
 /** Rewrite the "נמצאו N" count in a results header (the aggregator bumps it as pages stream in). */
-export function setHeaderCount({ elHeader, count }: {
-  elHeader: Element;
-  count: number;
-}) {
+export function setHeaderCount({ elHeader, count }: { elHeader: Element; count: number }) {
   elHeader.textContent = (elHeader.textContent ?? "").replace(/נמצאו\s+\d+/, `נמצאו ${count}`);
 }
 
@@ -750,13 +718,15 @@ export const SMILE_MARKER_ATTR = "data-clalit-city-marker";
  * every server page into this one list) and the "מרחק מהיישוב שחיפשת" sort - a distance sort must
  * reference the USER's location, and the remaining "מרחק מהבית שלך" is exactly that.
  */
-export function filterSmileEnvelope(
-  { json, searchedCity, marker }: {
-    json: unknown;
-    searchedCity: string;
-    marker?: string;
-  }
-) {
+export function filterSmileEnvelope({
+  json,
+  searchedCity,
+  marker
+}: {
+  json: unknown;
+  searchedCity: string;
+  marker?: string;
+}) {
   const untouched: SmileFilterOutcome = {
     isChanged: false,
     json,
@@ -776,10 +746,12 @@ export function filterSmileEnvelope(
   const totalDeclared = readDeclaredTotal(parsedDocument);
   let keptRowCount = 0;
   for (const elRow of elRows) {
-    if (cityMatches({
-      rowCity: rowCityName(elRow),
-      searchedCity
-    })) {
+    if (
+      cityMatches({
+        rowCity: rowCityName(elRow),
+        searchedCity
+      })
+    ) {
       keptRowCount += 1;
     } else {
       elRow.remove();
@@ -790,10 +762,10 @@ export function filterSmileEnvelope(
     pager.remove();
   }
 
-  parsedDocument.querySelector("a[data-action-link*=\"sortValue=4\"]")?.closest("h3")?.remove();
+  parsedDocument.querySelector('a[data-action-link*="sortValue=4"]')?.closest("h3")?.remove();
 
   // The remaining distance sort is hijacked to rank by the user's live location, so label it truthfully.
-  const elHomeSortLink = parsedDocument.querySelector("a[data-action-link*=\"sortValue=3\"]");
+  const elHomeSortLink = parsedDocument.querySelector('a[data-action-link*="sortValue=3"]');
   if (elHomeSortLink) {
     replaceTextNode({
       elTarget: elHomeSortLink,
@@ -836,10 +808,13 @@ export function filterSmileEnvelope(
 export const SMILE_SLOTS_PATH = "/AvailableVisit/Smile/";
 
 const SLOTS_LINK_SELECTOR = `a[data-action-link*="${SMILE_SLOTS_PATH}"]`;
-const DETAILS_LINK_SELECTOR = "a[data-action-link*=\"ClinicDetailsByDiary\"]";
+const DETAILS_LINK_SELECTOR = 'a[data-action-link*="ClinicDetailsByDiary"]';
 
 /** Scan one results envelope for a branch (by nav code) and its fresh slots link. */
-export function scanEnvelopeForNavCode({ json, navCode }: {
+export function scanEnvelopeForNavCode({
+  json,
+  navCode
+}: {
   json: unknown;
   /** Omit to read only the page metadata (totals + template row). */
   navCode?: string;
@@ -869,8 +844,9 @@ export function scanEnvelopeForNavCode({ json, navCode }: {
 
 /** The date a row prints on the site's own soonest-slot line, or "" when it carries none. */
 function rowSoonestSlot(elRow: Element) {
-  const elLine = [...elRow.querySelectorAll(".clinicDetails")]
-    .find(elDetail => elDetail.textContent?.trim().startsWith(SOONEST_SLOT_PREFIX));
+  const elLine = [...elRow.querySelectorAll(".clinicDetails")].find(elDetail =>
+    elDetail.textContent?.trim().startsWith(SOONEST_SLOT_PREFIX)
+  );
   return elLine?.textContent?.split(":").slice(1).join(":").trim() ?? "";
 }
 
@@ -887,10 +863,7 @@ export interface ListedBranchRow {
  * carried - the batch question the single scan cannot answer. The date and the link come back with the
  * verdict because the row that proves a branch IS bookable is the only place either of them exists.
  */
-export function listedRowsInEnvelope({ json, navCodes }: {
-  json: unknown;
-  navCodes: Iterable<string>;
-}) {
+export function listedRowsInEnvelope({ json, navCodes }: { json: unknown; navCodes: Iterable<string> }) {
   const wanted = new Set(navCodes);
   const found = new Map<string, ListedBranchRow>();
   const html = getSmileHtml(json);
@@ -917,10 +890,7 @@ export function listedRowsInEnvelope({ json, navCodes }: {
  * displayed real rows' slots/details links are dead. Given an envelope of the restored (re-run) user
  * search, rewrite matching rows' action links to the fresh GUIDs. Returns the nav codes refreshed.
  */
-export function refreshRowActionLinks({ elList, json }: {
-  elList: Element;
-  json: unknown;
-}) {
+export function refreshRowActionLinks({ elList, json }: { elList: Element; json: unknown }) {
   const html = getSmileHtml(json);
   if (!html) {
     return [];
@@ -953,10 +923,7 @@ export function refreshRowActionLinks({ elList, json }: {
 }
 
 /** The searched city's rows from a paging envelope, order preserved, as append-ready HTML. */
-export function extractCityRows({ json, searchedCity }: {
-  json: unknown;
-  searchedCity: string;
-}) {
+export function extractCityRows({ json, searchedCity }: { json: unknown; searchedCity: string }) {
   const html = getSmileHtml(json);
   if (!html) {
     return [];
@@ -964,10 +931,12 @@ export function extractCityRows({ json, searchedCity }: {
 
   const parsedDocument = new DOMParser().parseFromString(html, "text/html");
   return [...parsedDocument.querySelectorAll("li.diary")]
-    .filter(elRow => cityMatches({
-      rowCity: rowCityName(elRow),
-      searchedCity
-    }))
+    .filter(elRow =>
+      cityMatches({
+        rowCity: rowCityName(elRow),
+        searchedCity
+      })
+    )
     .map(elRow => ({
       name: rowClinicName(elRow),
       html: elRow.outerHTML

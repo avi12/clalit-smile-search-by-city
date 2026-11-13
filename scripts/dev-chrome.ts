@@ -5,18 +5,13 @@
  * chrome-devtools-mcp can attach to this exact instance.
  */
 
-import {
-  type BrowserTarget,
-  cloneFile,
-  logEvent,
-  OUTPUT_DIR,
-  START_URL,
-  USER_PROFILES_DIR
-} from "./dev-shared";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
+
 import webExtRun from "web-ext-run";
+
+import { type BrowserTarget, cloneFile, logEvent, OUTPUT_DIR, START_URL, USER_PROFILES_DIR } from "./dev-shared";
 
 // Fixed so the MCP / verification can always reach this instance. This is the single source of truth
 // for the port, but .mcp.json cannot import it - when changing it, update .mcp.json's --browser-url to

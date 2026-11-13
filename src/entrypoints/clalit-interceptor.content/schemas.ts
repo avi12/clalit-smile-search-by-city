@@ -21,10 +21,7 @@ export const searchConfigSchema = z.object({
  * The answer to a position request. It reaches the MAIN world over window.postMessage, so a page script
  * could answer instead of the bridge - a bad shape is treated exactly like "no fix".
  */
-export const positionAnswerSchema = z.tuple([
-  z.number().min(-90).max(90),
-  z.number().min(-180).max(180)
-]).nullable();
+export const positionAnswerSchema = z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]).nullable();
 
 // ── Smile network envelope ──────────────────────────────────────────────────────
 

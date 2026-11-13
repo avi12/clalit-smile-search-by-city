@@ -7,10 +7,11 @@
  * denied or unavailable position leaves the list exactly as the server sorted it.
  */
 
+import { haversineKm, type LatLng, POSITION_MAX_AGE_MS } from "@/lib/geo";
+
 import { clinicCoords } from "./clinic-coord-fixes";
 import { requestPosition } from "./page-position";
 import { rowNavCode, setRowDistanceLabel } from "./smile";
-import { haversineKm, type LatLng, POSITION_MAX_AGE_MS } from "@/lib/geo";
 
 export function createLiveDistanceSort(isActive: () => boolean) {
   let cachedPosition: {
@@ -52,7 +53,8 @@ export function createLiveDistanceSort(isActive: () => boolean) {
       const coords = clinicCoords(navCode);
       if (coords) {
         distances.set(
-          navCode, haversineKm({
+          navCode,
+          haversineKm({
             from: position,
             to: coords
           })
@@ -90,10 +92,7 @@ export function createLiveDistanceSort(isActive: () => boolean) {
   }
 
   /** Re-rank the finished list by great-circle distance from the user's live position. */
-  async function reorder({ elList, isDescending }: {
-    elList: Element;
-    isDescending: boolean;
-  }) {
+  async function reorder({ elList, isDescending }: { elList: Element; isDescending: boolean }) {
     const position = await currentPosition();
     if (!position || !isActive()) {
       return;
@@ -104,10 +103,12 @@ export function createLiveDistanceSort(isActive: () => boolean) {
       return {
         elRow,
         iRow: i,
-        km: coords ? haversineKm({
-          from: position,
-          to: coords
-        }) : Number.POSITIVE_INFINITY
+        km: coords
+          ? haversineKm({
+              from: position,
+              to: coords
+            })
+          : Number.POSITIVE_INFINITY
       };
     });
     ranked.sort((first, second) => {

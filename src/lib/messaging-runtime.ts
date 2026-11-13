@@ -7,8 +7,9 @@
  * messaging-page.ts is for).
  */
 
-import { type RuntimeProtocol } from "./messaging";
 import { defineExtensionMessaging } from "@webext-core/messaging";
+
+import { type RuntimeProtocol } from "./messaging";
 
 export const { sendMessage: sendRuntimeMessage, onMessage: onRuntimeMessage } =
   defineExtensionMessaging<RuntimeProtocol>();

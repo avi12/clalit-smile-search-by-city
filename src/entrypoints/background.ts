@@ -13,10 +13,10 @@
  * which Chrome refuses.
  */
 
+import { browser, defineBackground } from "#imports";
 import { type LatLng } from "@/lib/geo";
 import { RuntimeMsg } from "@/lib/messaging";
 import { onRuntimeMessage } from "@/lib/messaging-runtime";
-import { browser, defineBackground } from "#imports";
 
 const OFFSCREEN_PATH = "/offscreen.html";
 const OFFSCREEN_JUSTIFICATION =

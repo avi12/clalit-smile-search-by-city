@@ -17,8 +17,9 @@
  * schema.
  */
 
-import { frameMessageSchema } from "./schemas";
 import { type FrameMsg, type FrameProtocol, PAGE_NAMESPACE } from "@/lib/messaging";
+
+import { frameMessageSchema } from "./schemas";
 
 export function openFrameChannel(tabId: number) {
   const channel = new BroadcastChannel(`${PAGE_NAMESPACE}/frames/${tabId}`);

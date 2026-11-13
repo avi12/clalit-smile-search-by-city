@@ -15,13 +15,7 @@
 
 import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
 import { smileEnvelopeSchema } from "./schemas";
-import {
-  captionLoader,
-  openInNewTab,
-  setSiteLoader,
-  showDetailsDialog,
-  showSiteMessage
-} from "./site-chrome";
+import { captionLoader, openInNewTab, setSiteLoader, showDetailsDialog, showSiteMessage } from "./site-chrome";
 import {
   applyBranchToDetailsFragment,
   BRANCH_PAGE_NOTE,
@@ -41,7 +35,11 @@ import {
 import { TAILORED_BRANCH_HASH } from "./smile-clinic-page";
 import type { SmileSession } from "./smile-session";
 
-export function createRowActions({ session, slotsLinkFor, verdictFor }: {
+export function createRowActions({
+  session,
+  slotsLinkFor,
+  verdictFor
+}: {
   session: SmileSession;
   /** The branch's slots page as the availability sweep saw it, while that sweep is still the session's. */
   slotsLinkFor: (navCode: string) => string | null;
@@ -63,14 +61,21 @@ export function createRowActions({ session, slotsLinkFor, verdictFor }: {
 
     const envelope = await session.fetchSessionJson({ url: templateLink }).catch(() => null);
     const parsed = smileEnvelopeSchema.safeParse(envelope);
-    return parsed.success ? applyBranchToDetailsFragment({
-      template: parsed.data.data,
-      branch
-    }) : null;
+    return parsed.success
+      ? applyBranchToDetailsFragment({
+          template: parsed.data.data,
+          branch
+        })
+      : null;
   }
 
   /** "מידע נוסף" for a branch the server will not describe: the site's own lightbox, composed. */
-  async function openDetails({ code, fallbackHref, note, onComposed }: {
+  async function openDetails({
+    code,
+    fallbackHref,
+    note,
+    onComposed
+  }: {
     code: string;
     fallbackHref: string;
     note: string;
@@ -86,30 +91,34 @@ export function createRowActions({ session, slotsLinkFor, verdictFor }: {
     // Every search re-mints the session's GUIDs - the sweep's, ours or the user's own - so a dead
     // template link means "stale", not "impossible": re-run the user's search once and compose again,
     // otherwise the row would open the nearme page in a new tab instead of the lightbox.
-    const fragment = await composeDetailsFragment(branch) ?? await (async () => {
-      await session.restoreUserSearch().catch(() => {});
-      return composeDetailsFragment(branch);
-    })();
+    const fragment =
+      (await composeDetailsFragment(branch)) ??
+      (await (async () => {
+        await session.restoreUserSearch().catch(() => {});
+        return composeDetailsFragment(branch);
+      })());
     onComposed?.();
 
-    if (!fragment || !showDetailsDialog({
-      html: fragment,
-      note
-    })) {
+    if (
+      !fragment ||
+      !showDetailsDialog({
+        html: fragment,
+        note
+      })
+    ) {
       openInNewTab(fallbackHref);
     }
   }
 
   /** One NEW all-country search for a service, scanned page by page for the branch's link. */
-  async function scanSearchForBranch({ specialization, navCode }: {
-    specialization: string;
-    navCode: string;
-  }) {
+  async function scanSearchForBranch({ specialization, navCode }: { specialization: string; navCode: string }) {
     const first = await session.search(specialization);
-    if (session.trackEnvelopeStatus({
-      json: first,
-      specialization
-    }) !== SMILE_ENVELOPE_STATUS.success) {
+    if (
+      session.trackEnvelopeStatus({
+        json: first,
+        specialization
+      }) !== SMILE_ENVELOPE_STATUS.success
+    ) {
       return null;
     }
 
@@ -157,9 +166,11 @@ export function createRowActions({ session, slotsLinkFor, verdictFor }: {
    * with no clinic on it at all, which is what a borrowed page must never become).
    */
   function liveSlotsLink() {
-    return [...document.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}]) a[data-action-link]`)]
-      .map(elLink => elLink.getAttribute("data-action-link") ?? "")
-      .find(link => link.includes(SMILE_SLOTS_PATH)) ?? null;
+    return (
+      [...document.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}]) a[data-action-link]`)]
+        .map(elLink => elLink.getAttribute("data-action-link") ?? "")
+        .find(link => link.includes(SMILE_SLOTS_PATH)) ?? null
+    );
   }
 
   /**

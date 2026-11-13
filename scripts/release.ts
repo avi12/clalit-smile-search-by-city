@@ -10,13 +10,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync
-} from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
 interface PackageJson {
@@ -72,11 +66,15 @@ function packCrx() {
     mkdirSync(dirname(keyPath), { recursive: true });
   }
 
-  const result = spawnSync(chromeBinary, [
-    `--pack-extension=${CHROME_BUILD_DIR}`,
-    ...isExistingKey ? [`--pack-extension-key=${keyPath}`] : [],
-    "--no-message-box"
-  ], { stdio: "inherit" });
+  const result = spawnSync(
+    chromeBinary,
+    [
+      `--pack-extension=${CHROME_BUILD_DIR}`,
+      ...(isExistingKey ? [`--pack-extension-key=${keyPath}`] : []),
+      "--no-message-box"
+    ],
+    { stdio: "inherit" }
+  );
   if (result.status !== 0) {
     fail("Chrome --pack-extension failed");
   }

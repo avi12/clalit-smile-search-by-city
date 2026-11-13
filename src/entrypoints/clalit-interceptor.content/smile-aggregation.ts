@@ -8,6 +8,8 @@
  * directory (docs §10a), and a "distance" sort is re-ranked by the user's live position.
  */
 
+import type { GuaranteeStatus } from "@/lib/messaging";
+
 import { SMILE_BRANCHES, type SmileBranch } from "./clinic-directory";
 import { createLiveDistanceSort } from "./live-distance";
 import { holdSiteLoader, waitForElement } from "./site-chrome";
@@ -25,7 +27,6 @@ import {
   SYNTHETIC_ROW_ATTR
 } from "./smile";
 import type { SmileSession } from "./smile-session";
-import type { GuaranteeStatus } from "@/lib/messaging";
 
 /** A filtered render of ours, tagged so the aggregator can find that exact list in the live document. */
 export type MarkedSmileOutcome = SmileFilterOutcome & { marker: string };
@@ -48,15 +49,16 @@ function parseRowTemplate(html: string) {
  */
 /** The city's branches this render is missing - decided BEFORE anything is inserted, so their
  * bookability can be settled while the list still shows only what the server sent. */
-function missingBranches({ elList, city }: {
-  elList: Element;
-  city: string;
-}) {
+function missingBranches({ elList, city }: { elList: Element; city: string }) {
   const seenCodes = new Set([...elList.querySelectorAll("li.diary")].map(rowNavCode));
-  return SMILE_BRANCHES.filter(branch => !seenCodes.has(branch.code) && cityMatches({
-    rowCity: branch.city,
-    searchedCity: city
-  }));
+  return SMILE_BRANCHES.filter(
+    branch =>
+      !seenCodes.has(branch.code) &&
+      cityMatches({
+        rowCity: branch.city,
+        searchedCity: city
+      })
+  );
 }
 
 /**
@@ -69,7 +71,10 @@ function missingBranches({ elList, city }: {
  * they are, nearest first. An unsettled verdict keeps the site's own button, so it is grouped with the
  * bookable ones, exactly as it looks; branches with no known position keep directory order at the end.
  */
-function byBookableThenDistance({ distances, bookabilityOf }: {
+function byBookableThenDistance({
+  distances,
+  bookabilityOf
+}: {
   distances: Map<string, number>;
   bookabilityOf: (navCode: string) => boolean | null;
 }) {
@@ -104,8 +109,7 @@ function appendMissingBranches({
   slotsLinkOf: (navCode: string) => string | null;
   distances: Map<string, number>;
 }) {
-  const elTemplate =
-    elList.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
+  const elTemplate = elList.querySelector(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`) ?? parseRowTemplate(templateRowHtml);
   if (!elTemplate) {
     return 0;
   }
@@ -175,17 +179,21 @@ export function createSmileAggregation({
     }
 
     // No history / not reachable leaves the map empty - synthetic rows fall back to the nearme page.
-    const response = await nativeFetch.call(window, "/Zimunet/", {
-      headers: {
-        "X-Requested-With": "XMLHttpRequest"
-      },
-      credentials: "same-origin"
-    }).catch(() => null);
+    const response = await nativeFetch
+      .call(window, "/Zimunet/", {
+        headers: {
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        credentials: "same-origin"
+      })
+      .catch(() => null);
     const html = response ? await response.text().catch(() => "") : "";
 
     const map = new Map<string, string>();
     const parsedDocument = new DOMParser().parseFromString(html, "text/html");
-    for (const elAnchor of parsedDocument.querySelectorAll("a.clinicDetails[data-action-link*=\"ClinicDetailsByVisit\"]")) {
+    for (const elAnchor of parsedDocument.querySelectorAll(
+      'a.clinicDetails[data-action-link*="ClinicDetailsByVisit"]'
+    )) {
       const guid = elAnchor.getAttribute("data-action-link")?.split("/").pop();
       const title = elAnchor.textContent?.trim();
       if (guid && title && !map.has(title)) {
@@ -197,10 +205,7 @@ export function createSmileAggregation({
     return map;
   }
 
-  function setHeader({ elList, count }: {
-    elList: Element;
-    count: number;
-  }) {
+  function setHeader({ elList, count }: { elList: Element; count: number }) {
     const elHeader = elList.closest("#am_diaries")?.querySelector("h2");
     if (elHeader) {
       setHeaderCount({
@@ -260,7 +265,16 @@ export function createSmileAggregation({
   }
 
   /** Everything the first rendered page is missing, in the order the list needs it. */
-  async function complete({ elList, city, totalPages, keptRowCount, totalDeclared, templateRowHtml, isStale, loader }: {
+  async function complete({
+    elList,
+    city,
+    totalPages,
+    keptRowCount,
+    totalDeclared,
+    templateRowHtml,
+    isStale,
+    loader
+  }: {
     elList: Element;
     city: string;
     totalPages: number;

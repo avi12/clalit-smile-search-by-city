@@ -22,20 +22,27 @@ import type { SmileSession } from "./smile-session";
 /** The diary set moves during the day (docs §6c), so a verdict is a snapshot with a short life. */
 const VERDICT_TTL_MS = 5 * 60_000;
 
-export function createAvailabilityProbe({ session, isMintInFlight, now = Date.now }: {
+export function createAvailabilityProbe({
+  session,
+  isMintInFlight,
+  now = Date.now
+}: {
   session: SmileSession;
   /** A click-time check is already talking to the server; probing now would only fight it. */
   isMintInFlight: () => boolean;
   now?: () => number;
 }) {
-  const verdicts = new Map<string, {
-    isBookable: boolean;
-    decidedAt: number;
-    /** The row that proved it bookable is the only place its soonest slot exists for us. */
-    soonest: string | null;
-    /** And the only place its slots page exists - the link that makes the row's button a plain link. */
-    slotsLink: string | null;
-  }>();
+  const verdicts = new Map<
+    string,
+    {
+      isBookable: boolean;
+      decidedAt: number;
+      /** The row that proved it bookable is the only place its soonest slot exists for us. */
+      soonest: string | null;
+      /** And the only place its slots page exists - the link that makes the row's button a plain link. */
+      slotsLink: string | null;
+    }
+  >();
 
   function liveVerdict(navCode: string) {
     const verdict = verdicts.get(navCode);
@@ -56,7 +63,12 @@ export function createAvailabilityProbe({ session, isMintInFlight, now = Date.no
     return liveVerdict(navCode)?.slotsLink ?? null;
   }
 
-  function remember({ navCode, isBookable, soonest = null, slotsLink = null }: {
+  function remember({
+    navCode,
+    isBookable,
+    soonest = null,
+    slotsLink = null
+  }: {
     navCode: string;
     isBookable: boolean;
     soonest?: string | null;
@@ -75,10 +87,12 @@ export function createAvailabilityProbe({ session, isMintInFlight, now = Date.no
     const specialization = session.state.activeSearchSpecialization;
     const listed = session.isSpecializationEmpty(specialization)
       ? new Map<string, ListedBranchRow>()
-      : await session.sweepListedBranches({
-        specialization,
-        navCodes
-      }).catch(() => new Map<string, ListedBranchRow>());
+      : await session
+          .sweepListedBranches({
+            specialization,
+            navCodes
+          })
+          .catch(() => new Map<string, ListedBranchRow>());
 
     for (const navCode of navCodes) {
       const row = listed.get(navCode);

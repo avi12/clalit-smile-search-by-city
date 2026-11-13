@@ -13,28 +13,22 @@
  * which depends on Node's child_process socket handling.
  */
 
+import { createHash } from "node:crypto";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import { inspect } from "node:util";
+
+import chokidar from "chokidar";
+import type webExtRun from "web-ext-run";
+import { consoleStream as webExtConsoleStream } from "web-ext-run/util/logger";
+import { build } from "wxt";
+
 import {
   SESSION_TIMEOUT_CONTINUE_SELECTORS,
   SESSION_TIMEOUT_DIALOG_SELECTOR,
   SESSION_TIMEOUT_EXIT_HINT,
   TARGET_HOSTS
 } from "../src/lib/targets";
-import chokidar from "chokidar";
-import { createHash } from "node:crypto";
-import {
-  appendFileSync,
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync
-} from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
-import { inspect } from "node:util";
-import webExtRun from "web-ext-run";
-import { consoleStream as webExtConsoleStream } from "web-ext-run/util/logger";
-import { build } from "wxt";
 
 // ── Dev log ────────────────────────────────────────────────────────────────────
 const DEV_LOG_DIR = resolve(import.meta.dirname, "..", ".dev-logs");
@@ -51,24 +45,27 @@ function rotateDevLog() {
 
   try {
     renameSync(devLogPath, devLogPrevPath);
-  } catch { /* prev locked - truncate below instead */ }
+  } catch {
+    /* prev locked - truncate below instead */
+  }
   writeFileSync(devLogPath, "");
   devLogBytes = 0;
 }
 
-function appendToDevLog({ level, args }: {
-  level: string;
-  args: unknown[];
-}) {
+function appendToDevLog({ level, args }: { level: string; args: unknown[] }) {
   if (!devLogPath) {
     return;
   }
 
   let text = args
-    .map(arg => typeof arg === "string" ? arg : inspect(arg, {
-      depth: 2,
-      breakLength: 120
-    }))
+    .map(arg =>
+      typeof arg === "string"
+        ? arg
+        : inspect(arg, {
+            depth: 2,
+            breakLength: 120
+          })
+    )
     .join(" ");
   if (text.length > DEV_LOG_MAX_ENTRY_CHARS) {
     text = `${text.slice(0, DEV_LOG_MAX_ENTRY_CHARS)} ...[truncated]`;
@@ -82,7 +79,9 @@ function appendToDevLog({ level, args }: {
 
     appendFileSync(devLogPath, line);
     devLogBytes += line.length;
-  } catch { /* logging must never take the dev server down */ }
+  } catch {
+    /* logging must never take the dev server down */
+  }
 }
 
 function initDevLog() {
@@ -93,7 +92,9 @@ function initDevLog() {
   if (existsSync(devLogPath)) {
     try {
       renameSync(devLogPath, devLogPrevPath);
-    } catch { /* prev locked - truncate below wins */ }
+    } catch {
+      /* prev locked - truncate below wins */
+    }
   }
 
   writeFileSync(devLogPath, "");
@@ -127,8 +128,11 @@ export function installProcessDiagnostics() {
   });
   process.on("unhandledRejection", reason => {
     const isViteWatcherEbusy =
-      reason instanceof Error && "code" in reason && reason.code === "EBUSY" &&
-      "syscall" in reason && reason.syscall === "watch";
+      reason instanceof Error &&
+      "code" in reason &&
+      reason.code === "EBUSY" &&
+      "syscall" in reason &&
+      reason.syscall === "watch";
     if (isViteWatcherEbusy) {
       return;
     }
@@ -138,10 +142,7 @@ export function installProcessDiagnostics() {
   });
 }
 
-export function cloneFile({ sourcePath, destinationPath }: {
-  sourcePath: string;
-  destinationPath: string;
-}) {
+export function cloneFile({ sourcePath, destinationPath }: { sourcePath: string; destinationPath: string }) {
   if (!existsSync(sourcePath)) {
     return;
   }
@@ -205,12 +206,12 @@ async function runBuildWithFsRetry() {
 }
 
 // ── CDP helpers ───────────────────────────────────────────────────────────────
-type CdpTarget = {
+interface CdpTarget {
   id?: string;
   type?: string;
   url?: string;
   webSocketDebuggerUrl?: string;
-};
+}
 
 async function fetchCdpTargets(cdpPort: number) {
   try {
@@ -231,10 +232,7 @@ const CDP_EVALUATE_TIMEOUT_MS = 3000;
  * service worker); resolves with its (by-value) result, awaiting a promise the expression returns, and
  * with `undefined` if the target does not answer.
  */
-function evaluateOverCdp({ websocketUrl, expression }: {
-  websocketUrl: string;
-  expression: string;
-}) {
+function evaluateOverCdp({ websocketUrl, expression }: { websocketUrl: string; expression: string }) {
   return new Promise<unknown>(resolvePromise => {
     const websocket = new WebSocket(websocketUrl);
     let settled = false;
@@ -284,13 +282,16 @@ function isTargetTabUrl(url: string | undefined) {
 }
 
 async function reloadTargetTabsOverCdp(cdpPort: number) {
-  const tabs = (await fetchCdpTargets(cdpPort))
-    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
+  const tabs = (await fetchCdpTargets(cdpPort)).filter(
+    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
+  );
   await Promise.all(
-    tabs.map(({ webSocketDebuggerUrl }) => evaluateOverCdp({
-      websocketUrl: webSocketDebuggerUrl!,
-      expression: "location.reload()"
-    }))
+    tabs.map(({ webSocketDebuggerUrl }) =>
+      evaluateOverCdp({
+        websocketUrl: webSocketDebuggerUrl!,
+        expression: "location.reload()"
+      })
+    )
   );
 }
 
@@ -330,8 +331,9 @@ function sessionKeepaliveExpression() {
 }
 
 async function pollSessionKeepalive(cdpPort: number) {
-  const tabs = (await fetchCdpTargets(cdpPort))
-    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
+  const tabs = (await fetchCdpTargets(cdpPort)).filter(
+    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
+  );
   const expression = sessionKeepaliveExpression();
   for (const { webSocketDebuggerUrl } of tabs) {
     const clicked = await evaluateOverCdp({
@@ -427,7 +429,11 @@ function bundleFingerprint(sources: string[]) {
  * Evaluate the built bundles in every Clalit frame of one page target, each into the world it is
  * declared for, and stamp the tab with the build it now runs.
  */
-function injectIntoTarget({ websocketUrl, bundles, extensionName }: {
+function injectIntoTarget({
+  websocketUrl,
+  bundles,
+  extensionName
+}: {
   websocketUrl: string;
   bundles: {
     source: string;
@@ -452,10 +458,7 @@ function injectIntoTarget({ websocketUrl, bundles, extensionName }: {
 
     const timer = setTimeout(finish, CDP_EVALUATE_TIMEOUT_MS);
 
-    function send({ method, params }: {
-      method: string;
-      params?: object;
-    }) {
+    function send({ method, params }: { method: string; params?: object }) {
       const id = nextId++;
       websocket.send(
         JSON.stringify({
@@ -471,7 +474,11 @@ function injectIntoTarget({ websocketUrl, bundles, extensionName }: {
       enableId = send({ method: "Runtime.enable" });
     };
     websocket.onmessage = ({ data }) => {
-      const { id, method, params }: {
+      const {
+        id,
+        method,
+        params
+      }: {
         id?: number;
         method?: string;
         params?: {
@@ -540,7 +547,12 @@ function injectIntoTarget({ websocketUrl, bundles, extensionName }: {
  * later read from, so "is this tab current?" is asked and answered in one place. A navigation wipes it,
  * which is exactly what makes a reloaded tab (running Chrome's cached content scripts) detectable.
  */
-async function injectAndStamp({ websocketUrl, bundles, extensionName, buildId }: {
+async function injectAndStamp({
+  websocketUrl,
+  bundles,
+  extensionName,
+  buildId
+}: {
   websocketUrl: string;
   bundles: {
     source: string;
@@ -561,12 +573,10 @@ async function injectAndStamp({ websocketUrl, bundles, extensionName, buildId }:
 }
 
 function builtBundles() {
-  const bundles = CONTENT_SCRIPT_BUNDLES
-    .filter(({ path }) => existsSync(path))
-    .map(({ path, isMainWorld }) => ({
-      source: readFileSync(path, "utf-8"),
-      isMainWorld
-    }));
+  const bundles = CONTENT_SCRIPT_BUNDLES.filter(({ path }) => existsSync(path)).map(({ path, isMainWorld }) => ({
+    source: readFileSync(path, "utf-8"),
+    isMainWorld
+  }));
   if (bundles.length < CONTENT_SCRIPT_BUNDLES.length) {
     logEvent("Inject: some built bundles are missing - did the build output move?");
   }
@@ -578,15 +588,18 @@ async function reinjectContentScriptsOverCdp(cdpPort: number) {
   const bundles = builtBundles();
   const buildId = bundleFingerprint(bundles.map(({ source }) => source));
   const extensionName = builtExtensionName();
-  const tabs = (await fetchCdpTargets(cdpPort))
-    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
+  const tabs = (await fetchCdpTargets(cdpPort)).filter(
+    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
+  );
   await Promise.all(
-    tabs.map(({ webSocketDebuggerUrl }) => injectAndStamp({
-      websocketUrl: webSocketDebuggerUrl!,
-      bundles,
-      extensionName,
-      buildId
-    }))
+    tabs.map(({ webSocketDebuggerUrl }) =>
+      injectAndStamp({
+        websocketUrl: webSocketDebuggerUrl!,
+        bundles,
+        extensionName,
+        buildId
+      })
+    )
   );
   return tabs.length;
 }
@@ -606,8 +619,9 @@ async function reconcileInjections(cdpPort: number) {
   const bundles = builtBundles();
   const buildId = bundleFingerprint(bundles.map(({ source }) => source));
   const extensionName = builtExtensionName();
-  const tabs = (await fetchCdpTargets(cdpPort))
-    .filter(({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl);
+  const tabs = (await fetchCdpTargets(cdpPort)).filter(
+    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
+  );
   for (const { webSocketDebuggerUrl } of tabs) {
     const stamp = await evaluateOverCdp({
       websocketUrl: webSocketDebuggerUrl!,
@@ -643,7 +657,7 @@ function startInjectionReconcile(cdpPort: number) {
 // ── Browser target ──────────────────────────────────────────────────────────────
 type WebExtRunner = Awaited<ReturnType<typeof webExtRun.cmd.run>>;
 
-export type BrowserTarget = {
+export interface BrowserTarget {
   name: string;
   outputDir: string;
   setupProfile: () => string;
@@ -651,7 +665,7 @@ export type BrowserTarget = {
     runner: WebExtRunner;
     cdpPort: number;
   }>;
-};
+}
 
 function suppressWebExtInfoLogs() {
   const WARN_LOG_LEVEL = 40;

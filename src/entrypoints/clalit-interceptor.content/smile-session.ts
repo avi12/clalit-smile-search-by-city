@@ -13,6 +13,15 @@
  */
 
 import {
+  SMILE_AREA_FIELD,
+  SMILE_CITY_FIELD,
+  SMILE_PAGING_PATH,
+  SMILE_SEARCH_PATH,
+  SMILE_SPECIALIZATION_CODES,
+  SMILE_SPECIALIZATION_FIELD
+} from "@/lib/targets";
+
+import {
   envelopeStatus,
   type ListedBranchRow,
   listedRowsInEnvelope,
@@ -23,14 +32,6 @@ import {
   SMILE_MARKER_ATTR,
   SYNTHETIC_ROW_ATTR
 } from "./smile";
-import {
-  SMILE_AREA_FIELD,
-  SMILE_CITY_FIELD,
-  SMILE_PAGING_PATH,
-  SMILE_SEARCH_PATH,
-  SMILE_SPECIALIZATION_CODES,
-  SMILE_SPECIALIZATION_FIELD
-} from "@/lib/targets";
 
 /** Which order the server session currently applies to the result set. */
 type SmileSort = "cityDistance" | "soonest" | "home";
@@ -85,10 +86,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   }
 
   /** GET/POST a /Zimunet/ endpoint with the PAGE's own session, bypassing our own patches. */
-  async function fetchSessionJson({ url, body }: {
-    url: string;
-    body?: string;
-  }) {
+  async function fetchSessionJson({ url, body }: { url: string; body?: string }) {
     const headers: Record<string, string> = {
       "X-Requested-With": "XMLHttpRequest"
     };
@@ -115,10 +113,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   }
 
   /** Read a search envelope's status, remembering an empty service and a lost session. */
-  function trackEnvelopeStatus({ json, specialization }: {
-    json: unknown;
-    specialization?: string;
-  }) {
+  function trackEnvelopeStatus({ json, specialization }: { json: unknown; specialization?: string }) {
     const status = envelopeStatus(json);
     if (status === SMILE_ENVELOPE_STATUS.authorization) {
       state.isSessionLost = true;
@@ -140,10 +135,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
     return emptySpecializations.has(specialization);
   }
 
-  function pagesOf({ totalDeclared, pageRowCount }: {
-    totalDeclared: number;
-    pageRowCount: number;
-  }) {
+  function pagesOf({ totalDeclared, pageRowCount }: { totalDeclared: number; pageRowCount: number }) {
     return pageRowCount ? Math.min(Math.ceil(totalDeclared / pageRowCount), MAX_SCAN_PAGES) : 0;
   }
 
@@ -175,17 +167,22 @@ export function createSmileSession(nativeFetch: typeof fetch) {
    * Pages are walked one at a time on purpose: the scheduler serialises a session's calls, so ten
    * parallel page fetches measured 656 ms against 161 ms sequential (2026-08-15).
    */
-  async function sweepListedBranches({ specialization, navCodes }: {
+  async function sweepListedBranches({
+    specialization,
+    navCodes
+  }: {
     specialization: string;
     navCodes: Iterable<string>;
   }) {
     const wanted = new Set(navCodes);
     const found = new Map<string, ListedBranchRow>();
     const first = await search(specialization);
-    if (trackEnvelopeStatus({
-      json: first,
-      specialization
-    }) !== SMILE_ENVELOPE_STATUS.success) {
+    if (
+      trackEnvelopeStatus({
+        json: first,
+        specialization
+      }) !== SMILE_ENVELOPE_STATUS.success
+    ) {
       return found;
     }
 
@@ -248,9 +245,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
       return;
     }
 
-    const pending = new Set(
-      [...elList.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)].map(rowNavCode)
-    );
+    const pending = new Set([...elList.querySelectorAll(`li.diary:not([${SYNTHETIC_ROW_ATTR}])`)].map(rowNavCode));
     for (const code of refreshRowActionLinks({
       elList,
       json: first

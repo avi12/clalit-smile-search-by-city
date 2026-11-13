@@ -1,9 +1,12 @@
 # Project
+
 A WXT MV3 Chrome extension that guarantees a searched city in Clalit's "Tamuz" / Clalit Smile hygienist (שיננית) booking flow shows ONLY that city and ALL of its branches - when the user asked for that city's clinics; an explicit "מרפאות מכל הארץ" search is passed through untouched - and that every row's distance is measured from where the user actually is. Content scripts do all the work; no storage, and the only permissions are `geolocation` + `offscreen` - the position is the EXTENSION's own reading, never the site's (see Architecture).
+
 - The booking UI is an iframe on `e-services.clalit.co.il` (behind login); `clalitsmile.co.il` is only the marketing site. Full teardown in `docs/reverse-engineering.md` - read it before touching the interceptor, `smile.ts` or `targets.ts`.
 - Mechanism: patch `fetch`/`XMLHttpRequest` in the page's MAIN world (`document_start`, all frames) and rewrite the server responses - which are a JSON envelope `{ data }` wrapping a SERVER-RENDERED HTML fragment (`li.diary` rows), not JSON data.
 
 # Stack
+
 - pnpm
 - WXT extension framework, TypeScript content scripts; our own DOM is Svelte 5 (runes) mounted in a WXT shadow-root UI (`createShadowRootUi`; component CSS compiled in via `css: "injected"` so re-injected dev generations need no browser.* APIs) - never hand-rolled
 - TypeScript (100% type safety, let TypeScript infer return types - never write them explicitly)
@@ -12,19 +15,23 @@ A WXT MV3 Chrome extension that guarantees a searched city in Clalit's "Tamuz" /
 - oxlint (type-aware, logic rules) + ESLint (stylistic + local rules); dev tooling runs via tsx (Node, never Bun - web-ext-run depends on Node's child_process socket handling)
 
 # Architecture
+
 An entrypoint that owns private modules IS a folder - `clalit-interceptor.content/index.ts` plus the modules only it reaches - and one that owns none stays a single file. So the tree answers "who uses this?" by where the file sits, and `src/lib/` is left holding only what genuinely crosses an entrypoint. Measured, not assumed: walk each entrypoint's import graph, and anything reached by exactly one belongs inside it.
 
 Two content scripts, both `allFrames` (the booking UI is an iframe):
+
 - `src/entrypoints/clalit-interceptor.content/` (20 modules) - MAIN world: patches fetch/XHR, rewrites the outgoing search (area → all-country, `sortValue=4` → `3`), filters responses to the city, aggregates the remaining server pages, appends no-diary branches, re-ranks by live location, mints a synthetic row's diary GUID at click time (one fresh search in the SEARCHED service → navigate to that clinic's page; on miss restore the user's search session + heal the rendered links), guarantees the server-rendered "back" restore document IN PLACE (`isRestoreSearch=True` bypasses the patches, but its markup IS the envelope the network path carries, so the same transform runs on it and the aggregation completes the city - nothing is searched again, docs §6d), and opens the site's clinic-details lightbox for no-GUID branches (fragment recomposed from the committed directory, shown via the page's own `z.showDialog`)
 - `src/entrypoints/clalit-bridge.content/` (5 modules) - ISOLATED world, `document_idle`: reads the city from the site's search box, pushes config to MAIN over the window channel, renders the status badge (top frame only; ONLY the frame holding the search box broadcasts state, since several same-origin frames run this script and the top keeps one slot), joins the tab's frame channel once the background says which tab this is, and answers MAIN's position request by asking the background
 
 Plus the two contexts that exist for ONE thing - reading the position under the extension's own permission instead of the site's (a content script's `navigator.geolocation` is the PAGE's, and is empty whenever the user refused Clalit):
+
 - `src/entrypoints/background.ts` - opens an offscreen document per read, waits for its report, closes it again; concurrent askers (one bridge per frame) share the single in-flight read
 - `src/entrypoints/offscreen/` - the ONLY call to `navigator.geolocation` in the codebase. It reads on load and REPORTS to the background (never waits to be asked, so it cannot be messaged before its listeners are up)
 
 `src/lib/` (5) is everything else - `messaging.ts`, `messaging-page.ts`, `messaging-runtime.ts`, `targets.ts`, `geo.ts` - and every one of them is reached by at least three entrypoints. Nothing there may import from an entrypoint folder: the dependency runs one way, and that is what keeps it shared. There is no third home; a module is either an entrypoint's or everyone's.
 
 Key modules - the interceptor owns only the patches and the wiring, each behaviour lives in its own module beside it:
+
 - `lib/targets.ts` - SSOT for hosts, matches/`host_permissions`, search-box selectors, guarantee mode, Smile endpoint paths, endpoint rules. Imported by both runtime and `wxt.config.ts`
 - `smile.ts` - the HTML-fragment guarantee (pure string→string); `transform.ts` - the generic JSON guarantee (heuristic/rule-based)
 - `smile-session.ts` - the ONE shared Smile server session: what the last search was, which services still answer, and every `/Zimunet/SmileClinic` call, made with the page's credentials and its UNPATCHED fetch. The modules below read and write this object instead of keeping their own copy
@@ -42,6 +49,7 @@ Key modules - the interceptor owns only the patches and the wiring, each behavio
 - `status-badge.svelte.ts` + `StatusBadge.svelte` - pure UI
 
 # Engineering conventions
+
 - A module lives with its ONE owner, or in `src/lib/` because it has several - there is no third place. Before adding a file, ask which entrypoints reach it: one → inside that entrypoint's folder (make the entrypoint a folder if it is still a single file); more than one → `src/lib/`. Before moving anything into `lib/`, re-walk the graph rather than assuming - `messaging-frames.ts` sat there for a day looking shared and was only ever the bridge's
 - SSOT / DRY - every fact has one authoritative home and everything else reads from it: hosts/selectors/endpoints live only in `targets.ts`, message shapes only in `messaging.ts` (+ the receiving entrypoint's `schemas.ts`), coordinates only in `clinic-directory.ts`. Never re-derive or duplicate a value another module already owns
 - MAIN vs ISOLATED split is load-bearing: the MAIN world can patch the page's `fetch`/XHR but has NO `browser.*` access; the ISOLATED world has extension APIs but cannot patch page globals. They talk only over the window channel. Anything imported by the interceptor must stay free of extension APIs and dependency-light
@@ -55,6 +63,7 @@ Key modules - the interceptor owns only the patches and the wiring, each behavio
 - Gate: `pnpm lint` AND `pnpm typecheck` must both pass after every change. `pnpm lint` runs oxlint --fix (relaxed `.oxlintrc.fix.json`) → eslint --fix (strips dead imports) → plain oxlint as the final check
 
 # Code style
+
 - Imports across folders go through the `@/` alias (WXT's own, `@/*` → `src/*`) - `@/lib/messaging`, never `../lib/messaging`. A path says WHAT it imports rather than how far up the tree it sits, so it survives a file moving. `./sibling` inside a folder stays relative; there are no `..` climbs left in `src/`
 - Function declarations, not arrow-consts (`func-style`); early returns; `for-of` over `.forEach`
 - Prefer destructuring for variables that point to object props when it improves readability - `const { city, street } = branch` over repeated `branch.city` / `branch.street`, `({ data }) => …` over `msg => msg.data`, and `const { ownerDocument } = container` over `const doc = container.ownerDocument` (prefer the prop's own name to an invented alias when the name is clear). Judgment call, not mechanical: a truly single-use prop read once stays as-is; reach for it when the value is used more than once or destructuring names it more clearly
@@ -70,7 +79,9 @@ Key modules - the interceptor owns only the patches and the wiring, each behavio
 - An event handler's parameter type is INFERRED, never written - `ctx.addEventListener(document, "click", e => …)`, not `(e: MouseEvent)`. The listener's own signature already says what the event is, and repeating it is a second copy that can drift from the first. Same rule wherever a callback's parameter type comes from the API it is passed to (`onPageMessage`, `MutationObserver`, `watcher.on`). Only write the type when TypeScript would otherwise infer `any`
 
 # Naming conventions
+
 Shared with `avi/youtube-time-manager` - the same conventions apply across Avi's extensions.
+
 - Variables and functions: `camelCase`, full words (no abbreviations - `specialization`, not `spec`)
 - Module-level constants: `SCREAMING_SNAKE_CASE`; a closed set of strings is an enum or `as const`
 - Element variables: `el` prefix (`elRow`, `elDialog`, `elLoader`)
@@ -80,7 +91,9 @@ Shared with `avi/youtube-time-manager` - the same conventions apply across Avi's
 - `safeParse` results: collapse to a boolean when only validity matters (`schema.safeParse(x).success`), otherwise store as `parsed` - never `result` or `<x>Parse`
 
 # Dev workflow
+
 `pnpm ext:dev` (tsx `scripts/dev.ts`) is the whole loop:
+
 - Builds the dev bundle (inline source maps), clones your real Chrome profile into `user-profiles/chrome` (carries your Clalit login, fully decoupled from the real session), launches Chrome via web-ext-run with a FIXED CDP port `9223` (`CDP_PORT` in `scripts/dev-chrome.ts`; `.mcp.json` mirrors it manually - update both if it ever changes). chrome-devtools-mcp attaches with `--browser-url http://127.0.0.1:9223`
 - On a `src/` change it rebuilds and EVALUATES the fresh bundles into every Clalit frame over CDP - interceptor into MAIN, bridge into the EXTENSION's isolated world (matched by execution-context name = the built manifest's `name`, newest context per frame) - it does NOT reload the tab, because a reload resets the Tamuz booking SPA to its home screen and loses the search state. The extension is NOT reloaded either, and that is what keeps this working: an extension reload REVOKES every open tab's isolated world (`browser.runtime.id` gone, "Extension context invalidated"), so the bridge could no longer reach the background and the position would silently answer `null`. The dev loop needs no permission of its own for any of this
 - A reload is reserved for what Chrome caches and only a reload refreshes - `manifest.json`, `background.js`, `offscreen.html` (hashed after every build, `reloadFingerprint`) - and it costs the open tabs, which are reloaded with it
@@ -94,9 +107,11 @@ Shared with `avi/youtube-time-manager` - the same conventions apply across Avi's
 - If `ext:dev` dies at launch with `CDP connection closed before response to Extensions.loadUnpacked`, a dev Chrome from an earlier session still holds port 9223 - kill ONLY the `chrome.exe` tree whose `--user-data-dir` is `user-profiles\chrome` (inspect command lines first; NEVER a blanket kill on `chrome.exe` - the real Chrome may be running), then relaunch (a leftover instance also means its login is stale; verify with the passive auth probe in docs §5a before assuming it is worth keeping)
 
 # Reverse-engineering log - REQUIRED
+
 Whenever you reverse-engineer ANYTHING about Clalit's systems - an API endpoint, a request/response shape, a data set, a site behavior, an auth quirk - you MUST record both the findings and the method in `docs/reverse-engineering.md` in the same change. This is a standing instruction, not optional polish: the knowledge there (which endpoints exist, exact request fields and response envelopes, how each was captured - curl probe, `__NEXT_DATA__` parse, logged-in CDP session - and the capture date) is what makes the extension maintainable when Clalit changes something, and anything left only in a chat or a scratchpad is lost. Update the existing sections when a shape changes; add a dated section for new discoveries. Read that doc BEFORE probing - most questions are already answered there.
 
 # Gotchas
+
 - **A BroadcastChannel in a content script's ISOLATED world only delivers to `onmessage`.** Registering with `addEventListener("message", …)` never fires - not even for a message posted by a second channel of the same script, in the same world, in the same tick - while that same object's `postMessage` is delivered normally. `messaging-frames.ts` therefore assigns `onmessage`, which is the ONE exception to the "hang every listener on `ctx`" rule (there is no event to hang). Corollary for probing: a channel created by CDP `Runtime.evaluate` in that world is NOT symmetric with the content script's - it HEARS the content script but the content script does not hear IT, so a CDP probe can only ever verify one direction. Verified live 16.08.2026
 - The Smile result set is SERVER-SESSION state: sort and `Paging` operate on the session's last search, and each row's diary GUID is valid only for that search. Never splice rows from a second search into the list - that's why the guarantee rewrites the ONE outgoing search to all-country and then filters/aggregates its own responses. Dedup rows by clinic name, not GUID
 - The "area" search (`IsShowClinicsFromAreaCity=1`) is a SUBSET that can miss the city's own clinics, and Tamuz omits branches with no bookable diary entirely - hence the all-country rewrite plus synthetic rows from `SMILE_BRANCHES`

@@ -17,8 +17,9 @@
  * as into a live one.
  */
 
-import PhoneLinks from "./PhoneLinks.svelte";
 import { flushSync, mount } from "svelte";
+
+import PhoneLinks from "./PhoneLinks.svelte";
 
 export interface FormattedPhone {
   /** Digits only, for `tel:` - what the phone actually dials. */
@@ -57,10 +58,7 @@ export function formatPhone(raw: string) {
  * document the slot belongs to - which is a no-op for the rows and the one thing that makes the parsed
  * fragment work. `flushSync` because both string surfaces read the slot's HTML on the very next line.
  */
-export function renderPhoneLinks({ elContainer, phones }: {
-  elContainer: Element;
-  phones: string[];
-}) {
+export function renderPhoneLinks({ elContainer, phones }: { elContainer: Element; phones: string[] }) {
   const elRendered = document.createElement("span");
   mount(PhoneLinks, {
     target: elRendered,

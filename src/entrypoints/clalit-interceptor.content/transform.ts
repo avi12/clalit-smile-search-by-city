@@ -7,9 +7,10 @@
  * sort" means. Pure and dependency-light so the MAIN-world interceptor can import it.
  */
 
-import { normalizeCity } from "./text";
 import type { GuaranteeMode } from "@/lib/messaging";
 import type { EndpointRule } from "@/lib/targets";
+
+import { normalizeCity } from "./text";
 
 interface TransformInput {
   city: string;
@@ -28,10 +29,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
 
-function getByPath({ source, path }: {
-  source: unknown;
-  path: string;
-}) {
+function getByPath({ source, path }: { source: unknown; path: string }) {
   if (!path) {
     return undefined;
   }
@@ -85,10 +83,7 @@ function findResultsArray(root: unknown) {
   return best;
 }
 
-function collectStrings({ row, depth = 0 }: {
-  row: Record<string, unknown>;
-  depth?: number;
-}) {
+function collectStrings({ row, depth = 0 }: { row: Record<string, unknown>; depth?: number }) {
   if (depth > 2) {
     return [];
   }
@@ -112,13 +107,7 @@ function collectStrings({ row, depth = 0 }: {
   return collected;
 }
 
-function rowInCity(
-  { row, needle, rule }: {
-    row: Record<string, unknown>;
-    needle: string;
-    rule?: EndpointRule;
-  }
-) {
+function rowInCity({ row, needle, rule }: { row: Record<string, unknown>; needle: string; rule?: EndpointRule }) {
   if (rule) {
     // Precise rule: trust only its named fields.
     for (const path of [rule.fields.city, rule.fields.clinicName]) {
@@ -181,7 +170,10 @@ export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: Tra
       row,
       needle,
       rule
-    }) ? inCity : others).push(row);
+    })
+      ? inCity
+      : others
+    ).push(row);
   }
 
   // Order preserved within each group → the site's distance/time sort is respected.

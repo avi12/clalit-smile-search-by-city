@@ -37,9 +37,10 @@ export function tailoredBranchCode(hash: string) {
 }
 
 /** The site's own "no appointments this month" answer, verbatim (docs §12i). */
-const EMPTY_MONTH_HTML = "<div class=\"clear-fix noAvailableQueuesNotFound\">" +
-  "<header class=\"margin-right bottom-border\">אין תורים פנויים בחודש הזה</header>" +
-  "<div id=\"error-panel\" class=\"margin-right\"><p>לא קיימים תורים פנויים.</p></div>" +
+const EMPTY_MONTH_HTML =
+  '<div class="clear-fix noAvailableQueuesNotFound">' +
+  '<header class="margin-right bottom-border">אין תורים פנויים בחודש הזה</header>' +
+  '<div id="error-panel" class="margin-right"><p>לא קיימים תורים פנויים.</p></div>' +
   "</div>";
 
 /** The site's own labels inside the page's clinic line - what follows each is this branch's. */
@@ -48,7 +49,10 @@ const PHONE_LABEL = "טלפון:";
 
 /** The directory's phones, formatted the way the site prints them ("36316561" -> "03-6316561"). */
 function branchPhones(branch: SmileBranch) {
-  return branch.phones.map(phone => formatPhone(phone)?.display).filter(Boolean).join(" ");
+  return branch.phones
+    .map(phone => formatPhone(phone)?.display)
+    .filter(Boolean)
+    .join(" ");
 }
 
 const CLINIC_TITLE_SELECTOR = "#availableVisitClinicTitle";
@@ -123,7 +127,7 @@ export function createTailoredClinicPage(code: string) {
     // label and its own comma separator - so only what follows the label is rewritten.
     const address = branch.street ? `${branch.street}, ${branch.city}` : branch.city;
     for (const node of elTitle.childNodes) {
-      const text = node.nodeType === Node.TEXT_NODE ? node.textContent ?? "" : "";
+      const text = node.nodeType === Node.TEXT_NODE ? (node.textContent ?? "") : "";
       if (text.includes(ADDRESS_LABEL)) {
         node.textContent = text.slice(0, text.indexOf(ADDRESS_LABEL) + ADDRESS_LABEL.length) + ` ${address}`;
       } else if (text.includes(PHONE_LABEL)) {
@@ -170,7 +174,9 @@ export function createTailoredClinicPage(code: string) {
         minDate: null
       });
       elDatepicker?.datepicker?.("setDate", today);
-    } catch { /* the calendar is the site's; a refusal is cosmetic */ }
+    } catch {
+      /* the calendar is the site's; a refusal is cosmetic */
+    }
   }
 
   /** The other clinic's available days stay visible but stop being clickable - nothing here is bookable. */
@@ -204,8 +210,9 @@ export function createTailoredClinicPage(code: string) {
    * when the page has no clinic line to rewrite, nothing here touches it.
    */
   function isSlotsPage() {
-    return document.querySelector(CLINIC_TITLE_SELECTOR) !== null &&
-      document.querySelector(CLINIC_LINK_SELECTOR) !== null;
+    return (
+      document.querySelector(CLINIC_TITLE_SELECTOR) !== null && document.querySelector(CLINIC_LINK_SELECTOR) !== null
+    );
   }
 
   function apply() {
@@ -233,10 +240,7 @@ export function createTailoredClinicPage(code: string) {
    * here left it up and only this page can lower it.
    */
   async function tailor() {
-    await Promise.race([
-      waitForElement({ selector: CLINIC_TITLE_SELECTOR }),
-      pageRendered()
-    ]);
+    await Promise.race([waitForElement({ selector: CLINIC_TITLE_SELECTOR }), pageRendered()]);
     apply();
     watchDatepicker();
   }

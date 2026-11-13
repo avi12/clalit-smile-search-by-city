@@ -17,10 +17,7 @@ function toRadians(degrees: number) {
 }
 
 /** Great-circle ("as the crow flies") distance between two points, in km. */
-export function haversineKm({ from, to }: {
-  from: LatLng;
-  to: LatLng;
-}) {
+export function haversineKm({ from, to }: { from: LatLng; to: LatLng }) {
   const [fromLat, fromLng] = from;
   const [toLat, toLng] = to;
   const deltaLat = toRadians(toLat - fromLat);

@@ -8,6 +8,6 @@
   const { phones }: { phones: FormattedPhone[] } = $props();
 </script>
 {#each phones as phone (phone.dial)}<a
-  style="text-decoration:underline"
+  style="text-decoration: underline;"
   dir="ltr"
   href="tel:{phone.dial}">{phone.display}</a> {/each}

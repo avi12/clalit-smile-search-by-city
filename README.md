@@ -13,12 +13,12 @@ is put together and exactly where the extension hooks in.
 ## Before / after
 
 **Before** - the site's own "מרפאות מאזור היישוב" search for בת ים. The header says **באזור** (in the
-*area*), 21 results, and the list mixes in clinics from other cities - חולון here. Each row measures
+_area_), 21 results, and the list mixes in clinics from other cities - חולון here. Each row measures
 **"מרחק מהבית שלך"**: the distance from your registered home address, wherever you happen to be.
 
 ![The unmodified Clalit Smile results for Bat Yam: 21 results "in the area", with Holon clinics in the list and distances measured from your registered home address](assets/before.png)
 
-**After** - the same city with the extension on. The header says **בעיר** (in the *city*), every row is
+**After** - the same city with the extension on. The header says **בעיר** (in the _city_), every row is
 בת ים, and the badge in the corner names the guarded city with its count (**3/89** - three in the city out
 of the 89 the rewritten all-country search returned). Distances are now **"מרחק ממיקומך"**, measured from
 where you actually are, and the red **לכל התורים** marks a branch that has no online slot for the service
@@ -82,7 +82,7 @@ EXTENSION's own offscreen document, so it never depends on what the site was gra
   each other over a **BroadcastChannel** named for that tab
   ([`messaging-frames.ts`](src/entrypoints/clalit-bridge.content/messaging-frames.ts)). **Every
   external input** - channel payloads, frame broadcasts, the network envelope - is validated with
-  **zod** at the boundary, in the `schemas.ts` of whichever entrypoint *receives* it; malformed input
+  **zod** at the boundary, in the `schemas.ts` of whichever entrypoint _receives_ it; malformed input
   is ignored, never thrown on.
 
 An entrypoint that owns private modules is a folder holding them; one that owns none is a single

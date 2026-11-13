@@ -9,20 +9,15 @@
  * scopes the frame channel to one tab.
  */
 
-import { openFrameChannel } from "./messaging-frames";
-import { frameStateSchema, guaranteeStatusSchema } from "./schemas";
-import { mountStatusBadge } from "./status-badge.svelte";
-import {
-  FrameMsg,
-  type GuaranteeStatus,
-  PageMsg,
-  RuntimeMsg,
-  type SearchConfig
-} from "@/lib/messaging";
+import { defineContentScript } from "#imports";
+import { FrameMsg, type GuaranteeStatus, PageMsg, RuntimeMsg, type SearchConfig } from "@/lib/messaging";
 import { onPageMessage, sendPageMessage } from "@/lib/messaging-page";
 import { sendRuntimeMessage } from "@/lib/messaging-runtime";
 import { CONTENT_MATCHES, SEARCH_CITY_HINT, SEARCH_CITY_SELECTORS } from "@/lib/targets";
-import { defineContentScript } from "#imports";
+
+import { openFrameChannel } from "./messaging-frames";
+import { frameStateSchema, guaranteeStatusSchema } from "./schemas";
+import { mountStatusBadge } from "./status-badge.svelte";
 
 export default defineContentScript({
   matches: [...CONTENT_MATCHES],
@@ -62,9 +57,9 @@ export default defineContentScript({
 
     const badge = isTopFrame
       ? mountStatusBadge(ctx, () => {
-        setEnabled(!isEnabled);
-        broadcastToggle();
-      })
+          setEnabled(!isEnabled);
+          broadcastToggle();
+        })
       : null;
 
     function setEnabled(isNextEnabled: boolean) {
@@ -91,7 +86,7 @@ export default defineContentScript({
         isEnabled,
         city
       };
-      sendPageMessage(PageMsg.Config, config).catch(() => { });
+      sendPageMessage(PageMsg.Config, config).catch(() => {});
     }
 
     onPageMessage(PageMsg.Status, ({ data }) => {
@@ -109,8 +104,7 @@ export default defineContentScript({
      * The MAIN world cannot read a position (no browser.*) and must not depend on what the SITE was
      * granted, so it asks here and the background reads it in the extension's own offscreen document.
      */
-    onPageMessage(PageMsg.Position, () =>
-      sendRuntimeMessage(RuntimeMsg.Position, undefined).catch(() => null));
+    onPageMessage(PageMsg.Position, () => sendRuntimeMessage(RuntimeMsg.Position, undefined).catch(() => null));
 
     // ── The tab's frame channel ────────────────────────────────────────────────
 
@@ -215,11 +209,16 @@ export default defineContentScript({
     }
 
     for (const eventType of ["input", "change"] as const) {
-      ctx.addEventListener(document, eventType, ({ target }) => {
-        if (target instanceof HTMLInputElement && isSearchInput(target)) {
-          setCity(target.value);
-        }
-      }, { capture: true });
+      ctx.addEventListener(
+        document,
+        eventType,
+        ({ target }) => {
+          if (target instanceof HTMLInputElement && isSearchInput(target)) {
+            setCity(target.value);
+          }
+        },
+        { capture: true }
+      );
     }
 
     // Initial read: the input exists by now (it may carry a value from the URL / a prior search).

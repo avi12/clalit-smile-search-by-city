@@ -5,8 +5,9 @@
  * site's business, never the caller's.
  */
 
-import { setDialogNote, setLoaderNote } from "./smile";
 import { SITE_LOADER_SELECTOR, SMILE_DETAILS_DIALOG_SELECTOR } from "@/lib/targets";
+
+import { setDialogNote, setLoaderNote } from "./smile";
 
 /** The Zimunet site bundle's own UI namespace - the MAIN world sees the page's globals. */
 interface ZimunetPageUi {
@@ -32,7 +33,11 @@ declare global {
  * `isAbandoned` is how a caller whose work no longer matters stops waiting - checked on the next DOM
  * change, so a superseded run releases its observer instead of holding it for the page's life.
  */
-export function waitForElement({ selector, exclude, isAbandoned }: {
+export function waitForElement({
+  selector,
+  exclude,
+  isAbandoned
+}: {
   selector: string;
   exclude?: Element | null;
   isAbandoned?: () => boolean;
@@ -98,7 +103,9 @@ export function setSiteLoader(isVisible: boolean) {
     } else {
       pageUi?.hideLoader?.();
     }
-  } catch { /* site chrome only */ }
+  } catch {
+    /* site chrome only */
+  }
 }
 
 /**
@@ -136,10 +143,7 @@ export function holdSiteLoader(note: string) {
 }
 
 /** Call the page's own z.showDialog with a fragment - the exact call the site's handlers make. */
-export function showDetailsDialog({ html, note }: {
-  html: string;
-  note: string;
-}) {
+export function showDetailsDialog({ html, note }: { html: string; note: string }) {
   const pageUi = window.z;
   if (typeof pageUi?.showDialog !== "function") {
     return false;
