@@ -68,7 +68,8 @@ function setupChromiumProfile(profileDir: string) {
   const source = SOURCE_USER_DATA[platform()];
   const sourceProfileName = process.env.DEV_CHROME_SOURCE_PROFILE ?? DEFAULT_CHROMIUM_PROFILE_NAME;
   const sourceDefault = source && join(source, sourceProfileName);
-  if (!sourceDefault || !existsSync(sourceDefault)) {
+  const isSourceProfileMissing = !sourceDefault || !existsSync(sourceDefault);
+  if (isSourceProfileMissing) {
     mkdirSync(join(profileDir, "Default"), { recursive: true });
     writeFileSync(sentinel, "");
     return profileDir;

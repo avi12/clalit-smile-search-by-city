@@ -25,6 +25,6 @@ const CLINIC_COORD_FIXES: Record<string, LatLng> = {
 };
 
 /** A clinic's position by nav code - Clalit's, unless one of its points is known to be wrong. */
-export function clinicCoords(navCode: string): LatLng | undefined {
+export function clinicCoords(navCode: string) {
   return CLINIC_COORD_FIXES[navCode] ?? DENTAL_CLINIC_COORDS[navCode];
 }

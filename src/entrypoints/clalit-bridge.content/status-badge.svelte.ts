@@ -23,21 +23,9 @@ export interface BadgeState {
   status: GuaranteeStatus | null;
 }
 
-interface StatusBadgeHandle {
-  update(state: BadgeState): void;
-  /** Remove the badge from the page (a superseded dev generation standing down). */
-  destroy(): void;
-}
-
 const HOST_TAG = "clalit-city-badge";
 
-export function mountStatusBadge({
-  ctx,
-  onToggle
-}: {
-  ctx: ContentScriptContext;
-  onToggle: () => void;
-}): StatusBadgeHandle {
+export function mountStatusBadge({ ctx, onToggle }: { ctx: ContentScriptContext; onToggle: () => void }) {
   const state = $state<BadgeState>({
     isEnabled: true,
     city: "",
@@ -96,7 +84,7 @@ export function mountStatusBadge({
   });
 
   return {
-    update(next) {
+    update(next: BadgeState) {
       Object.assign(state, next);
     },
     destroy() {

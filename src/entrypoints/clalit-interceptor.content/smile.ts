@@ -565,7 +565,8 @@ function applyBranchToDetailLine({ elLine, branch }: { elLine: Element; branch: 
     return;
   }
 
-  if (UNSOURCED_DETAIL_LINE.test(text) || elLine.classList.contains("divClinicRemarksList")) {
+  const isUnsourcedLine = UNSOURCED_DETAIL_LINE.test(text) || elLine.classList.contains("divClinicRemarksList");
+  if (isUnsourcedLine) {
     elLine.remove();
   }
 }
@@ -685,7 +686,8 @@ export function applyBranchToDetailsFragment({ template, branch }: { template: s
 /** Replace an element's text while keeping child elements (the sort links carry an icon <i>). */
 function replaceTextNode({ elTarget, text }: { elTarget: Element; text: string }) {
   for (const node of elTarget.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+    const isTextNodeWithContent = node.nodeType === Node.TEXT_NODE && node.textContent?.trim();
+    if (isTextNodeWithContent) {
       node.textContent = text;
       return;
     }
@@ -740,7 +742,8 @@ export function filterSmileEnvelope({
     templateRowHtml: ""
   };
   const html = getSmileHtml(json);
-  if (!html || !searchedCity.trim()) {
+  const isSearchUnusable = !html || !searchedCity.trim();
+  if (isSearchUnusable) {
     return untouched;
   }
 

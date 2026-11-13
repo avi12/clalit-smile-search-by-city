@@ -56,10 +56,13 @@ export default defineContentScript({
     }
 
     const badge = isTopFrame
-      ? mountStatusBadge({ ctx, onToggle: () => {
-                      setEnabled(!isEnabled);
-                      broadcastToggle();
-                    } })
+      ? mountStatusBadge({
+          ctx,
+          onToggle() {
+            setEnabled(!isEnabled);
+            broadcastToggle();
+          }
+        })
       : null;
 
     function setEnabled(isNextEnabled: boolean) {
@@ -213,7 +216,8 @@ export default defineContentScript({
         document,
         eventType,
         ({ target }) => {
-          if (target instanceof HTMLInputElement && isSearchInput(target)) {
+          const isSearchInputTarget = target instanceof HTMLInputElement && isSearchInput(target);
+          if (isSearchInputTarget) {
             setCity(target.value);
           }
         },

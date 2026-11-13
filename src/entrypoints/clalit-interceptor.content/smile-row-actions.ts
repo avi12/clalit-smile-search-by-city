@@ -99,13 +99,13 @@ export function createRowActions({
       })());
     onComposed?.();
 
-    if (
+    const isDialogUnavailable =
       !fragment ||
       !showDetailsDialog({
         html: fragment,
         note
-      })
-    ) {
+      });
+    if (isDialogUnavailable) {
       openInNewTab(fallbackHref);
     }
   }
@@ -149,7 +149,8 @@ export function createRowActions({
    */
   async function mintDiaryLink(navCode: string) {
     const specialization = session.state.activeSearchSpecialization;
-    if (!session.isActive() || session.isSpecializationEmpty(specialization)) {
+    const shouldSkipMint = !session.isActive() || session.isSpecializationEmpty(specialization);
+    if (shouldSkipMint) {
       return null;
     }
 
@@ -205,7 +206,8 @@ export function createRowActions({
    * branch - no verdict, or one old enough to have gone stale - is worth a click-time sweep of its own.
    */
   async function openDiaries(code: string) {
-    if (isMintInFlight || !session.city()) {
+    const isMintBlocked = isMintInFlight || !session.city();
+    if (isMintBlocked) {
       return;
     }
 

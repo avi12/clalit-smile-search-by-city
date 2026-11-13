@@ -43,7 +43,10 @@ console.log(`  ${crxPath}`);
 function buildAndZip() {
   runPnpm(["ext:build"]);
   runPnpm(["ext:zip"]);
-  assertArtifact({ path: zipPath, label: "Chrome zip" });
+  assertArtifact({
+    path: zipPath,
+    label: "Chrome zip"
+  });
 }
 
 /**
@@ -80,19 +83,27 @@ function packCrx() {
   }
 
   const generatedKeyPath = `${CHROME_BUILD_DIR}.pem`;
-  if (!isExistingKey && existsSync(generatedKeyPath)) {
+  const isGeneratedKeyLeftover = !isExistingKey && existsSync(generatedKeyPath);
+  if (isGeneratedKeyLeftover) {
     renameSync(generatedKeyPath, keyPath);
     console.log(`Signing key written to ${keyPath}`);
   }
 
   const packedCrxPath = `${CHROME_BUILD_DIR}.crx`;
-  assertArtifact({ path: packedCrxPath, label: "packed Chrome CRX" });
+  assertArtifact({
+    path: packedCrxPath,
+    label: "packed Chrome CRX"
+  });
   copyFileSync(packedCrxPath, crxPath);
-  assertArtifact({ path: crxPath, label: "Chrome CRX" });
+  assertArtifact({
+    path: crxPath,
+    label: "Chrome CRX"
+  });
 }
 
 function findChromeBinary() {
-  if (process.env.CHROME_BIN && existsSync(process.env.CHROME_BIN)) {
+  const hasUsableChromeBin = process.env.CHROME_BIN && existsSync(process.env.CHROME_BIN);
+  if (hasUsableChromeBin) {
     return process.env.CHROME_BIN;
   }
 

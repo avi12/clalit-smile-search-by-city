@@ -200,7 +200,8 @@ async function runBuildWithFsRetry() {
       await buildExtension();
       return;
     } catch (error) {
-      if (!TRANSIENT_FS_ERROR_PATTERN.test(String(error)) || attempt >= MAX_BUILD_ATTEMPTS) {
+      const isPermanentBuildFailure = !TRANSIENT_FS_ERROR_PATTERN.test(String(error)) || attempt >= MAX_BUILD_ATTEMPTS;
+      if (isPermanentBuildFailure) {
         throw error;
       }
 
@@ -506,7 +507,8 @@ function injectIntoTarget({
       if (method === "Runtime.executionContextCreated") {
         const context = params?.context;
         const { auxData, name } = context ?? {};
-        if (context && auxData?.isDefault && isTargetTabUrl(context.origin)) {
+        const isTargetDefaultContext = context && auxData?.isDefault && isTargetTabUrl(context.origin);
+        if (isTargetDefaultContext) {
           mainWorldContexts.push(context.id);
         } else if (context && auxData?.frameId && name === extensionName) {
           // Highest id wins, not last replayed: contexts are replayed in no guaranteed order.
@@ -544,7 +546,8 @@ function injectIntoTarget({
         return;
       }
 
-      if (id !== undefined && pendingEvaluations.delete(id) && !pendingEvaluations.size) {
+      const isLastEvaluationDone = id !== undefined && pendingEvaluations.delete(id) && !pendingEvaluations.size;
+      if (isLastEvaluationDone) {
         finish();
       }
     };
@@ -638,7 +641,8 @@ async function reconcileInjections(cdpPort: number) {
     // travels the same socket the question just failed on, so it would fail too and the next tick would
     // ask again, three seconds later, forever. Every re-injection is a fresh generation in a live page,
     // so that loop is not free - it re-patches the page and re-mounts the badge on a tab nobody touched.
-    if (stamp === buildId || stamp === undefined) {
+    const isTabUpToDate = stamp === buildId || stamp === undefined;
+    if (isTabUpToDate) {
       continue;
     }
 

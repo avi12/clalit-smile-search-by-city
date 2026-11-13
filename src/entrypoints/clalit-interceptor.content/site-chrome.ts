@@ -44,7 +44,8 @@ export function waitForElement({
 }) {
   function currentMatch() {
     const elMatch = document.querySelector(selector);
-    return elMatch && elMatch !== exclude ? elMatch : null;
+    const isAllowedMatch = elMatch && elMatch !== exclude;
+    return isAllowedMatch ? elMatch : null;
   }
 
   const elAlreadyThere = currentMatch();
@@ -55,7 +56,8 @@ export function waitForElement({
   return new Promise<Element | null>(resolve => {
     const observer = new MutationObserver(() => {
       const elMatch = currentMatch();
-      if (!elMatch && !isAbandoned?.()) {
+      const shouldKeepWaiting = !elMatch && !isAbandoned?.();
+      if (shouldKeepWaiting) {
         return;
       }
 

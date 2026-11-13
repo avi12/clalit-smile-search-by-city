@@ -46,7 +46,8 @@ export function createAvailabilityProbe({
 
   function liveVerdict(navCode: string) {
     const verdict = verdicts.get(navCode);
-    return verdict && now() - verdict.decidedAt <= VERDICT_TTL_MS ? verdict : null;
+    const isVerdictFresh = verdict && now() - verdict.decidedAt <= VERDICT_TTL_MS;
+    return isVerdictFresh ? verdict : null;
   }
 
   function verdictFor(navCode: string) {
@@ -111,7 +112,8 @@ export function createAvailabilityProbe({
    */
   async function ensureVerdicts(navCodes: string[]) {
     const unknown = new Set(navCodes.filter(navCode => navCode && verdictFor(navCode) === null));
-    if (unknown.size === 0 || isMintInFlight() || !session.isActive()) {
+    const shouldSkipMint = unknown.size === 0 || isMintInFlight() || !session.isActive();
+    if (shouldSkipMint) {
       return;
     }
 

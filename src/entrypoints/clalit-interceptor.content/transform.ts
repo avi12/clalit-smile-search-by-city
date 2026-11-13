@@ -60,14 +60,16 @@ function findResultsArray(root: unknown) {
   const seen = new Set<unknown>();
 
   function visit(node: unknown) {
-    if (!node || typeof node !== "object" || seen.has(node)) {
+    const isUnvisitable = !node || typeof node !== "object" || seen.has(node);
+    if (isUnvisitable) {
       return;
     }
 
     seen.add(node);
 
     if (Array.isArray(node)) {
-      if (isObjectArray(node) && (!best || node.length > best.length)) {
+      const isNewBest = isObjectArray(node) && (!best || node.length > best.length);
+      if (isNewBest) {
         best = node;
       }
 
@@ -142,7 +144,13 @@ function rowInCity({ row, needle, rule }: { row: Record<string, unknown>; needle
   return collectStrings({ row }).some(text => normalizeCity(text).includes(needle));
 }
 
-export function applyGuarantee({ json, input: { city, guaranteeMode, rule } }: { json: unknown; input: TransformInput }) {
+export function applyGuarantee({
+  json,
+  input: { city, guaranteeMode, rule }
+}: {
+  json: unknown;
+  input: TransformInput;
+}) {
   const untouched: TransformResult = {
     isTransformed: false,
     resultsCount: 0,

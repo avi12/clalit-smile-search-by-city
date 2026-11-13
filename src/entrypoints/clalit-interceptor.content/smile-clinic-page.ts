@@ -192,7 +192,8 @@ export function createTailoredClinicPage(code: string) {
   /** Why the page is empty, in the same words the row carried - with the clinic's phones and *2700. */
   function addNote() {
     const elTitle = document.querySelector(CLINIC_TITLE_SELECTOR);
-    if (!branch || !elTitle || elTitle.querySelector("[data-clalit-city-note]")) {
+    const shouldSkipNote = !branch || !elTitle || elTitle.querySelector("[data-clalit-city-note]");
+    if (shouldSkipNote) {
       return;
     }
 
@@ -216,7 +217,8 @@ export function createTailoredClinicPage(code: string) {
   }
 
   function apply() {
-    if (!branch || !isSlotsPage()) {
+    const shouldSkipPage = !branch || !isSlotsPage();
+    if (shouldSkipPage) {
       setSiteLoader(false);
       return;
     }

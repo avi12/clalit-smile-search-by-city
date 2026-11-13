@@ -21,8 +21,10 @@ export function createLiveDistanceSort(isActive: () => boolean) {
 
   /** One fix per list: the same rendered list asks for distances, labels and a re-rank in turn. */
   async function currentPosition() {
-    if (cachedPosition && Date.now() - cachedPosition.fetchedAt < POSITION_MAX_AGE_MS) {
-      return cachedPosition.coords;
+    const knownPosition = cachedPosition;
+    const isPositionFresh = knownPosition && Date.now() - knownPosition.fetchedAt < POSITION_MAX_AGE_MS;
+    if (isPositionFresh) {
+      return knownPosition.coords;
     }
 
     const coords = await requestPosition();
@@ -94,7 +96,8 @@ export function createLiveDistanceSort(isActive: () => boolean) {
   /** Re-rank the finished list by great-circle distance from the user's live position. */
   async function reorder({ elList, isDescending }: { elList: Element; isDescending: boolean }) {
     const position = await currentPosition();
-    if (!position || !isActive()) {
+    const isRankingUnavailable = !position || !isActive();
+    if (isRankingUnavailable) {
       return;
     }
 

@@ -2,8 +2,8 @@
   import type { BadgeState } from "./status-badge.svelte";
 
   const { state, onToggle }: {
-     state: BadgeState;
-     onToggle: () => void 
+    state: BadgeState;
+    onToggle: () => void 
   } = $props();
 
   const isOn = $derived(state.isEnabled && state.city.trim().length > 0);

@@ -196,7 +196,8 @@ export function createSmileAggregation({
     )) {
       const guid = elAnchor.getAttribute("data-action-link")?.split("/").pop();
       const title = elAnchor.textContent?.trim();
-      if (guid && title && !map.has(title)) {
+      const isNewTitledEntry = guid && title && !map.has(title);
+      if (isNewTitledEntry) {
         map.set(title, guid);
       }
     }
@@ -237,7 +238,8 @@ export function createSmileAggregation({
       selector: `#am_diaries[${SMILE_MARKER_ATTR}="${marker}"] ul`,
       isAbandoned: isStale
     });
-    if (!elList || isStale()) {
+    const isListUnavailable = !elList || isStale();
+    if (isListUnavailable) {
       return;
     }
 
@@ -301,7 +303,8 @@ export function createSmileAggregation({
       );
 
       const envelope = await session.fetchSessionJson({ url: session.pagingUrl(page) }).catch(() => null);
-      if (!envelope || isStale()) {
+      const isEnvelopeUnavailable = !envelope || isStale();
+      if (isEnvelopeUnavailable) {
         return;
       }
 

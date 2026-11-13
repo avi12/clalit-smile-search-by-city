@@ -127,7 +127,8 @@ export default defineContentScript({
       status: number;
       json: unknown;
     }) {
-      if (import.meta.env.DEV && isInterestingUrl(url)) {
+      const shouldLogUrl = import.meta.env.DEV && isInterestingUrl(url);
+      if (shouldLogUrl) {
         console.log(`[clalit-city] ${method} ${url} → ${status}`, json);
       }
     }
@@ -391,7 +392,8 @@ export default defineContentScript({
         inCityCount: 0,
         json
       };
-      if (!session.isActive() || !city.trim()) {
+      const shouldSkipTransform = !session.isActive() || !city.trim();
+      if (shouldSkipTransform) {
         return untouched;
       }
 
@@ -399,7 +401,8 @@ export default defineContentScript({
         url,
         method
       });
-      if (!rule && !isInterestingUrl(url)) {
+      const shouldPassThrough = !rule && !isInterestingUrl(url);
+      if (shouldPassThrough) {
         return untouched;
       }
 
@@ -440,7 +443,8 @@ export default defineContentScript({
       // Stood down (a newer generation started - see the ctx handoff below): the page may still hold
       // this function, so it answers as the native one would.
       const url = requestUrl(input);
-      if (ctx.signal.aborted || !/json/i.test(response.headers.get("content-type") ?? "")) {
+      const shouldSkipResponse = ctx.signal.aborted || !/json/i.test(response.headers.get("content-type") ?? "");
+      if (shouldSkipResponse) {
         return response;
       }
 
@@ -458,25 +462,27 @@ export default defineContentScript({
         status: response.status,
         json
       });
-      const outcome =
-        tailoredClinicPage.isTailored && isAvailabilityUrl(url)
-          ? {
-              isTransformed: true,
-              resultsCount: 0,
-              inCityCount: 0,
-              json: emptyAvailabilityEnvelope()
-            }
-          : transformForUrl({
-              json,
-              url,
-              method
-            });
+      const isTailoredAvailability = tailoredClinicPage.isTailored && isAvailabilityUrl(url);
+      const outcome = isTailoredAvailability
+        ? {
+            isTransformed: true,
+            resultsCount: 0,
+            inCityCount: 0,
+            json: emptyAvailabilityEnvelope()
+          }
+        : transformForUrl({
+            json,
+            url,
+            method
+          });
       if (!outcome.isTransformed) {
         return response;
       }
 
-      if (outcome.smile && isSmileAggregationTrigger(url)) {
-        aggregation.finalize(outcome.smile).catch(() => {});
+      const { smile } = outcome;
+      const shouldAggregate = smile && isSmileAggregationTrigger(url);
+      if (shouldAggregate) {
+        aggregation.finalize(smile).catch(() => {});
       }
 
       // Rebuild from the original headers but drop content-encoding/length: the body is now plain
@@ -498,7 +504,8 @@ export default defineContentScript({
     const xhrPrototype = XMLHttpRequest.prototype;
     // Widened to a rest-args signature (open's first overload satisfies it) so the patch below can
     // forward the page's EXACT argument list - open(m, u) and open(m, u, undefined) differ natively.
-    const nativeOpen: (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) => void = xhrPrototype.open;
+    const nativeOpen: (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) => void =
+      xhrPrototype.open;
     const nativeSend = xhrPrototype.send;
     const nativeText = Object.getOwnPropertyDescriptor(xhrPrototype, "responseText");
     const nativeResponse = Object.getOwnPropertyDescriptor(xhrPrototype, "response");
@@ -560,19 +567,19 @@ export default defineContentScript({
         status: xhr.status,
         json
       });
-      const outcome =
-        tailoredClinicPage.isTailored && isAvailabilityUrl(url)
-          ? {
-              isTransformed: true,
-              resultsCount: 0,
-              inCityCount: 0,
-              json: emptyAvailabilityEnvelope()
-            }
-          : transformForUrl({
-              json,
-              url,
-              method
-            });
+      const isTailoredAvailability = tailoredClinicPage.isTailored && isAvailabilityUrl(url);
+      const outcome = isTailoredAvailability
+        ? {
+            isTransformed: true,
+            resultsCount: 0,
+            inCityCount: 0,
+            json: emptyAvailabilityEnvelope()
+          }
+        : transformForUrl({
+            json,
+            url,
+            method
+          });
       state.computed = {
         text: outcome.isTransformed ? JSON.stringify(outcome.json) : rawText,
         json: outcome.isTransformed ? outcome.json : json,
@@ -582,7 +589,12 @@ export default defineContentScript({
       return state.computed;
     }
 
-    xhrPrototype.open = function patchedOpen(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+    xhrPrototype.open = function patchedOpen(
+      this: XMLHttpRequest,
+      method: string,
+      url: string | URL,
+      ...rest: unknown[]
+    ) {
       if (ctx.signal.aborted) {
         return nativeOpen.call(this, method, url, ...rest);
       }
@@ -591,7 +603,8 @@ export default defineContentScript({
       // A "distance" sort must reference the user's location: rewrite the "distance from the searched
       // city" sort (4) to the site's own "distance from your home" sort (3). The link is also removed
       // from our filtered fragments; this covers renders that predate the guarantee.
-      if (session.isActive() && session.city() && targetUrl.includes(SMILE_SORT_PATH)) {
+      const shouldRewriteSort = session.isActive() && session.city() && targetUrl.includes(SMILE_SORT_PATH);
+      if (shouldRewriteSort) {
         targetUrl = targetUrl.replace(
           `sortValue=${SMILE_SORT_VALUES.CITY_DISTANCE}`,
           `sortValue=${SMILE_SORT_VALUES.HOME_DISTANCE}`
@@ -631,7 +644,9 @@ export default defineContentScript({
             xhr: this,
             state
           });
-          return computed && this.readyState === XMLHttpRequest.DONE ? computed.text : String(nativeText?.get?.call(this) ?? "");
+          return computed && this.readyState === XMLHttpRequest.DONE
+            ? computed.text
+            : String(nativeText?.get?.call(this) ?? "");
         }
       });
 
@@ -669,9 +684,12 @@ export default defineContentScript({
       }
 
       let outgoing = body;
-      if (state && session.state.isEnabled && typeof outgoing === "string" && state.url.includes(SMILE_SEARCH_PATH)) {
+      const bodyText = typeof body === "string" ? body : undefined;
+      const shouldRewriteBody =
+        state && session.state.isEnabled && bodyText !== undefined && state.url.includes(SMILE_SEARCH_PATH);
+      if (shouldRewriteBody) {
         // The submitted city and specialization are the authoritative ones for this server session.
-        const submitted = new URLSearchParams(outgoing);
+        const submitted = new URLSearchParams(bodyText);
         const submittedCity = submitted.get(SMILE_CITY_FIELD)?.trim();
         if (submittedCity) {
           session.state.activeSearchCity = submittedCity;
@@ -692,15 +710,17 @@ export default defineContentScript({
 
         // City completeness: search the WHOLE country, then filter - the area subset can miss some of
         // the city's own clinics, and rows spliced from a second search would carry dead session GUIDs.
-        if (session.city() && session.state.isCitySearch) {
-          outgoing = outgoing.replace(
+        const isCitySearchActive = session.city() && session.state.isCitySearch;
+        if (isCitySearchActive) {
+          outgoing = bodyText.replace(
             `${SMILE_AREA_FIELD}=${CITY_AREA_VALUE}`,
             `${SMILE_AREA_FIELD}=${ALL_COUNTRY_AREA_VALUE}`
           );
         }
       }
 
-      if (state && isSmileAggregationTrigger(state.url)) {
+      const isAggregationRequest = state && isSmileAggregationTrigger(state.url);
+      if (isAggregationRequest) {
         this.addEventListener("load", () => {
           const computed = computeXhr({
             xhr: this,

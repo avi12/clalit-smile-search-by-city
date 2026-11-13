@@ -40,7 +40,8 @@ export function formatPhone(raw: string) {
   }
 
   const withZero = digits.startsWith("0") ? digits : `0${digits}`;
-  const areaLength = withZero.startsWith("05") || withZero.startsWith("07") ? 3 : 2;
+  const isMobileOrVoipPrefix = withZero.startsWith("05") || withZero.startsWith("07");
+  const areaLength = isMobileOrVoipPrefix ? 3 : 2;
   const display = `${withZero.slice(0, areaLength)}-${withZero.slice(areaLength)}`;
   const hint = hintStart === -1 ? "" : raw.slice(hintStart).trim();
   return {
