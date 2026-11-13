@@ -34,13 +34,16 @@ function getByPath({ source, path }: { source: unknown; path: string }) {
     return undefined;
   }
 
-  return path.split(".").reduce<unknown>((node, key) => {
-    if (isRecord(node)) {
-      return node[key];
+  let node: unknown = source;
+  for (const key of path.split(".")) {
+    if (!isRecord(node)) {
+      return undefined;
     }
 
-    return undefined;
-  }, source);
+    node = node[key];
+  }
+
+  return node;
 }
 
 function isObjectArray(value: unknown): value is Record<string, unknown>[] {
@@ -68,7 +71,10 @@ function findResultsArray(root: unknown) {
         best = node;
       }
 
-      node.forEach(visit);
+      for (const item of node) {
+        visit(item);
+      }
+
       return;
     }
 
@@ -111,18 +117,21 @@ function rowInCity({ row, needle, rule }: { row: Record<string, unknown>; needle
   if (rule) {
     // Precise rule: trust only its named fields.
     for (const path of [rule.fields.city, rule.fields.clinicName]) {
-      if (path) {
-        const text = normalizeCity(
-          String(
-            getByPath({
-              source: row,
-              path
-            }) ?? ""
-          )
-        );
-        if (text && (text.includes(needle) || needle.includes(text))) {
-          return true;
-        }
+      if (!path) {
+        continue;
+      }
+
+      const text = normalizeCity(
+        String(
+          getByPath({
+            source: row,
+            path
+          }) ?? ""
+        )
+      );
+      const isMatch = text && (text.includes(needle) || needle.includes(text));
+      if (isMatch) {
+        return true;
       }
     }
 
@@ -133,7 +142,7 @@ function rowInCity({ row, needle, rule }: { row: Record<string, unknown>; needle
   return collectStrings({ row }).some(text => normalizeCity(text).includes(needle));
 }
 
-export function applyGuarantee(json: unknown, { city, guaranteeMode, rule }: TransformInput) {
+export function applyGuarantee({ json, input: { city, guaranteeMode, rule } }: { json: unknown; input: TransformInput }) {
   const untouched: TransformResult = {
     isTransformed: false,
     resultsCount: 0,

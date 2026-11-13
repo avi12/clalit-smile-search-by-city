@@ -13,7 +13,7 @@ import { sendPageMessage } from "@/lib/messaging-page";
 import { positionAnswerSchema } from "./schemas";
 
 export async function requestPosition() {
-  const answer = await sendPageMessage(PageMsg.Position, undefined).catch(() => null);
+  const answer = await sendPageMessage(PageMsg.POSITION, undefined).catch(() => null);
   const parsed = positionAnswerSchema.safeParse(answer);
   return parsed.success ? parsed.data : null;
 }

@@ -2,6 +2,8 @@
 
 export type LatLng = readonly [number, number];
 
+const DEGREES_PER_HALF_TURN = 180;
+
 /**
  * How long one fix stands. The offscreen document hands it to `getCurrentPosition` as `maximumAge` and
  * the MAIN-world re-rank uses the same window to decide whether to ask again - two numbers that must
@@ -13,7 +15,7 @@ export const POSITION_TIMEOUT_MS = 8000;
 const EARTH_RADIUS_KM = 6371;
 
 function toRadians(degrees: number) {
-  return (degrees * Math.PI) / 180;
+  return (degrees * Math.PI) / DEGREES_PER_HALF_TURN;
 }
 
 /** Great-circle ("as the crow flies") distance between two points, in km. */

@@ -26,7 +26,7 @@ export default defineBackground(() => {
   let inFlightRead: Promise<LatLng | null> | null = null;
   let reportFix: ((position: LatLng | null) => void) | null = null;
 
-  onRuntimeMessage(RuntimeMsg.ReportPosition, ({ data }) => {
+  onRuntimeMessage(RuntimeMsg.REPORT_POSITION, ({ data }) => {
     reportFix?.(data);
   });
 
@@ -72,12 +72,12 @@ export default defineBackground(() => {
     return inFlightRead;
   }
 
-  onRuntimeMessage(RuntimeMsg.Position, () => positionForAskers());
+  onRuntimeMessage(RuntimeMsg.POSITION, () => positionForAskers());
 
   /**
    * The frame channel is a BroadcastChannel, which is scoped to the ORIGIN - so its name has to carry
    * the tab, or a second open Clalit tab would share it. A frame cannot see which tab it is in; the
    * message's sender can, and every frame of one tab gets the same answer.
    */
-  onRuntimeMessage(RuntimeMsg.TabId, ({ sender }) => sender.tab?.id ?? null);
+  onRuntimeMessage(RuntimeMsg.TAB_ID, ({ sender }) => sender.tab?.id ?? null);
 });

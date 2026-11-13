@@ -28,7 +28,12 @@ import {
   SESSION_TIMEOUT_DIALOG_SELECTOR,
   SESSION_TIMEOUT_EXIT_HINT,
   TARGET_HOSTS
-} from "../src/lib/targets";
+} from "@/lib/targets";
+
+const MANIFEST_VERSION = 3;
+const BUILD_ID_LENGTH = 12;
+const INSPECT_BREAK_LENGTH = 120;
+const EXIT_GRACE_MS = 3000;
 
 // ── Dev log ────────────────────────────────────────────────────────────────────
 const DEV_LOG_DIR = resolve(import.meta.dirname, "..", ".dev-logs");
@@ -63,7 +68,7 @@ function appendToDevLog({ level, args }: { level: string; args: unknown[] }) {
         ? arg
         : inspect(arg, {
             depth: 2,
-            breakLength: 120
+            breakLength: INSPECT_BREAK_LENGTH
           })
     )
     .join(" ");
@@ -180,7 +185,7 @@ async function buildExtension() {
     root: PROJECT_ROOT,
     browser: "chrome",
     mode: "development",
-    manifestVersion: 3,
+    manifestVersion: MANIFEST_VERSION,
     outDirTemplate: OUTPUT_DIR_NAME
   });
 }
@@ -235,13 +240,13 @@ const CDP_EVALUATE_TIMEOUT_MS = 3000;
 function evaluateOverCdp({ websocketUrl, expression }: { websocketUrl: string; expression: string }) {
   return new Promise<unknown>(resolvePromise => {
     const websocket = new WebSocket(websocketUrl);
-    let settled = false;
+    let isSettled = false;
     function settle(value: unknown) {
-      if (settled) {
+      if (isSettled) {
         return;
       }
 
-      settled = true;
+      isSettled = true;
       clearTimeout(timer);
       websocket.close();
       resolvePromise(value);
@@ -278,17 +283,24 @@ function evaluateOverCdp({ websocketUrl, expression }: { websocketUrl: string; e
 }
 
 function isTargetTabUrl(url: string | undefined) {
-  return Boolean(url) && TARGET_HOSTS.some(host => url!.includes(host));
+  return url !== undefined && TARGET_HOSTS.some(host => url.includes(host));
+}
+
+function isTargetTab(target: CdpTarget): target is CdpTarget & { webSocketDebuggerUrl: string } {
+  return target.type === "page" && isTargetTabUrl(target.url) && Boolean(target.webSocketDebuggerUrl);
+}
+
+async function fetchTargetTabs(cdpPort: number) {
+  const targets = await fetchCdpTargets(cdpPort);
+  return targets.filter(isTargetTab);
 }
 
 async function reloadTargetTabsOverCdp(cdpPort: number) {
-  const tabs = (await fetchCdpTargets(cdpPort)).filter(
-    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
-  );
+  const tabs = await fetchTargetTabs(cdpPort);
   await Promise.all(
     tabs.map(({ webSocketDebuggerUrl }) =>
       evaluateOverCdp({
-        websocketUrl: webSocketDebuggerUrl!,
+        websocketUrl: webSocketDebuggerUrl,
         expression: "location.reload()"
       })
     )
@@ -331,13 +343,11 @@ function sessionKeepaliveExpression() {
 }
 
 async function pollSessionKeepalive(cdpPort: number) {
-  const tabs = (await fetchCdpTargets(cdpPort)).filter(
-    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
-  );
+  const tabs = await fetchTargetTabs(cdpPort);
   const expression = sessionKeepaliveExpression();
   for (const { webSocketDebuggerUrl } of tabs) {
     const clicked = await evaluateOverCdp({
-      websocketUrl: webSocketDebuggerUrl!,
+      websocketUrl: webSocketDebuggerUrl,
       expression
     });
     if (clicked === true) {
@@ -416,7 +426,7 @@ function reloadFingerprint() {
 
 /** A build's identity, for the stamp: two bundles' content and nothing else. */
 function bundleFingerprint(sources: string[]) {
-  return createHash("sha1").update(sources.join("\n")).digest("hex").slice(0, 12);
+  return createHash("sha1").update(sources.join("\n")).digest("hex").slice(0, BUILD_ID_LENGTH);
 }
 
 /**
@@ -588,13 +598,11 @@ async function reinjectContentScriptsOverCdp(cdpPort: number) {
   const bundles = builtBundles();
   const buildId = bundleFingerprint(bundles.map(({ source }) => source));
   const extensionName = builtExtensionName();
-  const tabs = (await fetchCdpTargets(cdpPort)).filter(
-    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
-  );
+  const tabs = await fetchTargetTabs(cdpPort);
   await Promise.all(
     tabs.map(({ webSocketDebuggerUrl }) =>
       injectAndStamp({
-        websocketUrl: webSocketDebuggerUrl!,
+        websocketUrl: webSocketDebuggerUrl,
         bundles,
         extensionName,
         buildId
@@ -619,12 +627,10 @@ async function reconcileInjections(cdpPort: number) {
   const bundles = builtBundles();
   const buildId = bundleFingerprint(bundles.map(({ source }) => source));
   const extensionName = builtExtensionName();
-  const tabs = (await fetchCdpTargets(cdpPort)).filter(
-    ({ type, url, webSocketDebuggerUrl }) => type === "page" && isTargetTabUrl(url) && webSocketDebuggerUrl
-  );
+  const tabs = await fetchTargetTabs(cdpPort);
   for (const { webSocketDebuggerUrl } of tabs) {
     const stamp = await evaluateOverCdp({
-      websocketUrl: webSocketDebuggerUrl!,
+      websocketUrl: webSocketDebuggerUrl,
       expression: `window.${BUILD_STAMP_PROPERTY} ?? null`
     });
     // `null` is a tab that has never been stamped - Chrome's cached copy, which is what this exists to
@@ -637,7 +643,7 @@ async function reconcileInjections(cdpPort: number) {
     }
 
     await injectAndStamp({
-      websocketUrl: webSocketDebuggerUrl!,
+      websocketUrl: webSocketDebuggerUrl,
       bundles,
       extensionName,
       buildId
@@ -668,9 +674,9 @@ export interface BrowserTarget {
 }
 
 function suppressWebExtInfoLogs() {
-  const WARN_LOG_LEVEL = 40;
+  const warnLogLevel = 40;
   webExtConsoleStream.write = ({ level, msg: message }) => {
-    if (level >= WARN_LOG_LEVEL) {
+    if (level >= warnLogLevel) {
       console.warn(message);
     }
   };
@@ -772,7 +778,7 @@ export async function runDevServer(target: BrowserTarget) {
 
     isExiting = true;
     logEvent("Shutting down - closing watcher and browser");
-    setTimeout(() => process.exit(0), 3000).unref();
+    setTimeout(() => process.exit(0), EXIT_GRACE_MS).unref();
     await watcher.close().catch(() => {});
     await runner.exit().catch(() => {});
     process.exit(0);

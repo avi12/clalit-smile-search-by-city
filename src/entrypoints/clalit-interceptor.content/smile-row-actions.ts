@@ -117,7 +117,7 @@ export function createRowActions({
       session.trackEnvelopeStatus({
         json: first,
         specialization
-      }) !== SMILE_ENVELOPE_STATUS.success
+      }) !== SMILE_ENVELOPE_STATUS.SUCCESS
     ) {
       return null;
     }

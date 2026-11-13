@@ -1,5 +1,54 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": ["./node_modules/oxlint-config-avi12/wxt.json", "./node_modules/oxlint-plugin-naming/preset.json"],
-  "ignorePatterns": ["node_modules/**", ".output/**", ".wxt/**", "user-profiles/**", ".dev-logs/**", "docs/**"]
+  "extends": [
+    "./node_modules/oxlint-config-avi12/wxt.json",
+    "./node_modules/oxlint-plugin-naming/preset.json"
+  ],
+  "ignorePatterns": [
+    "node_modules/**",
+    ".output/**",
+    ".wxt/**",
+    "user-profiles/**",
+    ".dev-logs/**",
+    "docs/**"
+  ],
+  "rules": {
+    "id-length": [
+      "error",
+      {
+        "min": 3,
+        "exceptions": [
+          "_",
+          "i",
+          "j",
+          "x",
+          "y",
+          "id",
+          "to",
+          "on",
+          "ok",
+          "T",
+          "z",
+          "m"
+        ],
+        "properties": "never"
+      }
+    ],
+    "naming/convention": [
+      "error",
+      {
+        "presets": [
+          "webextension-manifest"
+        ],
+        "allowedNames": [
+          {
+            "reason": "Chrome profile preference key written to Preferences as Chrome spells it",
+            "names": [
+              "developer_mode"
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

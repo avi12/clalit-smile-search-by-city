@@ -95,7 +95,7 @@ export default defineContentScript({
      */
     const configListeners = new Set<() => void>();
 
-    onPageMessage(PageMsg.Config, ({ data }) => {
+    onPageMessage(PageMsg.CONFIG, ({ data }) => {
       const parsed = searchConfigSchema.safeParse(data);
       if (!parsed.success) {
         return;
@@ -109,7 +109,7 @@ export default defineContentScript({
     });
 
     function reportStatus({ city, resultsCount, inCityCount }: GuaranteeStatus) {
-      sendPageMessage(PageMsg.Status, {
+      sendPageMessage(PageMsg.STATUS, {
         city,
         resultsCount,
         inCityCount
@@ -206,13 +206,13 @@ export default defineContentScript({
     ctx.addEventListener(
       document,
       "click",
-      e => {
-        const isModified = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
-        if (!session.state.isEnabled || e.defaultPrevented || isModified) {
+      event => {
+        const isModified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+        if (!session.state.isEnabled || event.defaultPrevented || isModified) {
           return;
         }
 
-        const { target } = e;
+        const { target } = event;
         if (!(target instanceof Element)) {
           return;
         }
@@ -222,8 +222,8 @@ export default defineContentScript({
           // The site's delegated handler binds by class/id, NOT by data-action-link - left alone it reads
           // the stripped attribute as undefined and navigates the iframe to /Zimunet/undefined (observed
           // live). Capture-phase + stopPropagation keeps the click ours alone.
-          e.preventDefault();
-          e.stopPropagation();
+          event.preventDefault();
+          event.stopPropagation();
           rowActions.openDiaries(elMintButton.getAttribute(MINT_CODE_ATTR) ?? "").catch(() => {});
           return;
         }
@@ -234,7 +234,7 @@ export default defineContentScript({
         }
 
         const fallbackHref = elAnchor.getAttribute("href") ?? "";
-        e.preventDefault();
+        event.preventDefault();
         rowActions
           .openDetails({
             code: elAnchor.getAttribute(DETAILS_CODE_ATTR) ?? "",
@@ -403,10 +403,13 @@ export default defineContentScript({
         return untouched;
       }
 
-      const result: UrlTransformResult = applyGuarantee(json, {
-        city,
-        guaranteeMode: GUARANTEE_MODE,
-        rule
+      const result: UrlTransformResult = applyGuarantee({
+        json,
+        input: {
+          city,
+          guaranteeMode: GUARANTEE_MODE,
+          rule
+        }
       });
       if (result.isTransformed) {
         reportStatus({
@@ -492,13 +495,13 @@ export default defineContentScript({
     // Patch by redefining responseText/response as own-getters on each instance in open(), so the page
     // reads OUR (possibly transformed) body no matter the order of its own handlers. send() is patched
     // too: it rewrites the Smile search body (area → all country) and hooks aggregation onto load.
-    const XHR = XMLHttpRequest.prototype;
+    const xhrPrototype = XMLHttpRequest.prototype;
     // Widened to a rest-args signature (open's first overload satisfies it) so the patch below can
     // forward the page's EXACT argument list - open(m, u) and open(m, u, undefined) differ natively.
-    const nativeOpen: (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) => void = XHR.open;
-    const nativeSend = XHR.send;
-    const nativeText = Object.getOwnPropertyDescriptor(XHR, "responseText");
-    const nativeResponse = Object.getOwnPropertyDescriptor(XHR, "response");
+    const nativeOpen: (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) => void = xhrPrototype.open;
+    const nativeSend = xhrPrototype.send;
+    const nativeText = Object.getOwnPropertyDescriptor(xhrPrototype, "responseText");
+    const nativeResponse = Object.getOwnPropertyDescriptor(xhrPrototype, "response");
 
     interface XhrState {
       method: string;
@@ -517,7 +520,7 @@ export default defineContentScript({
     }
 
     function computeXhr({ xhr, state }: XhrContext) {
-      if (state.computed || xhr.readyState !== 4) {
+      if (state.computed || xhr.readyState !== XMLHttpRequest.DONE) {
         return state.computed;
       }
 
@@ -579,7 +582,7 @@ export default defineContentScript({
       return state.computed;
     }
 
-    XHR.open = function patchedOpen(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+    xhrPrototype.open = function patchedOpen(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
       if (ctx.signal.aborted) {
         return nativeOpen.call(this, method, url, ...rest);
       }
@@ -590,10 +593,10 @@ export default defineContentScript({
       // from our filtered fragments; this covers renders that predate the guarantee.
       if (session.isActive() && session.city() && targetUrl.includes(SMILE_SORT_PATH)) {
         targetUrl = targetUrl.replace(
-          `sortValue=${SMILE_SORT_VALUES.cityDistance}`,
-          `sortValue=${SMILE_SORT_VALUES.homeDistance}`
+          `sortValue=${SMILE_SORT_VALUES.CITY_DISTANCE}`,
+          `sortValue=${SMILE_SORT_VALUES.HOME_DISTANCE}`
         );
-        session.state.activeSort = targetUrl.includes(`sortValue=${SMILE_SORT_VALUES.homeDistance}`)
+        session.state.activeSort = targetUrl.includes(`sortValue=${SMILE_SORT_VALUES.HOME_DISTANCE}`)
           ? "home"
           : "soonest";
         session.state.isSortDescending = targetUrl.includes("sortDirection=2");
@@ -628,7 +631,7 @@ export default defineContentScript({
             xhr: this,
             state
           });
-          return computed && this.readyState === 4 ? computed.text : String(nativeText?.get?.call(this) ?? "");
+          return computed && this.readyState === XMLHttpRequest.DONE ? computed.text : String(nativeText?.get?.call(this) ?? "");
         }
       });
 
@@ -643,7 +646,7 @@ export default defineContentScript({
             xhr: this,
             state
           });
-          if (!computed || this.readyState !== 4) {
+          if (!computed || this.readyState !== XMLHttpRequest.DONE) {
             return nativeResponse?.get?.call(this);
           }
 
@@ -652,7 +655,7 @@ export default defineContentScript({
       });
     }
 
-    XHR.send = function patchedSend(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+    xhrPrototype.send = function patchedSend(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
       if (ctx.signal.aborted) {
         return nativeSend.call(this, body);
       }
@@ -722,8 +725,8 @@ export default defineContentScript({
      */
     ctx.onInvalidated(() => {
       window.fetch = nativeFetch;
-      XHR.open = nativeOpen;
-      XHR.send = nativeSend;
+      xhrPrototype.open = nativeOpen;
+      xhrPrototype.send = nativeSend;
     });
   }
 });

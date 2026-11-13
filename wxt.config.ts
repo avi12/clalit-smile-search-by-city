@@ -2,6 +2,8 @@ import { defineConfig } from "wxt";
 
 import { HOST_PERMISSIONS } from "./src/lib/targets";
 
+const CHUNK_SIZE_WARNING_LIMIT_KB = 4000;
+
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: "src",
@@ -58,7 +60,7 @@ export default defineConfig({
     build: {
       // Inline source maps only in dev.ts sideload builds; a store `wxt build` ships none.
       sourcemap: process.env.WXT_INLINE_SOURCEMAPS === "1" ? "inline" : false,
-      chunkSizeWarningLimit: 4000
+      chunkSizeWarningLimit: CHUNK_SIZE_WARNING_LIMIT_KB
     }
   })
 });

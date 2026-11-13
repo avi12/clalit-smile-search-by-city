@@ -43,7 +43,7 @@ console.log(`  ${crxPath}`);
 function buildAndZip() {
   runPnpm(["ext:build"]);
   runPnpm(["ext:zip"]);
-  assertArtifact(zipPath, "Chrome zip");
+  assertArtifact({ path: zipPath, label: "Chrome zip" });
 }
 
 /**
@@ -86,9 +86,9 @@ function packCrx() {
   }
 
   const packedCrxPath = `${CHROME_BUILD_DIR}.crx`;
-  assertArtifact(packedCrxPath, "packed Chrome CRX");
+  assertArtifact({ path: packedCrxPath, label: "packed Chrome CRX" });
   copyFileSync(packedCrxPath, crxPath);
-  assertArtifact(crxPath, "Chrome CRX");
+  assertArtifact({ path: crxPath, label: "Chrome CRX" });
 }
 
 function findChromeBinary() {
@@ -124,7 +124,7 @@ function runPnpm(args: string[]) {
   }
 }
 
-function assertArtifact(path: string, label: string) {
+function assertArtifact({ path, label }: { path: string; label: string }) {
   if (!existsSync(path)) {
     fail(`${label} not found at ${basename(path)}`);
   }

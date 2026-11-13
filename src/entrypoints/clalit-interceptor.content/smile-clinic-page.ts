@@ -84,7 +84,7 @@ export function isAvailabilityUrl(url: string) {
 export function emptyAvailabilityEnvelope() {
   return {
     data: EMPTY_MONTH_HTML,
-    errorType: SMILE_ENVELOPE_STATUS.information,
+    errorType: SMILE_ENVELOPE_STATUS.INFORMATION,
     message: null
   };
 }

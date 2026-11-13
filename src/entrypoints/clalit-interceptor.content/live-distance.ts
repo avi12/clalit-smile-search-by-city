@@ -82,7 +82,7 @@ export function createLiveDistanceSort(isActive: () => boolean) {
       if (coords) {
         setRowDistanceLabel({
           elRow,
-          km: haversineKm({
+          kilometers: haversineKm({
             from: position,
             to: coords
           })
@@ -131,7 +131,7 @@ export function createLiveDistanceSort(isActive: () => boolean) {
       if (Number.isFinite(km)) {
         setRowDistanceLabel({
           elRow,
-          km
+          kilometers: km
         });
       }
     }

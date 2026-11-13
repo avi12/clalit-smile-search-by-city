@@ -37,17 +37,17 @@ export const PAGE_NAMESPACE = "clalit-city-ext/v1";
 
 export enum PageMsg {
   /** bridge → MAIN: the current search config to apply. */
-  Config = "config",
+  CONFIG = "config",
   /** MAIN → bridge: the outcome of the last guarantee. */
-  Status = "status",
+  STATUS = "status",
   /** MAIN → bridge: where the user is, or null when there is no fix to be had. */
-  Position = "position"
+  POSITION = "position"
 }
 
 export interface PageProtocol {
-  [PageMsg.Config]: (config: SearchConfig) => void;
-  [PageMsg.Status]: (status: GuaranteeStatus) => void;
-  [PageMsg.Position]: () => LatLng | null;
+  [PageMsg.CONFIG]: (config: SearchConfig) => void;
+  [PageMsg.STATUS]: (status: GuaranteeStatus) => void;
+  [PageMsg.POSITION]: () => LatLng | null;
 }
 
 /** What a frame tells the other frames of its tab about its own search, to drive the single badge. */
@@ -65,30 +65,30 @@ export enum FrameMsg {
    * the frame holding the search box → the top frame: its city and last outcome. The booking UI lives
    * in an iframe, so every frame runs its own bridge while only the top one renders the badge.
    */
-  State = "frame-state",
+  STATE = "frame-state",
   /** the top frame → every other frame: the session toggle, so the whole tab agrees on it. */
-  Toggle = "toggle",
+  TOGGLE = "toggle",
   /** any frame on init → the top frame: "I just joined - broadcast the toggle". */
-  Hello = "hello"
+  HELLO = "hello"
 }
 
 export interface FrameProtocol {
-  [FrameMsg.State]: FrameState;
-  [FrameMsg.Toggle]: boolean;
-  [FrameMsg.Hello]: undefined;
+  [FrameMsg.STATE]: FrameState;
+  [FrameMsg.TOGGLE]: boolean;
+  [FrameMsg.HELLO]: undefined;
 }
 
 export enum RuntimeMsg {
   /** bridge → background: the user's position, read in the extension's own context. */
-  Position = "position",
+  POSITION = "position",
   /** offscreen document → background: the fix it was opened to take (null = none to be had). */
-  ReportPosition = "report-position",
+  REPORT_POSITION = "report-position",
   /** bridge → background: which tab this frame is in - the scope of its frame channel. */
-  TabId = "tab-id"
+  TAB_ID = "tab-id"
 }
 
 export interface RuntimeProtocol {
-  [RuntimeMsg.Position]: () => LatLng | null;
-  [RuntimeMsg.ReportPosition]: (position: LatLng | null) => void;
-  [RuntimeMsg.TabId]: () => number | null;
+  [RuntimeMsg.POSITION]: () => LatLng | null;
+  [RuntimeMsg.REPORT_POSITION]: (position: LatLng | null) => void;
+  [RuntimeMsg.TAB_ID]: () => number | null;
 }

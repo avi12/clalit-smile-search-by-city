@@ -15,6 +15,8 @@ import type { GuaranteeStatus } from "@/lib/messaging";
 
 import StatusBadge from "./StatusBadge.svelte";
 
+const MAX_Z_INDEX = 2_147_483_647;
+
 export interface BadgeState {
   isEnabled: boolean;
   city: string;
@@ -29,13 +31,19 @@ interface StatusBadgeHandle {
 
 const HOST_TAG = "clalit-city-badge";
 
-export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void): StatusBadgeHandle {
+export function mountStatusBadge({
+  ctx,
+  onToggle
+}: {
+  ctx: ContentScriptContext;
+  onToggle: () => void;
+}): StatusBadgeHandle {
   const state = $state<BadgeState>({
     isEnabled: true,
     city: "",
     status: null
   });
-  let ui: Awaited<ReturnType<typeof createUi>> | null = null;
+  let badgeUi: Awaited<ReturnType<typeof createUi>> | null = null;
   let isDestroyed = false;
 
   function createUi() {
@@ -43,7 +51,7 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
       name: HOST_TAG,
       position: "overlay",
       alignment: "bottom-left",
-      zIndex: 2147483647,
+      zIndex: MAX_Z_INDEX,
       anchor: "body",
       onMount(elContainer, _shadow, elShadowHost) {
         // WXT's overlay positioning is anchor-relative; the badge floats over the viewport instead.
@@ -77,7 +85,7 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
       elStale.remove(); // a leftover host from a superseded dev generation
     }
 
-    ui = created;
+    badgeUi = created;
     created.autoMount();
   }
 
@@ -93,7 +101,7 @@ export function mountStatusBadge(ctx: ContentScriptContext, onToggle: () => void
     },
     destroy() {
       isDestroyed = true;
-      ui?.remove();
+      badgeUi?.remove();
     }
   };
 }

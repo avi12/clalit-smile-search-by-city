@@ -115,11 +115,11 @@ export function createSmileSession(nativeFetch: typeof fetch) {
   /** Read a search envelope's status, remembering an empty service and a lost session. */
   function trackEnvelopeStatus({ json, specialization }: { json: unknown; specialization?: string }) {
     const status = envelopeStatus(json);
-    if (status === SMILE_ENVELOPE_STATUS.authorization) {
+    if (status === SMILE_ENVELOPE_STATUS.AUTHORIZATION) {
       state.isSessionLost = true;
     }
 
-    if (status === SMILE_ENVELOPE_STATUS.application && specialization) {
+    if (status === SMILE_ENVELOPE_STATUS.APPLICATION && specialization) {
       emptySpecializations.add(specialization);
     }
 
@@ -181,7 +181,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
       trackEnvelopeStatus({
         json: first,
         specialization
-      }) !== SMILE_ENVELOPE_STATUS.success
+      }) !== SMILE_ENVELOPE_STATUS.SUCCESS
     ) {
       return found;
     }
@@ -231,7 +231,7 @@ export function createSmileSession(nativeFetch: typeof fetch) {
    */
   async function restoreUserSearch() {
     const first = await search(state.activeSearchSpecialization);
-    if (trackEnvelopeStatus({ json: first }) !== SMILE_ENVELOPE_STATUS.success) {
+    if (trackEnvelopeStatus({ json: first }) !== SMILE_ENVELOPE_STATUS.SUCCESS) {
       return;
     }
 

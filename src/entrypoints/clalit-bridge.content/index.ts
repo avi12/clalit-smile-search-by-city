@@ -49,17 +49,17 @@ export default defineContentScript({
         return;
       }
 
-      frames?.post(FrameMsg.State, {
+      frames?.post(FrameMsg.STATE, {
         city,
         status: lastStatus
       });
     }
 
     const badge = isTopFrame
-      ? mountStatusBadge(ctx, () => {
-          setEnabled(!isEnabled);
-          broadcastToggle();
-        })
+      ? mountStatusBadge({ ctx, onToggle: () => {
+                      setEnabled(!isEnabled);
+                      broadcastToggle();
+                    } })
       : null;
 
     function setEnabled(isNextEnabled: boolean) {
@@ -70,7 +70,7 @@ export default defineContentScript({
 
     /** Top → every other frame of the tab, in one message and with no frame tree to walk. */
     function broadcastToggle() {
-      frames?.post(FrameMsg.Toggle, isEnabled);
+      frames?.post(FrameMsg.TOGGLE, isEnabled);
     }
 
     function refreshBadge() {
@@ -86,10 +86,10 @@ export default defineContentScript({
         isEnabled,
         city
       };
-      sendPageMessage(PageMsg.Config, config).catch(() => {});
+      sendPageMessage(PageMsg.CONFIG, config).catch(() => {});
     }
 
-    onPageMessage(PageMsg.Status, ({ data }) => {
+    onPageMessage(PageMsg.STATUS, ({ data }) => {
       const parsed = guaranteeStatusSchema.safeParse(data);
       if (!parsed.success) {
         return;
@@ -104,7 +104,7 @@ export default defineContentScript({
      * The MAIN world cannot read a position (no browser.*) and must not depend on what the SITE was
      * granted, so it asks here and the background reads it in the extension's own offscreen document.
      */
-    onPageMessage(PageMsg.Position, () => sendRuntimeMessage(RuntimeMsg.Position, undefined).catch(() => null));
+    onPageMessage(PageMsg.POSITION, () => sendRuntimeMessage(RuntimeMsg.POSITION, undefined).catch(() => null));
 
     // ── The tab's frame channel ────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ export default defineContentScript({
      * own search, and only the badge's caption goes without.
      */
     async function openFrames() {
-      const tabId = await sendRuntimeMessage(RuntimeMsg.TabId, undefined).catch(() => null);
+      const tabId = await sendRuntimeMessage(RuntimeMsg.TAB_ID, undefined).catch(() => null);
       if (tabId === null) {
         return;
       }
@@ -130,7 +130,7 @@ export default defineContentScript({
       frames = channel;
       ctx.onInvalidated(() => channel.close());
 
-      channel.on(FrameMsg.State, data => {
+      channel.on(FrameMsg.STATE, data => {
         const parsed = frameStateSchema.safeParse(data);
         if (!isTopFrame || !parsed.success) {
           return;
@@ -143,13 +143,13 @@ export default defineContentScript({
 
       // A frame that just joined asks for the toggle; the answer goes to the whole tab, because a
       // broadcast has no one to answer.
-      channel.on(FrameMsg.Hello, () => {
+      channel.on(FrameMsg.HELLO, () => {
         if (isTopFrame) {
           broadcastToggle();
         }
       });
 
-      channel.on(FrameMsg.Toggle, data => {
+      channel.on(FrameMsg.TOGGLE, data => {
         if (isTopFrame || typeof data !== "boolean") {
           return;
         }
@@ -176,7 +176,7 @@ export default defineContentScript({
         return;
       }
 
-      frames?.post(FrameMsg.Hello, undefined);
+      frames?.post(FrameMsg.HELLO, undefined);
       broadcastState();
     }
 

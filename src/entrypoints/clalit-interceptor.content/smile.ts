@@ -13,12 +13,16 @@ import type { SmileBranch } from "./clinic-directory";
 import { renderPhoneLinks } from "./phone-links";
 import { smileEnvelopeSchema, smileEnvelopeStatusSchema } from "./schemas";
 
+const MS_PER_MINUTE = 60_000;
+const ISO_TIME_START = 11;
+const ISO_TIME_END = 16;
+
 /** The envelope's `errorType` values, from the site's own `z.ErrorType` (docs 12a). */
 export const SMILE_ENVELOPE_STATUS = {
-  success: 0,
-  information: 1,
-  authorization: 2,
-  application: 3
+  SUCCESS: 0,
+  INFORMATION: 1,
+  AUTHORIZATION: 2,
+  APPLICATION: 3
 } as const;
 
 /** The status of a /Zimunet/SmileClinic/* envelope, or null when it carries none. */
@@ -83,8 +87,8 @@ export function rowNavCode(elRow: Element) {
 const LIVE_DISTANCE_SORT_LABEL = "מרחק ממיקומך";
 
 /** Rewrite a live row's server-computed "מרחק מהבית שלך" line with the live-location distance. */
-export function setRowDistanceLabel({ elRow, km }: { elRow: Element; km: number }) {
-  const text = `${LIVE_DISTANCE_SORT_LABEL}: ${km.toFixed(2)} ק"מ`;
+export function setRowDistanceLabel({ elRow, kilometers }: { elRow: Element; kilometers: number }) {
+  const text = `${LIVE_DISTANCE_SORT_LABEL}: ${kilometers.toFixed(2)} ק"מ`;
   const elLabel = [...elRow.querySelectorAll(".clinicDetails")].find(elDetail =>
     elDetail.textContent?.includes("מרחק")
   );
@@ -410,7 +414,7 @@ export function applyBranchToRow({
   if (distanceKm !== null) {
     setRowDistanceLabel({
       elRow,
-      km: distanceKm
+      kilometers: distanceKm
     });
   }
 
@@ -494,7 +498,7 @@ const RECEPTION_DAY_LETTERS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
  * the ISO string's time part is the whole answer.
  */
 function formatMinutes(total: number) {
-  return new Date(total * 60_000).toISOString().slice(11, 16);
+  return new Date(total * MS_PER_MINUTE).toISOString().slice(ISO_TIME_START, ISO_TIME_END);
 }
 
 /** Rewrite a `<span class="title">label</span> value` line's value, keeping the label span. */
@@ -681,7 +685,7 @@ export function applyBranchToDetailsFragment({ template, branch }: { template: s
 /** Replace an element's text while keeping child elements (the sort links carry an icon <i>). */
 function replaceTextNode({ elTarget, text }: { elTarget: Element; text: string }) {
   for (const node of elTarget.childNodes) {
-    if (node.nodeType === 3 && node.textContent?.trim()) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
       node.textContent = text;
       return;
     }

@@ -34,7 +34,7 @@ function currentPosition() {
 // The background has nothing else to wait on, so this document answers even when it has nothing.
 async function report() {
   const position = await currentPosition();
-  await sendRuntimeMessage(RuntimeMsg.ReportPosition, position);
+  await sendRuntimeMessage(RuntimeMsg.REPORT_POSITION, position);
 }
 
 report().catch(() => {});

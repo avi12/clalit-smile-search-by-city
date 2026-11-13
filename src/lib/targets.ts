@@ -133,9 +133,9 @@ export const SMILE_SPECIALIZATION_SELECT_SELECTOR = "select#SelectedSpecializati
  * the session's `activeSort` records so a re-rank knows whether it is allowed to reorder.
  */
 export const SMILE_SORT_VALUES = {
-  cityDistance: "4",
-  soonest: "2",
-  homeDistance: "3"
+  CITY_DISTANCE: "4",
+  SOONEST: "2",
+  HOME_DISTANCE: "3"
 } as const;
 
 /** The clinic-details lightbox - the site's own ClinicDetailsByVisit view and our composed one share it. */
